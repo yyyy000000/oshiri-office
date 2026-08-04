@@ -183,6 +183,28 @@
   }
   .end-clicks span { white-space: nowrap; }
   .end-clicks span b { color: #ffd76e; font-weight: bold; }
+  /* ヘルプボタン(ゲーム中いつでも操作説明を見られる) */
+  #help-btn {
+    position: fixed; right: 16px; bottom: 16px; z-index: 9;
+    width: 44px; height: 44px; border-radius: 50%; border: none;
+    background: rgba(255,255,255,.16); color: #fff; font-size: 22px; font-weight: bold;
+    font-family: inherit; cursor: pointer; text-shadow: 0 1px 3px #000;
+    border: 1px solid rgba(255,255,255,.3);
+  }
+  #help-overlay {
+    position: fixed; inset: 0; z-index: 25; display: none;
+    align-items: center; justify-content: center; padding: 20px;
+    background: rgba(8,6,14,.82); cursor: pointer;
+  }
+  #help-overlay.show { display: flex; }
+  #help-card {
+    background: rgba(40,30,60,.95); border: 1px solid rgba(255,255,255,.2);
+    border-radius: 16px; padding: 22px 26px; max-width: 440px;
+    color: #fff; font-size: 13px; line-height: 2.1;
+  }
+  #help-card h3 { font-size: 16px; margin-bottom: 8px; letter-spacing: 2px; color: #ffd76e; }
+  #help-card .close-note { margin-top: 10px; font-size: 11px; opacity: .6; text-align: center; }
+
   #restart-btn {
     border: none; border-radius: 24px; padding: 12px 30px; font-size: 15px; font-weight: bold;
     font-family: inherit; cursor: pointer; color: #fff;
@@ -225,12 +247,23 @@
     <div id="equip-line">🖐 <span id="equip-name">素手</span>(+<span id="equip-pts">10</span>pt)</div>
   </div>
   <div id="toast-area"></div>
+  <button id="help-btn" title="あそびかた">?</button>
+  <div id="help-overlay">
+    <div id="help-card">
+      <h3>あそびかた</h3>
+      <b>PC:</b> W・S 前後 / A・D 左右 / ←→ 回転 / ↑↓ 視線の上下 / Shift か クリックで叩く<br>
+      <b>スマホ:</b> 左スティックで移動・回転 / スワイプで視線 / タップで叩く<br>
+      対象には<b>近づかないと</b>叩けません。照準が赤くなったらチャンス!<br>
+      おじさんのお尻を叩いてポイントを貯めよう。部屋のいろんな場所も探ってみて。
+      <div class="close-note">画面のどこかをタップで閉じる</div>
+    </div>
+  </div>
   <div id="bubble"></div>
   <div id="hoshi-bubble"></div>
   <div id="stage-flash"></div>
   <div id="controls">
     <div id="chat-row">
-      <input id="chat-input" type="text" placeholder="おじさんに話しかける…" maxlength="60">
+      <input id="chat-input" type="text" placeholder="おじさんに質問してみよう" maxlength="60">
       <button id="chat-send">送信</button>
     </div>
     <div id="hint">叩けば叩くほど、何かが起こる…</div>

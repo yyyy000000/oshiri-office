@@ -7,7 +7,7 @@ import { SLAP_ITEMS, COSTUMES, createItemManager } from "./items.js";
 import { createSlapper } from "./slapper.js";
 import { createFPSControls } from "./fpscontrols.js";
 import { createAnimal } from "./animal.js";
-import { createHoshi } from "./hoshi.js";
+import { createHoshi, HOSHI_LINES } from "./hoshi.js";
 import { maybeSlapVoice, screamVoice } from "./voices.js";
 import { getReply, getSlapLine, getStageLine, getEndingLine } from "./dialog.js";
 
@@ -536,44 +536,49 @@ function onObjectClick(clickId) {
 checkClickUnlocks(false); // 保存済みクリック数ぶんを起動時に復元
 
 // ---------- マスコット「星」(デスクの上・隠し要素つき) ----------
-// クリック数は clicks.hoshi として oshiri_clicks に永続化
-const HOSHI_LINES = [
-  "That's me!",
-  "That's me! ……それしか言わねーよ。f**kin' 文句あるか?",
-  "F**k yeah! That's me!",
-  "はぁ?気安く触んなよ……なんてな。That's me!",
-  "オレ様が『星』だ。ひれ伏せ、f**ker!",
-  "かわいいって言え。今すぐ言え。",
-  "What the f**k do you want?",
-  "……チッ。しゃーねーな。That's me!",
-  "いいからおっさんの尻叩いてろよ!",
-  "スパンキング見てるだけで最高だぜ、f**k yeah!",
-  "おっさんより先にオレをかわいがれ。当然だろ?",
-  "ヒマなのか?……オレもだよ。That's me!",
+// クリック数は clicks.hoshi として oshiri_clicks に永続化。セリフ本体はhoshi.jsのHOSHI_LINES
+// ヒント: 対象別の専用の言い回し(必要回数は教えない)
+const HINT_LINES = {
+  trash: "そこのゴミ箱、もっと叩いてみろよ。なんか出るかもな。",
+  boxes: "あの段ボールの山、気にならねえか?オレは気になるね。",
+  locker: "ロッカーってのは、しつこく開けたがるやつに応えるもんだぜ。",
+  fridge: "あの冷蔵庫、何入ってんだろうな?なあ?",
+  muscle: "あのマッチョ警備員、しつこくつついたら面白そうだと思わねえ?",
+  musicposter: "あのポスターのやつの曲、聴きたくなってきただろ?",
+  records: "レコードの山ってのは、掘るためにあるんだぜ。",
+  pet100: "あのクマ、もっとかわいがってやれよ。妬いてねーし。",
+  pet1000: "クマを撫で続けたやつだけが見られる景色があるらしいぜ。",
+  hoshi500: "オレ様をもっとクリックしろよ。いいことあるぜ、たぶんな。",
+  hoshi1000: "オレ様を愛し続けたやつには…ご褒美だ。F**k yeah!",
+};
+// おじさんへの質問ネタ振り(会話のヒント)
+const QUESTION_TOPICS = ["宇宙", "ロケット", "ダジャレ", "尻", "名前", "若い頃", "カラオケ", "パチンコ", "星"];
+const QUESTION_HINT_TEMPLATES = [
+  (t) => `おっさんに「${t}」について質問してみ?たぶん面白いぜ。`,
+  (t) => `ヒマなら、おっさんに「${t}」の話でも聞いてやれよ。`,
+  (t) => `おっさんな、「${t}」って言われると喋りだすぜ。試してみな。`,
 ];
-// ヒントは段階式: 1回目は対象だけぼかして教え、同じ対象が2回目に出たら回数まで教える
-const hintStage = {};
 function lockedHintPool() {
   const pool = [];
   for (const [cid, cfg] of Object.entries(CLICK_UNLOCKS)) {
     const key = (cfg.kind === "item" ? "item:" : cfg.kind === "costume" ? "cos:" : "bgm:") + cfg.id;
-    if (!dropped.has(key)) pool.push({ hk: cid, label: `${CLICK_NAMES[cid]}のクリック`, count: cfg.count });
+    if (!dropped.has(key)) pool.push(HINT_LINES[cid]);
   }
-  if (!dropped.has("cos:bear")) pool.push({ hk: "pet100", label: "クマ君のなでなで", count: 100 });
-  if (!dropped.has("cos:gold")) pool.push({ hk: "pet1000", label: "クマ君のなでなで", count: 1000 });
-  if (!dropped.has("item:starrod")) pool.push({ hk: "hoshi500", label: "オレ様のクリック", count: 500 });
-  if (!dropped.has("cos:hoshi")) pool.push({ hk: "hoshi1000", label: "オレ様のクリック", count: 1000 });
+  if (!dropped.has("cos:bear")) pool.push(HINT_LINES.pet100);
+  else if (!dropped.has("cos:gold")) pool.push(HINT_LINES.pet1000);
+  if (!dropped.has("item:starrod")) pool.push(HINT_LINES.hoshi500);
+  else if (!dropped.has("cos:hoshi")) pool.push(HINT_LINES.hoshi1000);
   return pool;
 }
 function hoshiLineOnClick() {
-  const pool = lockedHintPool();
-  if (pool.length > 0 && Math.random() < 0.25) {
-    const h = pool[Math.floor(Math.random() * pool.length)];
-    if (!hintStage[h.hk]) {
-      hintStage[h.hk] = 1;
-      return `ヒントやるよ、感謝しろ。……${h.label}、あやしいと思わねえ?`;
+  // ヒントは控えめ(10回に1回弱)。半々で隠し要素ヒント/おじさんへの質問ネタ振り
+  if (Math.random() < 0.09) {
+    const pool = lockedHintPool();
+    if (pool.length > 0 && Math.random() < 0.5) {
+      return pool[Math.floor(Math.random() * pool.length)];
     }
-    return `${h.label}な、合計${h.count}回だ。オレ様やさし〜。That's me!`;
+    const t = QUESTION_TOPICS[Math.floor(Math.random() * QUESTION_TOPICS.length)];
+    return QUESTION_HINT_TEMPLATES[Math.floor(Math.random() * QUESTION_HINT_TEMPLATES.length)](t);
   }
   return HOSHI_LINES[Math.floor(Math.random() * HOSHI_LINES.length)];
 }
@@ -697,7 +702,7 @@ function handleGameClick(cssX, cssY) {
   ojisan.slap();
   playItemSound(equipped.sound);
   const voiceLine = maybeSlapVoice(ojisan.getCostume(), points / TOTAL_POINTS);
-  if (voiceLine) say(voiceLine, 1800);
+  if (voiceLine) say(voiceLine, 5000);
   applyProgress();
   checkUnlocks(true);
 
@@ -730,6 +735,7 @@ renderer.domElement.addEventListener("pointerup", (e) => {
 window.addEventListener("keydown", (e) => {
   if (e.key !== "Shift" || e.repeat) return;
   if (gameMode !== "fps") return;
+  if (helpOverlay.classList.contains("show")) return;
   const el = document.activeElement;
   if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
   handleGameClick(innerWidth / 2, innerHeight / 2);
@@ -774,6 +780,11 @@ function updateEnding(dt) {
   const wantPos = new THREE.Vector3(2.0, y + 1.8, -2.4);
   camera.position.lerp(wantPos, 0.04);
   camera.lookAt(controls.target);
+  // 星も一緒に飛んでいく(少し遅れてついてきて、くるくる回る)
+  if (y > 2.5) {
+    hoshi.group.position.y = 0.745 + (y - 2.5);
+    hoshi.group.rotation.y += dt * 4;
+  }
   const spaceMix = Math.min(y / 45, 1);
   scene.background.lerpColors(new THREE.Color(0x2a2a35), new THREE.Color(0x000005), spaceMix);
   if (scene.fog) scene.fog.far = 16 + spaceMix * 200;
@@ -816,7 +827,7 @@ function updateEnding(dt) {
       `<div class="end-section-title">👆 クリック探索のきろく</div>` +
       `<div class="end-clicks">${clickRows}</div>`;
     // 結果画面の下からゲーム中UIが透けないよう隠す
-    for (const id of ["controls", "slap-counter", "toast-area", "bubble", "hoshi-bubble", "title-bar"]) {
+    for (const id of ["controls", "slap-counter", "toast-area", "bubble", "hoshi-bubble", "title-bar", "help-btn"]) {
       const el = document.getElementById(id);
       if (el) el.style.display = "none";
     }
@@ -852,6 +863,14 @@ function beginGame(mode) {
   }
   say("おお、いらっしゃい。散らかっとるが、まあゆっくりしていきなさい。", 4500);
 }
+// ヘルプ(操作説明のオーバーレイ)
+const helpOverlay = document.getElementById("help-overlay");
+document.getElementById("help-btn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  helpOverlay.classList.add("show");
+});
+helpOverlay.addEventListener("click", () => helpOverlay.classList.remove("show"));
+
 modeFpsBtn.addEventListener("click", () => beginGame("fps"));
 modeGodBtn.addEventListener("click", () => {
   if (godUnlocked) beginGame("god");
