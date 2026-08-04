@@ -1181,8 +1181,10 @@ export function createOjisan(scene) {
     }
     // brief stagger while standing: freeze locomotion for the first
     // half-second of the slap and stumble forward harder than the
-    // seated jolt
-    const staggering = stoodUp && slapActive && slapElapsed < 0.5;
+    // seated jolt.
+    // 40,000pt(p=0.08)以降は連打で足止めできると簡単すぎるため、よろけ凍結を無効化
+    // (叩かれジョルトの見た目は残る)
+    const staggering = stoodUp && slapActive && slapElapsed < 0.5 && progress < 0.08;
 
     // ---- breathing ----
     const breathe = Math.sin(t * 1.6) * 0.02;
