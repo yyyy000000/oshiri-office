@@ -90,11 +90,7 @@ export function createOffice(scene) {
   mouse.position.set(0.3, 0.73, 0.95);
   scene.add(mouse);
 
-  // Coffee mug
-  const mugMat = new THREE.MeshStandardMaterial({ color: 0xaa6633 });
-  const mugBody = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.1, 16), mugMat);
-  mugBody.position.set(0.5, 0.8, 0.6);
-  scene.add(mugBody);
+  // (コーヒーマグは星のマスコットと位置が被るため削除)
 
   // Clutter registry: small chaotic objects that escalate/levitate with progress
   const clutterItems = [];
