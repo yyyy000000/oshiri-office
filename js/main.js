@@ -139,8 +139,8 @@ function sendChat() {
   say(getReply(text), 4200);
 }
 chatSend.addEventListener("click", sendChat);
+// Enter送信はしない(漢字変換の確定Enterで誤送信するため、送信は送信ボタンのみ)
 chatInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") sendChat();
   e.stopPropagation();
 });
 
