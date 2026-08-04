@@ -594,12 +594,12 @@ function penguinTopper() {
 function magicalTopper() {
   const t = new THREE.Group();
   const loopGeo = new THREE.SphereGeometry(0.03, 14, 10);
-  const loopL = mesh(loopGeo, 0xff4fa3, { emissive: 0xff4fa3 });
+  const loopL = mesh(loopGeo, 0x3db8e8, { emissive: 0x3db8e8 });
   loopL.scale.set(1, 0.6, 0.4);
   loopL.position.set(-0.028, 0, 0);
   loopL.rotation.z = 0.4;
   t.add(loopL);
-  const loopR = mesh(loopGeo.clone(), 0xff4fa3, { emissive: 0xff4fa3 });
+  const loopR = mesh(loopGeo.clone(), 0x3db8e8, { emissive: 0x3db8e8 });
   loopR.scale.set(1, 0.6, 0.4);
   loopR.position.set(0.028, 0, 0);
   loopR.rotation.z = -0.4;
@@ -607,11 +607,11 @@ function magicalTopper() {
   const knot = mesh(new THREE.BoxGeometry(0.018, 0.018, 0.018), 0xffe14d, { emissive: 0xffe14d });
   t.add(knot);
   const tailGeo = new THREE.BoxGeometry(0.012, 0.03, 0.004);
-  const tailL = mesh(tailGeo, 0xff4fa3, { emissive: 0xff4fa3 });
+  const tailL = mesh(tailGeo, 0x3db8e8, { emissive: 0x3db8e8 });
   tailL.position.set(-0.01, -0.025, 0);
   tailL.rotation.z = 0.3;
   t.add(tailL);
-  const tailR = mesh(tailGeo.clone(), 0xff4fa3, { emissive: 0xff4fa3 });
+  const tailR = mesh(tailGeo.clone(), 0x3db8e8, { emissive: 0x3db8e8 });
   tailR.position.set(0.01, -0.025, 0);
   tailR.rotation.z = -0.3;
   t.add(tailR);
@@ -742,7 +742,7 @@ const COSTUME_CFG = {
   tuxedo: { color: 0x1a1a1a, roughness: 0.4, topper: bowTieTopper, decorate: tuxedoDecorate },
   space: { color: 0xd8d8e0, roughness: 0.35, metalness: 0.3, topper: spaceTopper },
   penguin: { color: 0x161616, roughness: 0.6, topper: penguinTopper, decorate: penguinDecorate },
-  magical: { color: 0xff69b4, roughness: 0.6, topper: magicalTopper },
+  magical: { color: 0x66ccff, roughness: 0.6, topper: magicalTopper },
   bear: { color: 0x8b5e34, roughness: 0.95, topper: bearTopper },
   gold: { color: 0xffd700, roughness: 0.25, metalness: 0.9, topper: goldTopper },
   hoshi: { color: 0xff9ecf, roughness: 0.85, topper: hoshiTopper },

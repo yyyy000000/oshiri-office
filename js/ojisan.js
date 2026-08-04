@@ -450,7 +450,7 @@ export function createOjisan(scene) {
   // dedicated costume-only materials
   const nurseWhiteMat = mat(0xffffff, 0.6, 0);
   const nurseCrossMat = mat(0xd42020, 0.5, 0);
-  const ribbonMat = mat(0xff2e93, 0.5, 0.05);
+  const ribbonMat = mat(0x3db8e8, 0.5, 0.05); // 魔法少女リボン(水色)
   const wandGoldMat = mat(0xffe14d, 0.35, 0.2);
   const wandStickMat = mat(0xd8d8dc, 0.5, 0.1);
 
@@ -500,7 +500,7 @@ export function createOjisan(scene) {
   const TORSO_SUIT_COLOR = shirtMat.color.clone();
   const PANTS_SUIT_COLOR = pantsMat.color.clone();
   const TORSO_NURSE_COLOR = new THREE.Color(0xffffff);
-  const TORSO_MAGICAL_COLOR = new THREE.Color(0xff3fa3);
+  const TORSO_MAGICAL_COLOR = new THREE.Color(0x66ccff); // 水色
   const TORSO_DINO_COLOR = new THREE.Color(DINO_GREEN);
   const PANTS_DINO_COLOR = new THREE.Color(DINO_GREEN);
   const TORSO_SPACE_COLOR = new THREE.Color(SPACE_WHITE);
