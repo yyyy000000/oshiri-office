@@ -571,8 +571,9 @@ function lockedHintPool() {
   return pool;
 }
 function hoshiLineOnClick() {
-  // ヒントは控えめ(10回に1回弱)。半々で隠し要素ヒント/おじさんへの質問ネタ振り
-  if (Math.random() < 0.09) {
+  // 喋るのは2割のクリックのみなので、喋る時のヒント率は3割(=クリック全体の約6%)
+  // 半々で隠し要素ヒント/おじさんへの質問ネタ振り
+  if (Math.random() < 0.3) {
     const pool = lockedHintPool();
     if (pool.length > 0 && Math.random() < 0.5) {
       return pool[Math.floor(Math.random() * pool.length)];
@@ -615,7 +616,7 @@ function onHoshiClick() {
   hoshi.react();
   hoshiSound();
   checkHoshiUnlocks(true);
-  sayHoshi(hoshiLineOnClick());
+  if (Math.random() < 0.2) sayHoshi(hoshiLineOnClick()); // 80%は無言(リアクションのみ)
   if (clicks.hoshi % 10 === 0) {
     toast(`⭐ 星: ${clicks.hoshi}回目`);
   }
@@ -731,13 +732,14 @@ renderer.domElement.addEventListener("pointerup", (e) => {
   if (!downPos || Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]) > 6) return;
   handleGameClick(e.clientX, e.clientY);
 });
-// PC(FPSモード): Shiftキーで画面中央(照準)をクリック。押しっぱなしの連射は無効
+// PC(FPSモード): Spaceキーで画面中央(照準)をクリック。押しっぱなしの連射は無効
 window.addEventListener("keydown", (e) => {
-  if (e.key !== "Shift" || e.repeat) return;
+  if (e.code !== "Space" || e.repeat) return;
   if (gameMode !== "fps") return;
   if (helpOverlay.classList.contains("show")) return;
   const el = document.activeElement;
   if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
+  e.preventDefault();
   handleGameClick(innerWidth / 2, innerHeight / 2);
 });
 

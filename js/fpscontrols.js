@@ -283,6 +283,38 @@ export function createFPSControls(camera, domElement) {
   }
 
   // ---------------------------------------------------------------------
+  // Mouse drag (PC): drag on the canvas to look around
+  // ---------------------------------------------------------------------
+
+  let mouseDragging = false;
+  const mouseLast = { x: 0, y: 0 };
+
+  function onMouseDown(e) {
+    if (!enabled) return;
+    if (e.button !== 0) return;
+    if (e.pointerType === "touch") return; // タッチはスワイプ処理側で扱う
+    mouseDragging = true;
+    mouseLast.x = e.clientX;
+    mouseLast.y = e.clientY;
+  }
+
+  function onMouseMove(e) {
+    if (!mouseDragging) return;
+    if (e.pointerType === "touch") return;
+    const dx = e.clientX - mouseLast.x;
+    const dy = e.clientY - mouseLast.y;
+    yaw -= THREE.MathUtils.degToRad(dx * LOOK_YAW_DEG_PER_PX);
+    pitch += THREE.MathUtils.degToRad(-dy * LOOK_PITCH_DEG_PER_PX);
+    pitch = THREE.MathUtils.clamp(pitch, -PITCH_LIMIT, PITCH_LIMIT);
+    mouseLast.x = e.clientX;
+    mouseLast.y = e.clientY;
+  }
+
+  function onMouseUp() {
+    mouseDragging = false;
+  }
+
+  // ---------------------------------------------------------------------
   // Frame update
   // ---------------------------------------------------------------------
 
@@ -354,6 +386,10 @@ export function createFPSControls(camera, domElement) {
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("blur", onBlur);
 
+    domElement.addEventListener("pointerdown", onMouseDown);
+    window.addEventListener("pointermove", onMouseMove);
+    window.addEventListener("pointerup", onMouseUp);
+
     if (isTouchDevice) {
       stickOuter.addEventListener("touchstart", onStickTouchStart, { passive: false });
       stickOuter.addEventListener("touchmove", onStickTouchMove, { passive: false });
@@ -371,6 +407,10 @@ export function createFPSControls(camera, domElement) {
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
     window.removeEventListener("blur", onBlur);
+
+    domElement.removeEventListener("pointerdown", onMouseDown);
+    window.removeEventListener("pointermove", onMouseMove);
+    window.removeEventListener("pointerup", onMouseUp);
 
     if (isTouchDevice) {
       stickOuter.removeEventListener("touchstart", onStickTouchStart);
@@ -430,6 +470,7 @@ export function createFPSControls(camera, domElement) {
     stickReset();
     lookTouchId = null;
     lookIsDrag = false;
+    mouseDragging = false;
 
     removeListeners();
   }
