@@ -7,6 +7,7 @@ import { SLAP_ITEMS, COSTUMES, createItemManager } from "./items.js";
 import { createSlapper } from "./slapper.js";
 import { createFPSControls } from "./fpscontrols.js";
 import { createAnimal } from "./animal.js";
+import { createHoshi } from "./hoshi.js";
 import { maybeSlapVoice, screamVoice } from "./voices.js";
 import { getReply, getSlapLine, getStageLine, getEndingLine } from "./dialog.js";
 
@@ -40,6 +41,9 @@ const ojisan = createOjisan(scene);
 const items = createItemManager(scene);
 const slapper = createSlapper(scene);
 const animal = createAnimal(scene);
+const hoshi = createHoshi();
+hoshi.group.position.set(0.5, 0.745, 0.55); // デスクの天板の上
+scene.add(hoshi.group);
 const bgm = createBGM();
 
 // 宇宙(エンディング用の星空)
@@ -71,7 +75,9 @@ addEventListener("resize", () => {
 
 // ---------- 吹き出し / トースト ----------
 const bubble = document.getElementById("bubble");
+const hoshiBubble = document.getElementById("hoshi-bubble");
 let bubbleTimer = 0;
+let hoshiBubbleTimer = 0;
 function say(text, ms = 3500) {
   bubble.textContent = text;
   bubble.style.display = "block";
@@ -79,11 +85,40 @@ function say(text, ms = 3500) {
   bubbleTimer = setTimeout(() => (bubble.style.display = "none"), ms);
   ojisan.startTalk(Math.min(ms, 2200));
 }
+function sayHoshi(text, ms = 3000) {
+  hoshiBubble.textContent = text;
+  hoshiBubble.style.display = "block";
+  clearTimeout(hoshiBubbleTimer);
+  hoshiBubbleTimer = setTimeout(() => (hoshiBubble.style.display = "none"), ms);
+}
+// 話し手の頭上に吹き出しを置く。画面外や背後のときは画面上部に固定表示
+// (FPSで下を向いていてもセリフが読めるように)
+const _camDir = new THREE.Vector3();
+const _toSpeaker = new THREE.Vector3();
+function placeBubble(el, worldPos, pinnedTop) {
+  if (el.style.display === "none") return;
+  camera.getWorldDirection(_camDir);
+  _toSpeaker.copy(worldPos).sub(camera.position);
+  const behind = _camDir.dot(_toSpeaker) <= 0.01;
+  const p = worldPos.clone().project(camera);
+  const x = (p.x * 0.5 + 0.5) * innerWidth;
+  const y = (-p.y * 0.5 + 0.5) * innerHeight - 10;
+  const off = behind || x < 50 || x > innerWidth - 50 || y < 60 || y > innerHeight - 20;
+  el.classList.toggle("pinned", off);
+  if (off) {
+    el.style.left = "50%";
+    el.style.top = pinnedTop + "px";
+  } else {
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+  }
+}
+const _hoshiHead = new THREE.Vector3();
 function updateBubblePos() {
-  if (bubble.style.display === "none") return;
-  const p = ojisan.headPos().clone().project(camera);
-  bubble.style.left = ((p.x * 0.5 + 0.5) * innerWidth) + "px";
-  bubble.style.top = ((-p.y * 0.5 + 0.5) * innerHeight - 10) + "px";
+  placeBubble(bubble, ojisan.headPos(), 90);
+  _hoshiHead.copy(hoshi.group.position);
+  _hoshiHead.y += 0.4;
+  placeBubble(hoshiBubble, _hoshiHead, 170);
 }
 const toastArea = document.getElementById("toast-area");
 function toast(text) {
@@ -202,6 +237,15 @@ const ITEM_SOUNDS = {
     }
     noiseBurst(ac, t + 0.23, { freq: 2500, dur: 0.06, gain: 0.25, type: "highpass" });
   },
+  star(ac, t) {
+    // キラキラ星アルペジオ+軽い打撃音
+    noiseBurst(ac, t, { freq: 1400, dur: 0.08, gain: 0.5 });
+    thump(ac, t, { from: 200, to: 80, dur: 0.1, gain: 0.4 });
+    ding(ac, t, 1568, 0.3, 0.2);
+    ding(ac, t + 0.06, 1975, 0.35, 0.18);
+    ding(ac, t + 0.12, 2637, 0.5, 0.15);
+    ding(ac, t + 0.18, 3136, 0.6, 0.12);
+  },
   paw(ac, t) {
     // もふっとした低音ボヨン+キュッというぬいぐるみの鳴き
     thump(ac, t, { from: 120, to: 45, dur: 0.3, gain: 0.8, type: "triangle" });
@@ -302,6 +346,7 @@ function applyProgress() {
   ojisan.setProgress(p);
   office.setProgress(p);
   animal.setProgress(p);
+  hoshi.setProgress(p);
   bgm.setIntensity(p);
   slapCountEl.textContent = points.toLocaleString();
   slapBarFill.style.width = (p * 100) + "%";
@@ -418,6 +463,7 @@ const CLICK_NAMES = {
   player: "レコードプレイヤー", records: "レコードの山", musicposter: "音楽ポスター",
   copier: "コピー機", cooler: "ウォーターサーバー", safe: "金庫", microwave: "電子レンジ",
   fan: "扇風機", umbrella: "傘立て", dartboard: "ダーツボード", plant: "観葉植物",
+  hoshi: "星",
 };
 // BGM管理
 function trackTitle(id) {
@@ -489,6 +535,88 @@ function onObjectClick(clickId) {
 }
 checkClickUnlocks(false); // 保存済みクリック数ぶんを起動時に復元
 
+// ---------- マスコット「星」(デスクの上・隠し要素つき) ----------
+// クリック数は clicks.hoshi として oshiri_clicks に永続化
+const HOSHI_LINES = [
+  "That's me!",
+  "That's me! ……それしか言わねーよ。f**kin' 文句あるか?",
+  "F**k yeah! That's me!",
+  "はぁ?気安く触んなよ……なんてな。That's me!",
+  "オレ様が『星』だ。ひれ伏せ、f**ker!",
+  "かわいいって言え。今すぐ言え。",
+  "What the f**k do you want?",
+  "……チッ。しゃーねーな。That's me!",
+  "いいからおっさんの尻叩いてろよ!",
+  "スパンキング見てるだけで最高だぜ、f**k yeah!",
+  "おっさんより先にオレをかわいがれ。当然だろ?",
+  "ヒマなのか?……オレもだよ。That's me!",
+];
+// ヒントは段階式: 1回目は対象だけぼかして教え、同じ対象が2回目に出たら回数まで教える
+const hintStage = {};
+function lockedHintPool() {
+  const pool = [];
+  for (const [cid, cfg] of Object.entries(CLICK_UNLOCKS)) {
+    const key = (cfg.kind === "item" ? "item:" : cfg.kind === "costume" ? "cos:" : "bgm:") + cfg.id;
+    if (!dropped.has(key)) pool.push({ hk: cid, label: `${CLICK_NAMES[cid]}のクリック`, count: cfg.count });
+  }
+  if (!dropped.has("cos:bear")) pool.push({ hk: "pet100", label: "クマ君のなでなで", count: 100 });
+  if (!dropped.has("cos:gold")) pool.push({ hk: "pet1000", label: "クマ君のなでなで", count: 1000 });
+  if (!dropped.has("item:starrod")) pool.push({ hk: "hoshi500", label: "オレ様のクリック", count: 500 });
+  if (!dropped.has("cos:hoshi")) pool.push({ hk: "hoshi1000", label: "オレ様のクリック", count: 1000 });
+  return pool;
+}
+function hoshiLineOnClick() {
+  const pool = lockedHintPool();
+  if (pool.length > 0 && Math.random() < 0.25) {
+    const h = pool[Math.floor(Math.random() * pool.length)];
+    if (!hintStage[h.hk]) {
+      hintStage[h.hk] = 1;
+      return `ヒントやるよ、感謝しろ。……${h.label}、あやしいと思わねえ?`;
+    }
+    return `${h.label}な、合計${h.count}回だ。オレ様やさし〜。That's me!`;
+  }
+  return HOSHI_LINES[Math.floor(Math.random() * HOSHI_LINES.length)];
+}
+function hoshiSound() {
+  const ac = ctx();
+  const t = ac.currentTime;
+  ding(ac, t, 1760, 0.1, 0.14);
+  ding(ac, t + 0.06, 2349, 0.14, 0.12);
+}
+function checkHoshiUnlocks(announce) {
+  const n = clicks.hoshi || 0;
+  if (n >= 500 && !dropped.has("item:starrod")) {
+    dropped.add("item:starrod");
+    items.spawn("item", "starrod");
+    if (announce) {
+      playDropSound();
+      toast("⭐ 隠しアイテム『スターロッド』が棚に出現!(+12000pt)");
+      sayHoshi("オレ様の力、貸してやるよ。F**k yeah!", 3600);
+    }
+  }
+  if (n >= 1000 && !dropped.has("cos:hoshi")) {
+    dropped.add("cos:hoshi");
+    items.spawn("costume", "hoshi");
+    if (announce) {
+      playDropSound();
+      toast("⭐ 隠し衣装『星の着ぐるみ』がハンガーに出現!");
+      sayHoshi("おっさんをオレ様にしてやれ。光栄だろ?That's me!", 3800);
+    }
+  }
+}
+function onHoshiClick() {
+  clicks.hoshi = (clicks.hoshi || 0) + 1;
+  saveClicks();
+  hoshi.react();
+  hoshiSound();
+  checkHoshiUnlocks(true);
+  sayHoshi(hoshiLineOnClick());
+  if (clicks.hoshi % 10 === 0) {
+    toast(`⭐ 星: ${clicks.hoshi}回目`);
+  }
+}
+checkHoshiUnlocks(false); // 保存済みクリック数ぶんを起動時に復元
+
 // ---------- クリック処理(尻叩き / アイテム拾い / 着せ替え) ----------
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -509,10 +637,10 @@ function unlockAudio() {
 document.addEventListener("pointerdown", unlockAudio);
 document.addEventListener("touchend", unlockAudio, { passive: true });
 document.addEventListener("click", unlockAudio);
-renderer.domElement.addEventListener("pointerup", (e) => {
+// クリック/タップ/Shiftキー共通のゲーム内クリック処理(cssX/cssYはCSSピクセル座標)
+function handleGameClick(cssX, cssY) {
   if (!gameMode || ending) return; // スタート画面中は無効
-  if (!downPos || Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]) > 6) return;
-  pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  pointer.set((cssX / innerWidth) * 2 - 1, -(cssY / innerHeight) * 2 + 1);
   raycaster.setFromCamera(pointer, camera);
   // FPSモードは目の前まで近づかないとクリックできない
   const inReach = (hit) => gameMode !== "fps" || hit.distance <= INTERACT_RANGE;
@@ -521,6 +649,13 @@ renderer.domElement.addEventListener("pointerup", (e) => {
   const animalHits = raycaster.intersectObjects(animal.clickableMeshes, true);
   if (animalHits.length > 0 && inReach(animalHits[0])) {
     onPetAnimal(animalHits[0].point);
+    return;
+  }
+
+  // 1.2) 星(デスクのマスコット)
+  const hoshiHits = raycaster.intersectObjects(hoshi.clickableMeshes, true);
+  if (hoshiHits.length > 0 && inReach(hoshiHits[0])) {
+    onHoshiClick();
     return;
   }
 
@@ -569,8 +704,8 @@ renderer.domElement.addEventListener("pointerup", (e) => {
   const pop = document.createElement("div");
   pop.className = "slap-pop";
   pop.textContent = ["スパーン!", "ペチーン!", "バチーン!", "パァン!"][Math.floor(Math.random() * 4)];
-  pop.style.left = e.clientX + "px";
-  pop.style.top = e.clientY + "px";
+  pop.style.left = cssX + "px";
+  pop.style.top = cssY + "px";
   document.body.appendChild(pop);
   setTimeout(() => pop.remove(), 750);
 
@@ -586,6 +721,18 @@ renderer.domElement.addEventListener("pointerup", (e) => {
   } else if (slapCount % 5 === 0) {
     say(getSlapLine(slapCount), 2600);
   }
+}
+renderer.domElement.addEventListener("pointerup", (e) => {
+  if (!downPos || Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]) > 6) return;
+  handleGameClick(e.clientX, e.clientY);
+});
+// PC(FPSモード): Shiftキーで画面中央(照準)をクリック。押しっぱなしの連射は無効
+window.addEventListener("keydown", (e) => {
+  if (e.key !== "Shift" || e.repeat) return;
+  if (gameMode !== "fps") return;
+  const el = document.activeElement;
+  if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
+  handleGameClick(innerWidth / 2, innerHeight / 2);
 });
 
 // ---------- エンディング ----------
@@ -638,29 +785,48 @@ function updateEnding(dt) {
     bgm.stop();
     const sec = Math.round((Date.now() - startedAt) / 1000);
     const got = items.spawnedIds();
-    const itemMissing = SLAP_ITEMS.length - got.items.length;
-    const cosMissing = COSTUMES.length - got.costumes.length;
     const bgmGot = availableTracks();
-    const clickList = Object.keys(CLICK_NAMES)
-      .map((id) => `${CLICK_NAMES[id]}×${clicks[id] || 0}`)
-      .join(" ・ ");
+    // コレクション達成度カード
+    const mkCard = (icon, label, gotN, total, extra) => {
+      const comp = gotN >= total;
+      return `<div class="end-card">` +
+        `<div class="end-label">${icon} ${label}</div>` +
+        `<div class="end-big">${gotN}<small> / ${total}</small></div>` +
+        `<div class="end-note${comp ? " comp" : ""}">${comp ? "コンプリート!" : `未入手 ${total - gotN}`}${extra || ""}</div>` +
+        `</div>`;
+    };
+    const petNote = petCount >= 1000 ? "限界突破!" : petCount >= 100 ? "なかよし" : "もっと撫でてあげて";
+    const clickRows = Object.keys(CLICK_NAMES)
+      .map((id) => `<span>${CLICK_NAMES[id]} <b>×${clicks[id] || 0}</b></span>`)
+      .join("");
     endingStats.innerHTML =
-      `獲得ポイント: ${TOTAL_POINTS.toLocaleString()}pt / 叩いた回数: ${slapCount}発 / プレイ時間: ${Math.floor(sec / 60)}分${sec % 60}秒<br>` +
-      `🎁 アイテム: ${got.items.length} / ${SLAP_ITEMS.length}` +
-      (itemMissing > 0 ? `(未入手 ${itemMissing})` : "(コンプリート!)") +
-      ` ・ 👗 衣装: ${got.costumes.length} / ${COSTUMES.length}` +
-      (cosMissing > 0 ? `(未入手 ${cosMissing})` : "(コンプリート!)") +
-      `<br>🎵 BGM: ${bgmGot.length} / ${TRACKS.length}` +
-      (bgmGot.length < TRACKS.length ? `(未獲得 ${TRACKS.length - bgmGot.length})` : "(コンプリート!)") +
-      ` — ${bgmGot.map(trackTitle).join("、")}` +
-      `<br><span style="font-size:12px;opacity:.75;line-height:1.8">👆 クリック記録: ${clickList} ・ 🐻 なでなで×${petCount}</span>`;
+      `<div class="end-summary">` +
+      `<span>👋 <b>${slapCount.toLocaleString()}</b> 発</span>` +
+      `<span>🏆 <b>${TOTAL_POINTS.toLocaleString()}</b> pt</span>` +
+      `<span>⏱ <b>${Math.floor(sec / 60)}</b> 分 <b>${sec % 60}</b> 秒</span>` +
+      `</div>` +
+      `<div class="end-cards">` +
+      mkCard("🎁", "アイテム", got.items.length, SLAP_ITEMS.length) +
+      mkCard("👗", "衣装", got.costumes.length, COSTUMES.length) +
+      mkCard("🎵", "BGM", bgmGot.length, TRACKS.length, `<br>${bgmGot.map(trackTitle).join("、")}`) +
+      `<div class="end-card"><div class="end-label">🐻 なでなで</div>` +
+      `<div class="end-big">${petCount.toLocaleString()}<small> 回</small></div>` +
+      `<div class="end-note">${petNote}</div></div>` +
+      `</div>` +
+      `<div class="end-section-title">👆 クリック探索のきろく</div>` +
+      `<div class="end-clicks">${clickRows}</div>`;
+    // 結果画面の下からゲーム中UIが透けないよう隠す
+    for (const id of ["controls", "slap-counter", "toast-area", "bubble", "hoshi-bubble", "title-bar"]) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = "none";
+    }
     endingEl.classList.add("show");
     requestAnimationFrame(() => endingEl.classList.add("visible"));
   }
 }
 
 // ---------- スタート画面 / モード管理 ----------
-const INTERACT_RANGE = 1.5; // FPSモードの近接クリック射程(m)
+const INTERACT_RANGE = 2.2; // FPSモードの近接クリック射程(m)
 let gameMode = null; // null=スタート画面 | "fps" | "god"
 const startScreenEl = document.getElementById("start-screen");
 const modeFpsBtn = document.getElementById("mode-fps");
@@ -700,6 +866,7 @@ function updateCrosshair() {
   const targets = [
     ...ojisan.buttMeshes,
     ...animal.clickableMeshes,
+    ...hoshi.clickableMeshes,
     ...office.clickables,
     ...items.clickableMeshes(),
   ];
@@ -726,6 +893,7 @@ window.__setClicks = (id, n) => { clicks[id] = n; saveClicks(); };
 window.__clicks = () => ({ ...clicks });
 window.__items = items;
 window.__animal = animal;
+window.__hoshi = hoshi;
 window.__slapper = slapper;
 window.__office = office;
 window.__bgm = bgm;
@@ -746,6 +914,7 @@ window.__ff = (sec = 1, steps = 60) => {
     items.update(t, dt);
     slapper.update(t, dt);
     animal.update(t, dt);
+    hoshi.update(t, dt);
     updateBearGrowth(dt);
     if (ending) updateEnding(dt);
   }
@@ -759,6 +928,7 @@ renderer.setAnimationLoop(() => {
   items.update(clock.elapsedTime, dt);
   slapper.update(clock.elapsedTime, dt);
   animal.update(clock.elapsedTime, dt);
+  hoshi.update(clock.elapsedTime, dt);
   updateBearGrowth(dt);
   if (ending) {
     updateEnding(dt);

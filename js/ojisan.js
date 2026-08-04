@@ -31,6 +31,8 @@ const TUX_BOWTIE = 0xb31217;
 const PENGUIN_BLACK = 0x16181c;
 const PENGUIN_WHITE = 0xf4f4f0;
 const PENGUIN_ORANGE = 0xff8c1a;
+const STAR_PINK = 0xff9ecf;
+const STAR_ACCENT = 0xfff2f8;
 
 // segment presets ("higher poly" pass): [radial, vertical]
 const SEG_HI = [28, 20]; // hero surfaces: head, butt
@@ -60,6 +62,33 @@ function lerpAngle(a, b, t) {
   let diff = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI;
   if (diff < -Math.PI) diff += Math.PI * 2;
   return a + diff * t;
+}
+
+// Flat 5-pointed star outline (alternating outer/inner radius). Used by the
+// hoshi costume's hood (with a face-hole cut into it) and its chest badge.
+function starShape2D(outerR, innerR, points = 5) {
+  const shape = new THREE.Shape();
+  const step = Math.PI / points;
+  for (let i = 0; i < points * 2; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const a = i * step - Math.PI / 2;
+    const x = Math.cos(a) * r;
+    const y = Math.sin(a) * r;
+    if (i === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  }
+  shape.closePath();
+  return shape;
+}
+
+// Same star outline, but with a circular hole cut in the middle so the
+// ojisan's face can peek through when this is used as a hood.
+function starHoodShape2D(outerR, innerR, holeR, points = 5) {
+  const shape = starShape2D(outerR, innerR, points);
+  const hole = new THREE.Path();
+  hole.absarc(0, 0, holeR, 0, Math.PI * 2, false);
+  shape.holes.push(hole);
+  return shape;
 }
 
 export function createOjisan(scene) {
@@ -461,6 +490,11 @@ export function createOjisan(scene) {
   const penguinFeetMat = mat(PENGUIN_ORANGE, 0.5, 0);
   const penguinTailMat = mat(PENGUIN_BLACK, 0.6, 0);
 
+  const starHoodMat = mat(STAR_PINK, 0.75, 0);
+  const starChestMat = mat(STAR_ACCENT, 0.4, 0.1);
+  starChestMat.emissive = new THREE.Color(0xff6fa5);
+  starChestMat.emissiveIntensity = 0.4;
+
   // base/target torso + pants colors (shirtMat also colors belly +
   // arm sleeves; pantsMat also colors thighs/shins/hips)
   const TORSO_SUIT_COLOR = shirtMat.color.clone();
@@ -481,6 +515,8 @@ export function createOjisan(scene) {
   const PANTS_TUXEDO_COLOR = new THREE.Color(TUX_BLACK);
   const TORSO_PENGUIN_COLOR = new THREE.Color(PENGUIN_BLACK);
   const PANTS_PENGUIN_COLOR = new THREE.Color(PENGUIN_BLACK);
+  const TORSO_HOSHI_COLOR = new THREE.Color(STAR_PINK);
+  const PANTS_HOSHI_COLOR = new THREE.Color(STAR_PINK);
 
   let currentCostume = "suit";
 
@@ -756,7 +792,45 @@ export function createOjisan(scene) {
 
   const penguinParts = [...penguinHeadParts, penguinBelly, penguinFootL, penguinFootR];
 
-  const COSTUME_IDS = ["suit", "nurse", "dino", "space", "magical", "bear", "gold", "boxrobo", "tuxedo", "penguin"];
+  // ---- hoshi: pink kigurumi with a big 5-pointed star hood behind the
+  // head (a circular hole is cut into the star itself so the face peeks
+  // through, like the round kigurumi hoods above) + a small star badge on
+  // the chest. Body recolor only (shirtMat/pantsMat), same as bear/dino;
+  // buttMat/faceMat are untouched and the butt stays fully exposed. ----
+  const starHoodGeo = new THREE.ExtrudeGeometry(starHoodShape2D(0.24, 0.1, 0.16, 5), {
+    depth: 0.05,
+    bevelEnabled: true,
+    bevelThickness: 0.012,
+    bevelSize: 0.012,
+    bevelSegments: 2,
+  });
+  starHoodGeo.center();
+  const starHood = costumeMesh(starHoodGeo, starHoodMat, head);
+  starHood.position.set(0, 0.03, -0.1);
+
+  const starChestGeo = new THREE.ExtrudeGeometry(starShape2D(0.036, 0.015, 5), {
+    depth: 0.012,
+    bevelEnabled: false,
+  });
+  starChestGeo.center();
+  const starChest = costumeMesh(starChestGeo, starChestMat, torsoLean);
+  starChest.position.set(0, 0.34, 0.17);
+
+  const starParts = [starHood, starChest];
+
+  const COSTUME_IDS = [
+    "suit",
+    "nurse",
+    "dino",
+    "space",
+    "magical",
+    "bear",
+    "gold",
+    "boxrobo",
+    "tuxedo",
+    "penguin",
+    "hoshi",
+  ];
 
   function hideAllCostumeParts() {
     dressSkirt.visible = false;
@@ -776,6 +850,7 @@ export function createOjisan(scene) {
     for (const m of tuxParts) m.visible = false;
     for (const m of penguinParts) m.visible = false;
     penguinTail.base.visible = false;
+    for (const m of starParts) m.visible = false;
   }
 
   function setCostume(id) {
@@ -858,6 +933,12 @@ export function createOjisan(scene) {
       tieBody.visible = false;
       for (const m of penguinParts) m.visible = true;
       penguinTail.base.visible = true;
+    } else if (id === "hoshi") {
+      shirtMat.color.copy(TORSO_HOSHI_COLOR);
+      pantsMat.color.copy(PANTS_HOSHI_COLOR);
+      tieKnot.visible = false;
+      tieBody.visible = false;
+      for (const m of starParts) m.visible = true;
     }
     // "suit": defaults above already restore the original look
   }

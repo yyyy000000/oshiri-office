@@ -81,16 +81,6 @@ export function createFPSControls(camera, domElement) {
       background: rgba(255, 255, 255, 0.35);
       pointer-events: none;
     }
-    .fpsc-look-area {
-      position: fixed;
-      right: 0;
-      top: 0;
-      width: 50%;
-      height: 100%;
-      touch-action: none;
-      display: none;
-      z-index: 999;
-    }
   `;
   document.head.appendChild(style);
 
@@ -113,10 +103,6 @@ export function createFPSControls(camera, domElement) {
   stickInner.className = "fpsc-stick-inner";
   stickOuter.appendChild(stickInner);
   document.body.appendChild(stickOuter);
-
-  const lookArea = document.createElement("div");
-  lookArea.className = "fpsc-look-area";
-  document.body.appendChild(lookArea);
 
   // ---------------------------------------------------------------------
   // Keyboard
@@ -209,7 +195,9 @@ export function createFPSControls(camera, domElement) {
   }
 
   // ---------------------------------------------------------------------
-  // Look area (right half): swipe to look, but let quick taps through
+  // Look (window-level): swipe anywhere = look, quick tap = click (pass through)
+  // 以前は右半分に透明レイヤーを重ねていたが、タップがゲームに届かなくなるため
+  // windowレベルで監視する方式に変更(スティック・UI上のタッチは除外)
   // ---------------------------------------------------------------------
 
   let lookTouchId = null;
@@ -217,9 +205,16 @@ export function createFPSControls(camera, domElement) {
   let lookLast = { x: 0, y: 0 };
   let lookIsDrag = false;
 
+  function isUiTarget(t) {
+    return !!(t && t.closest && t.closest("#controls, .fpsc-stick-outer, button, input, #ending, #start-screen"));
+  }
+
   function onLookTouchStart(e) {
+    if (!enabled) return;
     if (lookTouchId !== null) return;
     const touch = e.changedTouches[0];
+    if (touch.identifier === stickTouchId) return; // スティック操作中の指は無視
+    if (isUiTarget(e.target)) return;
     lookTouchId = touch.identifier;
     lookStart.x = touch.clientX;
     lookStart.y = touch.clientY;
@@ -294,22 +289,27 @@ export function createFPSControls(camera, domElement) {
   function applyKeyboard(dt) {
     if (isTypingTarget()) return;
 
+    // 矢印キー = 視点(←→ 回転 / ↑↓ 見上げ・見下ろし)
     if (keys.has("ArrowLeft")) yaw += YAW_SPEED * dt;
     if (keys.has("ArrowRight")) yaw -= YAW_SPEED * dt;
-    if (keys.has("KeyW")) pitch += PITCH_SPEED * dt;
-    if (keys.has("KeyS")) pitch -= PITCH_SPEED * dt;
+    if (keys.has("ArrowUp")) pitch += PITCH_SPEED * dt;
+    if (keys.has("ArrowDown")) pitch -= PITCH_SPEED * dt;
     pitch = THREE.MathUtils.clamp(pitch, -PITCH_LIMIT, PITCH_LIMIT);
 
+    // W/S = 前後移動, A/D = 左右平行移動
     let moveDir = 0;
-    if (keys.has("ArrowUp")) moveDir += 1;
-    if (keys.has("ArrowDown")) moveDir -= 1;
+    if (keys.has("KeyW")) moveDir += 1;
+    if (keys.has("KeyS")) moveDir -= 1;
+    let strafeDir = 0;
+    if (keys.has("KeyD")) strafeDir += 1;
+    if (keys.has("KeyA")) strafeDir -= 1;
 
-    if (moveDir !== 0) {
+    if (moveDir !== 0 || strafeDir !== 0) {
       const sinYaw = Math.sin(yaw);
       const cosYaw = Math.cos(yaw);
-      // yaw=0 faces +z; forward vector = (-sin(yaw), 0, cos(yaw))
-      camera.position.x += sinYaw * moveDir * MOVE_SPEED * dt;
-      camera.position.z += cosYaw * moveDir * MOVE_SPEED * dt;
+      // yaw=0 faces +z; forward = (sin(yaw), 0, cos(yaw)), right = (-cos(yaw), 0, sin(yaw))
+      camera.position.x += (sinYaw * moveDir - cosYaw * strafeDir) * MOVE_SPEED * dt;
+      camera.position.z += (cosYaw * moveDir + sinYaw * strafeDir) * MOVE_SPEED * dt;
     }
   }
 
@@ -360,10 +360,10 @@ export function createFPSControls(camera, domElement) {
       stickOuter.addEventListener("touchend", onStickTouchEnd, { passive: false });
       stickOuter.addEventListener("touchcancel", onStickTouchEnd, { passive: false });
 
-      lookArea.addEventListener("touchstart", onLookTouchStart, { passive: true });
-      lookArea.addEventListener("touchmove", onLookTouchMove, { passive: false });
-      lookArea.addEventListener("touchend", onLookTouchEnd, { passive: false });
-      lookArea.addEventListener("touchcancel", onLookTouchEnd, { passive: false });
+      window.addEventListener("touchstart", onLookTouchStart, { passive: true });
+      window.addEventListener("touchmove", onLookTouchMove, { passive: false });
+      window.addEventListener("touchend", onLookTouchEnd, { passive: false });
+      window.addEventListener("touchcancel", onLookTouchEnd, { passive: false });
     }
   }
 
@@ -378,10 +378,10 @@ export function createFPSControls(camera, domElement) {
       stickOuter.removeEventListener("touchend", onStickTouchEnd);
       stickOuter.removeEventListener("touchcancel", onStickTouchEnd);
 
-      lookArea.removeEventListener("touchstart", onLookTouchStart);
-      lookArea.removeEventListener("touchmove", onLookTouchMove);
-      lookArea.removeEventListener("touchend", onLookTouchEnd);
-      lookArea.removeEventListener("touchcancel", onLookTouchEnd);
+      window.removeEventListener("touchstart", onLookTouchStart);
+      window.removeEventListener("touchmove", onLookTouchMove);
+      window.removeEventListener("touchend", onLookTouchEnd);
+      window.removeEventListener("touchcancel", onLookTouchEnd);
     }
   }
 
@@ -408,7 +408,7 @@ export function createFPSControls(camera, domElement) {
 
     if (isTouchDevice) {
       stickOuter.style.display = "block";
-      lookArea.style.display = "block";
+      domElement.style.touchAction = "none"; // スワイプ中のスクロール/バウンス防止
     }
 
     attachListeners();
@@ -424,10 +424,12 @@ export function createFPSControls(camera, domElement) {
     crosshair.style.display = "none";
     crosshair.classList.remove("fpsc-hot");
     stickOuter.style.display = "none";
-    lookArea.style.display = "none";
+    domElement.style.touchAction = "";
 
     keys.clear();
     stickReset();
+    lookTouchId = null;
+    lookIsDrag = false;
 
     removeListeners();
   }

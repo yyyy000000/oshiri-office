@@ -108,6 +108,21 @@
     content: ""; position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%);
     border: 8px solid transparent; border-top-color: #fff; border-bottom: none;
   }
+  /* 話し手が画面外のときは画面上部に固定表示(どこを向いていてもセリフが読める) */
+  #bubble.pinned, #hoshi-bubble.pinned { transform: translate(-50%, 0); }
+  #bubble.pinned::after, #hoshi-bubble.pinned::after { display: none; }
+
+  #hoshi-bubble {
+    position: fixed; z-index: 6; max-width: 240px; pointer-events: none;
+    background: #ffd9ea; border-radius: 14px; padding: 8px 12px; font-size: 13px;
+    color: #7a2c50; font-weight: bold; box-shadow: 0 4px 16px rgba(0,0,0,.35);
+    transform: translate(-50%, -100%); display: none; line-height: 1.5;
+    border: 2px solid #ff9ec7;
+  }
+  #hoshi-bubble::after {
+    content: ""; position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%);
+    border: 8px solid transparent; border-top-color: #ffd9ea; border-bottom: none;
+  }
 
   .slap-pop {
     position: fixed; z-index: 7; pointer-events: none; font-weight: bold;
@@ -134,9 +149,40 @@
   }
   #ending.show { display: flex; }
   #ending.visible { opacity: 1; }
+  /* 縦センタリングだと内容が画面より高いとき上端が切れるので、上詰め+スクロール */
+  #ending { overflow-y: auto; padding: 30px 16px; justify-content: flex-start; }
   #ending h2 { font-size: 34px; letter-spacing: 6px; text-shadow: 0 0 24px #8af; }
   #ending .sub { font-size: 15px; opacity: .85; line-height: 2; }
   #ending .stars { font-size: 28px; letter-spacing: 12px; }
+
+  /* ---- 結果画面(整理版) ---- */
+  #ending-stats { max-width: 620px; width: 100%; }
+  .end-summary {
+    font-size: 14px; opacity: .9; margin-bottom: 14px;
+    display: flex; gap: 18px; justify-content: center; flex-wrap: wrap;
+  }
+  .end-summary b { color: #ffd76e; }
+  .end-cards {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px; margin-bottom: 14px;
+  }
+  .end-card {
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+    border-radius: 12px; padding: 10px 8px;
+  }
+  .end-card .end-label { font-size: 12px; opacity: .75; }
+  .end-card .end-big { font-size: 22px; font-weight: bold; margin: 2px 0; }
+  .end-card .end-big small { font-size: 13px; opacity: .7; font-weight: normal; }
+  .end-card .end-note { font-size: 11px; line-height: 1.6; opacity: .8; }
+  .end-card .end-note.comp { color: #ffd76e; }
+  .end-section-title { font-size: 12px; opacity: .65; margin: 10px 0 6px; letter-spacing: 2px; }
+  .end-clicks {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
+    gap: 3px 12px; font-size: 12px; opacity: .85; text-align: left;
+    background: rgba(255,255,255,.05); border-radius: 12px; padding: 10px 14px;
+  }
+  .end-clicks span { white-space: nowrap; }
+  .end-clicks span b { color: #ffd76e; font-weight: bold; }
   #restart-btn {
     border: none; border-radius: 24px; padding: 12px 30px; font-size: 15px; font-weight: bold;
     font-family: inherit; cursor: pointer; color: #fff;
@@ -164,8 +210,8 @@
     </div>
     <p id="mode-god-hint">神様モードはFPSモードをクリアすると解禁</p>
     <div id="start-hint">
-      <b>PC:</b> ↑↓ 移動 / ←→ 回転 / W・S 視線の上下 / クリックで叩く<br>
-      <b>スマホ:</b> 左スティックで移動・回転 / 右半分スワイプで視線<br>
+      <b>PC:</b> W・S 前後 / A・D 左右 / ←→ 回転 / ↑↓ 視線の上下 / Shift か クリックで叩く<br>
+      <b>スマホ:</b> 左スティックで移動・回転 / スワイプで視線 / タップで叩く<br>
       対象には<b>近づかないと</b>叩けません。照準が赤くなったらチャンス!
     </div>
   </div>
@@ -180,6 +226,7 @@
   </div>
   <div id="toast-area"></div>
   <div id="bubble"></div>
+  <div id="hoshi-bubble"></div>
   <div id="stage-flash"></div>
   <div id="controls">
     <div id="chat-row">

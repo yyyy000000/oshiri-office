@@ -14,6 +14,7 @@ export const SLAP_ITEMS = [
   { id: "golden", name: "金の孫の手", points: 6000, unlock: 300000, sound: "gold" },
   { id: "machinegun", name: "マシンガン", points: 8000, unlock: -1, sound: "gun" },
   { id: "pawpunch", name: "もふもふクマパンチ", points: 10000, unlock: -1, sound: "paw" },
+  { id: "starrod", name: "スターロッド", points: 12000, unlock: -1, sound: "star" },
 ];
 
 export const COSTUMES = [
@@ -27,6 +28,7 @@ export const COSTUMES = [
   { id: "magical", name: "魔法少女", unlock: 375000 },
   { id: "bear", name: "クマの着ぐるみ", unlock: -1 },
   { id: "gold", name: "黄金スーツ", unlock: -1 },
+  { id: "hoshi", name: "星の着ぐるみ", unlock: -1 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -80,6 +82,23 @@ function easeOutBack(x) {
   const c1 = 1.70158;
   const c3 = c1 + 1;
   return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+}
+
+// Flat 5-pointed star outline (alternating outer/inner radius), used for the
+// starrod head and the hoshi hanger topper.
+function starShape(outerR, innerR, points = 5) {
+  const shape = new THREE.Shape();
+  const step = Math.PI / points;
+  for (let i = 0; i < points * 2; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const a = i * step - Math.PI / 2;
+    const x = Math.cos(a) * r;
+    const y = Math.sin(a) * r;
+    if (i === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  }
+  shape.closePath();
+  return shape;
 }
 
 // ---------------------------------------------------------------------------
@@ -364,6 +383,54 @@ function buildPawpunch() {
   return { group: g, restY: 0.09 };
 }
 
+function buildStarrod() {
+  const g = new THREE.Group();
+  const goldOpts = { metalness: 0.85, roughness: 0.25 };
+  const stick = mesh(new THREE.CylinderGeometry(0.009, 0.011, 0.3, 20), 0xffd700, goldOpts);
+  stick.rotation.z = Math.PI / 2;
+  g.add(stick);
+  // grip wrap rings along the shaft
+  for (let i = -2; i <= 2; i++) {
+    const wrap = mesh(new THREE.TorusGeometry(0.012, 0.0018, 6, 16), 0xe6c200, goldOpts);
+    wrap.rotation.y = Math.PI / 2;
+    wrap.position.set(-0.05 + i * 0.03, 0, 0);
+    g.add(wrap);
+  }
+  // pink 5-pointed star head, mounted flat like a paddle at the tip
+  const starGeo = new THREE.ExtrudeGeometry(starShape(0.075, 0.032, 5), {
+    depth: 0.02,
+    bevelEnabled: true,
+    bevelThickness: 0.006,
+    bevelSize: 0.006,
+    bevelSegments: 2,
+  });
+  starGeo.center();
+  const star = mesh(starGeo, 0xff6fa5, {
+    metalness: 0.2,
+    roughness: 0.3,
+    emissive: 0xff6fa5,
+    emissiveIntensity: 0.5,
+  });
+  star.rotation.x = Math.PI / 2;
+  star.position.set(0.19, 0, 0);
+  g.add(star);
+  // small inner sparkle accent
+  const sparkleGeo = new THREE.ExtrudeGeometry(starShape(0.03, 0.013, 5), {
+    depth: 0.006,
+    bevelEnabled: false,
+  });
+  sparkleGeo.center();
+  const sparkle = mesh(sparkleGeo, 0xffffff, {
+    emissive: 0xffffff,
+    emissiveIntensity: 0.8,
+    roughness: 0.3,
+  });
+  sparkle.rotation.x = Math.PI / 2;
+  sparkle.position.set(0.19, 0.014, 0);
+  g.add(sparkle);
+  return { group: g, restY: 0.02 };
+}
+
 const ITEM_BUILDERS = {
   hand: buildHand,
   slipper: buildSlipper,
@@ -374,6 +441,7 @@ const ITEM_BUILDERS = {
   golden: buildGolden,
   machinegun: buildMachinegun,
   pawpunch: buildPawpunch,
+  starrod: buildStarrod,
 };
 
 // ---------------------------------------------------------------------------
@@ -598,6 +666,22 @@ function goldTopper() {
   return t;
 }
 
+function hoshiTopper() {
+  const t = new THREE.Group();
+  const starGeo = new THREE.ExtrudeGeometry(starShape(0.07, 0.03, 5), {
+    depth: 0.012,
+    bevelEnabled: false,
+  });
+  starGeo.center();
+  const star = mesh(starGeo, 0xff9ecf, { emissive: 0xff9ecf, emissiveIntensity: 0.2, roughness: 0.7 });
+  t.add(star);
+  // face-hole ring hint, echoing the hood's opening on the model itself
+  const ring = mesh(new THREE.TorusGeometry(0.028, 0.006, 8, 16), 0xffffff, { roughness: 0.7 });
+  ring.position.z = 0.008;
+  t.add(ring);
+  return t;
+}
+
 // ---------------------------------------------------------------------------
 // Costume hangers: wire hanger + flat garment silhouette + topper
 // ---------------------------------------------------------------------------
@@ -661,6 +745,7 @@ const COSTUME_CFG = {
   magical: { color: 0xff69b4, roughness: 0.6, topper: magicalTopper },
   bear: { color: 0x8b5e34, roughness: 0.95, topper: bearTopper },
   gold: { color: 0xffd700, roughness: 0.25, metalness: 0.9, topper: goldTopper },
+  hoshi: { color: 0xff9ecf, roughness: 0.85, topper: hoshiTopper },
 };
 
 function buildHanger(id) {
@@ -744,18 +829,31 @@ function buildHangerRail() {
 const ITEM_ORDER = SLAP_ITEMS.map((it) => it.id);
 const COSTUME_ORDER = COSTUMES.map((c) => c.id);
 
-// 3 tiers x 3 slots = 9 shelf slots, filled in SLAP_ITEMS order.
-const ITEM_SLOT_Z = [-1.35, -0.75, -0.15];
+// 3 tiers holding 10 shelf slots total (4/3/3), filled in SLAP_ITEMS order.
+// Each tier's slots are spread evenly across the shared z-range so tiers
+// with fewer items stay centered instead of bunching to one side.
 const ITEM_SLOT_Y = TIER_Y.map((y) => y + 0.04);
+const ITEM_TIER_COUNTS = [4, 3, 3];
+const ITEM_Z_RANGE = [-1.45, -0.05];
 function itemSlotPos(id) {
   const idx = ITEM_ORDER.indexOf(id);
   if (idx < 0) return null;
-  const tier = Math.floor(idx / 3);
-  return { x: -2.7, y: ITEM_SLOT_Y[tier], z: ITEM_SLOT_Z[idx % 3] };
+  let tier = 0;
+  let offset = idx;
+  while (tier < ITEM_TIER_COUNTS.length - 1 && offset >= ITEM_TIER_COUNTS[tier]) {
+    offset -= ITEM_TIER_COUNTS[tier];
+    tier++;
+  }
+  const count = ITEM_TIER_COUNTS[tier];
+  const z =
+    count === 1
+      ? (ITEM_Z_RANGE[0] + ITEM_Z_RANGE[1]) / 2
+      : ITEM_Z_RANGE[0] + (offset / (count - 1)) * (ITEM_Z_RANGE[1] - ITEM_Z_RANGE[0]);
+  return { x: -2.7, y: ITEM_SLOT_Y[tier], z };
 }
 
-// 10 hanger slots spanning x [-2.4, 2.4], filled in COSTUMES order.
-const COSTUME_SLOT_X = Array.from({ length: 10 }, (_, i) => -2.4 + (4.8 * i) / 9);
+// 11 hanger slots spanning x [-2.4, 2.4], filled in COSTUMES order.
+const COSTUME_SLOT_X = Array.from({ length: 11 }, (_, i) => -2.4 + (4.8 * i) / 10);
 function costumeSlotPos(id) {
   const idx = COSTUME_ORDER.indexOf(id);
   if (idx < 0) return null;
