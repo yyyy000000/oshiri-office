@@ -6,22 +6,27 @@ import * as THREE from "three";
 
 export const SLAP_ITEMS = [
   { id: "hand", name: "素手", points: 10, unlock: 0, sound: "hand" },
-  { id: "slipper", name: "スリッパ", points: 30, unlock: 500, sound: "slipper" },
-  { id: "harisen", name: "ハリセン", points: 80, unlock: 3000, sound: "harisen" },
-  { id: "bachi", name: "太鼓のバチ", points: 200, unlock: 10000, sound: "drum" },
-  { id: "pan", name: "フライパン", points: 500, unlock: 30000, sound: "pan" },
-  { id: "golden", name: "金の孫の手", points: 1200, unlock: 60000, sound: "gold" },
-  { id: "pawpunch", name: "もふもふクマパンチ", points: 3000, unlock: -1, sound: "paw" }, // 隠し
+  { id: "slipper", name: "スリッパ", points: 100, unlock: 2500, sound: "slipper" },
+  { id: "newspaper", name: "丸めた新聞紙", points: 300, unlock: -1, sound: "paper" },
+  { id: "harisen", name: "ハリセン", points: 800, unlock: 15000, sound: "harisen" },
+  { id: "bachi", name: "太鼓のバチ", points: 2000, unlock: 50000, sound: "drum" },
+  { id: "pan", name: "フライパン", points: 4000, unlock: 150000, sound: "pan" },
+  { id: "golden", name: "金の孫の手", points: 6000, unlock: 300000, sound: "gold" },
+  { id: "machinegun", name: "マシンガン", points: 8000, unlock: -1, sound: "gun" },
+  { id: "pawpunch", name: "もふもふクマパンチ", points: 10000, unlock: -1, sound: "paw" },
 ];
 
 export const COSTUMES = [
   { id: "suit", name: "いつものスーツ", unlock: 0 },
-  { id: "nurse", name: "ナース服", unlock: 8000 },
-  { id: "dino", name: "恐竜の着ぐるみ", unlock: 20000 },
-  { id: "space", name: "宇宙服", unlock: 45000 },
-  { id: "magical", name: "魔法少女", unlock: 75000 },
-  { id: "bear", name: "クマの着ぐるみ", unlock: -1 }, // 隠し
-  { id: "gold", name: "黄金スーツ", unlock: -1 }, // 隠し
+  { id: "nurse", name: "ナース服", unlock: 40000 },
+  { id: "boxrobo", name: "段ボールロボ", unlock: -1 },
+  { id: "dino", name: "恐竜の着ぐるみ", unlock: 100000 },
+  { id: "tuxedo", name: "タキシード", unlock: -1 },
+  { id: "space", name: "宇宙服", unlock: 225000 },
+  { id: "penguin", name: "ペンギンの着ぐるみ", unlock: -1 },
+  { id: "magical", name: "魔法少女", unlock: 375000 },
+  { id: "bear", name: "クマの着ぐるみ", unlock: -1 },
+  { id: "gold", name: "黄金スーツ", unlock: -1 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -81,6 +86,33 @@ function easeOutBack(x) {
 // Item builders (each returns { group, restY })
 // ---------------------------------------------------------------------------
 
+function buildHand() {
+  const g = new THREE.Group();
+  const skin = 0xf2c299;
+  const palm = mesh(new THREE.BoxGeometry(0.09, 0.02, 0.1), skin, { roughness: 0.6 });
+  g.add(palm);
+  // rounded heel of the palm
+  const palmCap = mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 16), skin, { roughness: 0.6 });
+  palmCap.rotation.x = Math.PI / 2;
+  palmCap.position.set(0, 0, -0.05);
+  g.add(palmCap);
+  const fingerOffsets = [-0.033, -0.011, 0.011, 0.033];
+  const fingerLens = [0.075, 0.085, 0.082, 0.07];
+  for (let i = 0; i < 4; i++) {
+    const len = fingerLens[i];
+    const finger = mesh(new THREE.CapsuleGeometry(0.012, len - 0.024, 6, 10), skin, { roughness: 0.6 });
+    finger.rotation.x = Math.PI / 2;
+    finger.position.set(fingerOffsets[i], 0, 0.05 + len / 2);
+    g.add(finger);
+  }
+  const thumb = mesh(new THREE.CapsuleGeometry(0.013, 0.045, 6, 10), skin, { roughness: 0.6 });
+  thumb.rotation.z = Math.PI / 2;
+  thumb.rotation.y = -0.5;
+  thumb.position.set(-0.06, 0, -0.01);
+  g.add(thumb);
+  return { group: g, restY: 0.012 };
+}
+
 function buildSlipper() {
   const g = new THREE.Group();
   const sole = mesh(new THREE.CapsuleGeometry(0.075, 0.18, 8, 24), 0x4a90e2);
@@ -100,6 +132,42 @@ function buildSlipper() {
   stitch.position.set(0, 0.006, -0.01);
   g.add(stitch);
   return { group: g, restY: 0.035 };
+}
+
+function buildNewspaper() {
+  const g = new THREE.Group();
+  const paper = 0xefe6d5;
+  const seam = 0xcfc2a8;
+  // two half-length rolls at a slight opposing tilt to read as "slightly bent"
+  const bodyA = mesh(new THREE.CylinderGeometry(0.022, 0.024, 0.18, 16), paper, { roughness: 0.85 });
+  bodyA.rotation.z = Math.PI / 2 - 0.08;
+  bodyA.position.set(-0.09, 0.01, 0);
+  g.add(bodyA);
+  const bodyB = mesh(new THREE.CylinderGeometry(0.021, 0.022, 0.18, 16), paper, { roughness: 0.85 });
+  bodyB.rotation.z = Math.PI / 2 + 0.08;
+  bodyB.position.set(0.09, -0.01, 0);
+  g.add(bodyB);
+  // spiral seam line, approximated with short arc segments stepped along the roll
+  for (let i = 0; i < 10; i++) {
+    const seg = mesh(new THREE.TorusGeometry(0.0225, 0.0015, 6, 10, Math.PI * 0.6), seam, {
+      roughness: 0.9,
+    });
+    seg.rotation.y = Math.PI / 2;
+    seg.rotation.z = i * 0.35;
+    seg.position.x = -0.16 + i * 0.035;
+    seg.position.y = i < 5 ? 0.01 * (i / 5) : 0.01 - 0.02 * ((i - 5) / 5);
+    g.add(seg);
+  }
+  // rubber bands
+  const band1 = mesh(new THREE.TorusGeometry(0.026, 0.004, 8, 16), 0xd2691e, { roughness: 0.8 });
+  band1.rotation.y = Math.PI / 2;
+  band1.position.x = -0.05;
+  g.add(band1);
+  const band2 = mesh(new THREE.TorusGeometry(0.024, 0.004, 8, 16), 0xd2691e, { roughness: 0.8 });
+  band2.rotation.y = Math.PI / 2;
+  band2.position.x = 0.06;
+  g.add(band2);
+  return { group: g, restY: 0.026 };
 }
 
 function buildHarisen() {
@@ -209,6 +277,53 @@ function buildGolden() {
   return { group: g, restY: 0.01 };
 }
 
+function buildMachinegun() {
+  const g = new THREE.Group();
+  const metal = 0x33363b;
+  const metalDark = 0x1f2124;
+  const wood = 0x7a4a2b;
+  const body = mesh(new THREE.BoxGeometry(0.18, 0.06, 0.05), metal, { metalness: 0.6, roughness: 0.4 });
+  g.add(body);
+  const barrel = mesh(new THREE.CylinderGeometry(0.017, 0.02, 0.16, 16), metal, {
+    metalness: 0.7,
+    roughness: 0.35,
+  });
+  barrel.rotation.z = Math.PI / 2;
+  barrel.position.set(0.17, 0.005, 0);
+  g.add(barrel);
+  const muzzle = mesh(new THREE.TorusGeometry(0.02, 0.007, 10, 16), metalDark, {
+    metalness: 0.6,
+    roughness: 0.4,
+  });
+  muzzle.rotation.y = Math.PI / 2;
+  muzzle.position.set(0.25, 0.005, 0);
+  g.add(muzzle);
+  const mag = mesh(new THREE.BoxGeometry(0.038, 0.11, 0.034), metal, { metalness: 0.5, roughness: 0.45 });
+  mag.rotation.z = 0.22;
+  mag.position.set(-0.015, -0.085, 0);
+  g.add(mag);
+  const grip = mesh(new THREE.BoxGeometry(0.032, 0.085, 0.038), wood, { roughness: 0.7 });
+  grip.rotation.z = 0.3;
+  grip.position.set(-0.07, -0.055, 0);
+  g.add(grip);
+  const stock = mesh(new THREE.BoxGeometry(0.1, 0.045, 0.04), wood, { roughness: 0.7 });
+  stock.position.set(-0.14, -0.005, 0);
+  g.add(stock);
+  // small ammo-belt hint dangling from the magazine
+  for (let i = 0; i < 3; i++) {
+    const link = mesh(new THREE.BoxGeometry(0.013, 0.016, 0.013), 0xb8860b, {
+      metalness: 0.5,
+      roughness: 0.5,
+    });
+    link.position.set(-0.015 - i * 0.005, -0.145 - i * 0.011, 0);
+    g.add(link);
+  }
+  const sight = mesh(new THREE.BoxGeometry(0.018, 0.018, 0.014), metalDark, { metalness: 0.6, roughness: 0.4 });
+  sight.position.set(0.04, 0.04, 0);
+  g.add(sight);
+  return { group: g, restY: 0.175 };
+}
+
 function buildPawpunch() {
   const g = new THREE.Group();
   const fur = 0x8b5e34;
@@ -250,17 +365,72 @@ function buildPawpunch() {
 }
 
 const ITEM_BUILDERS = {
+  hand: buildHand,
   slipper: buildSlipper,
+  newspaper: buildNewspaper,
   harisen: buildHarisen,
   bachi: buildBachi,
   pan: buildPan,
   golden: buildGolden,
+  machinegun: buildMachinegun,
   pawpunch: buildPawpunch,
 };
 
 // ---------------------------------------------------------------------------
 // Costume toppers (mounted above the hanger hook)
 // ---------------------------------------------------------------------------
+
+function tieTopper() {
+  const t = new THREE.Group();
+  const tieColor = 0x7a1f1f;
+  const knot = mesh(new THREE.BoxGeometry(0.02, 0.02, 0.015), tieColor, { emissive: tieColor });
+  knot.position.y = 0.01;
+  t.add(knot);
+  const tieShape = new THREE.Shape();
+  tieShape.moveTo(-0.015, 0);
+  tieShape.lineTo(0.015, 0);
+  tieShape.lineTo(0.02, -0.06);
+  tieShape.lineTo(0, -0.08);
+  tieShape.lineTo(-0.02, -0.06);
+  tieShape.closePath();
+  const tieGeo = new THREE.ExtrudeGeometry(tieShape, { depth: 0.006, bevelEnabled: false });
+  const tie = mesh(tieGeo, tieColor, { emissive: tieColor });
+  tie.position.set(0, 0, -0.003);
+  t.add(tie);
+  return t;
+}
+
+function boxroboTopper() {
+  const t = new THREE.Group();
+  const cardboard = 0xc19a6b;
+  const head = mesh(new THREE.BoxGeometry(0.1, 0.09, 0.08), cardboard, {
+    roughness: 0.9,
+    emissive: cardboard,
+  });
+  t.add(head);
+  const marker = 0x2b2b2b;
+  const eyeGeo = new THREE.BoxGeometry(0.012, 0.012, 0.004);
+  const eyeL = mesh(eyeGeo, marker, { roughness: 0.9 });
+  eyeL.position.set(-0.022, 0.01, 0.041);
+  t.add(eyeL);
+  const eyeR = mesh(eyeGeo.clone(), marker, { roughness: 0.9 });
+  eyeR.position.set(0.022, 0.01, 0.041);
+  t.add(eyeR);
+  const mouth = mesh(new THREE.BoxGeometry(0.04, 0.006, 0.004), marker, { roughness: 0.9 });
+  mouth.position.set(0, -0.018, 0.041);
+  t.add(mouth);
+  // flap "ears" on top like an open box lid
+  const flapGeo = new THREE.BoxGeometry(0.06, 0.015, 0.04);
+  const flapL = mesh(flapGeo, cardboard, { roughness: 0.9, emissive: cardboard });
+  flapL.rotation.z = 0.5;
+  flapL.position.set(-0.045, 0.05, 0);
+  t.add(flapL);
+  const flapR = mesh(flapGeo.clone(), cardboard, { roughness: 0.9, emissive: cardboard });
+  flapR.rotation.z = -0.5;
+  flapR.position.set(0.045, 0.05, 0);
+  t.add(flapR);
+  return t;
+}
 
 function nurseTopper() {
   const t = new THREE.Group();
@@ -301,6 +471,23 @@ function dinoTopper() {
   return t;
 }
 
+function bowTieTopper() {
+  const t = new THREE.Group();
+  const tieColor = 0x8b1a1a;
+  const knot = mesh(new THREE.BoxGeometry(0.014, 0.014, 0.014), tieColor, { emissive: tieColor });
+  t.add(knot);
+  const wingGeo = new THREE.ConeGeometry(0.02, 0.03, 4);
+  const wingL = mesh(wingGeo, tieColor, { emissive: tieColor });
+  wingL.rotation.z = Math.PI / 2;
+  wingL.position.set(-0.025, 0, 0);
+  t.add(wingL);
+  const wingR = mesh(wingGeo.clone(), tieColor, { emissive: tieColor });
+  wingR.rotation.z = -Math.PI / 2;
+  wingR.position.set(0.025, 0, 0);
+  t.add(wingR);
+  return t;
+}
+
 function spaceTopper() {
   const t = new THREE.Group();
   const helmet = mesh(new THREE.SphereGeometry(0.065, 20, 16), 0xe8e8ec, {
@@ -317,6 +504,22 @@ function spaceTopper() {
   visor.rotation.x = Math.PI * 0.55;
   visor.position.set(0, 0, 0.02);
   t.add(visor);
+  return t;
+}
+
+function penguinTopper() {
+  const t = new THREE.Group();
+  const head = mesh(new THREE.SphereGeometry(0.06, 18, 14), 0x101010, { emissive: 0x101010, roughness: 0.6 });
+  t.add(head);
+  const faceGeo = new THREE.SphereGeometry(0.05, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5);
+  const face = mesh(faceGeo, 0xffffff, { emissive: 0xffffff, roughness: 0.6 });
+  face.rotation.x = Math.PI * 0.55;
+  face.position.set(0, -0.005, 0.015);
+  t.add(face);
+  const beak = mesh(new THREE.ConeGeometry(0.018, 0.04, 8), 0xff9800, { emissive: 0xff9800 });
+  beak.rotation.x = Math.PI / 2;
+  beak.position.set(0, -0.01, 0.05);
+  t.add(beak);
   return t;
 }
 
@@ -417,10 +620,44 @@ function garmentShape() {
 }
 const GARMENT_GEO = new THREE.ExtrudeGeometry(garmentShape(), { depth: 0.02, bevelEnabled: false, curveSegments: 1 });
 
+// Decorations layered on top of the flat garment silhouette (V-neck shirt
+// insert, belly patch, etc.) for costumes whose garment isn't a solid block.
+function tuxedoDecorate(g) {
+  const shirtShape = new THREE.Shape();
+  shirtShape.moveTo(-0.09, -0.15);
+  shirtShape.lineTo(0, -0.32);
+  shirtShape.lineTo(0.09, -0.15);
+  shirtShape.lineTo(0.06, -0.14);
+  shirtShape.lineTo(0, -0.28);
+  shirtShape.lineTo(-0.06, -0.14);
+  shirtShape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shirtShape, { depth: 0.015, bevelEnabled: false });
+  const shirt = mesh(geo, 0xffffff, { roughness: 0.6, emissive: 0xffffff, emissiveIntensity: 0 });
+  shirt.position.z = 0.006;
+  g.add(shirt);
+}
+
+function penguinDecorate(g) {
+  const bellyShape = new THREE.Shape();
+  bellyShape.moveTo(-0.09, -0.16);
+  bellyShape.lineTo(0.09, -0.16);
+  bellyShape.lineTo(0.07, -0.52);
+  bellyShape.lineTo(-0.07, -0.52);
+  bellyShape.closePath();
+  const geo = new THREE.ExtrudeGeometry(bellyShape, { depth: 0.015, bevelEnabled: false });
+  const belly = mesh(geo, 0xffffff, { roughness: 0.7, emissive: 0xffffff, emissiveIntensity: 0 });
+  belly.position.z = 0.006;
+  g.add(belly);
+}
+
 const COSTUME_CFG = {
+  suit: { color: 0x555a63, roughness: 0.55, topper: tieTopper },
   nurse: { color: 0xffffff, roughness: 0.7, topper: nurseTopper },
+  boxrobo: { color: 0xc19a6b, roughness: 0.9, topper: boxroboTopper },
   dino: { color: 0x4caf50, roughness: 0.85, topper: dinoTopper },
+  tuxedo: { color: 0x1a1a1a, roughness: 0.4, topper: bowTieTopper, decorate: tuxedoDecorate },
   space: { color: 0xd8d8e0, roughness: 0.35, metalness: 0.3, topper: spaceTopper },
+  penguin: { color: 0x161616, roughness: 0.6, topper: penguinTopper, decorate: penguinDecorate },
   magical: { color: 0xff69b4, roughness: 0.6, topper: magicalTopper },
   bear: { color: 0x8b5e34, roughness: 0.95, topper: bearTopper },
   gold: { color: 0xffd700, roughness: 0.25, metalness: 0.9, topper: goldTopper },
@@ -445,6 +682,7 @@ function buildHanger(id) {
   });
   garment.position.z = -0.01;
   g.add(garment);
+  if (cfg.decorate) cfg.decorate(g);
   const topperHolder = new THREE.Group();
   topperHolder.position.y = 0.04;
   topperHolder.add(cfg.topper());
@@ -456,33 +694,34 @@ function buildHanger(id) {
 // Furniture: item shelf (left wall) + costume hanger rail (front wall)
 // ---------------------------------------------------------------------------
 
+const TIER_Y = [0.45, 0.95, 1.45];
+
 function buildShelf() {
   const g = new THREE.Group();
   const wood = 0x8b5a2b;
   const darkWood = 0x6b4423;
-  const backPanel = mesh(new THREE.BoxGeometry(0.04, 1.3, 1.7), darkWood, { roughness: 0.8 });
-  backPanel.position.set(-2.93, 0.75, -0.75);
+  const backPanel = mesh(new THREE.BoxGeometry(0.04, 1.9, 1.7), darkWood, { roughness: 0.8 });
+  backPanel.position.set(-2.93, 1.0, -0.75);
   g.add(backPanel);
   const tierGeo = new THREE.BoxGeometry(0.35, 0.04, 1.7);
-  const tier1 = mesh(tierGeo, wood, { roughness: 0.7 });
-  tier1.position.set(-2.75, 0.46, -0.75);
-  g.add(tier1);
-  const tier2 = mesh(tierGeo.clone(), wood, { roughness: 0.7 });
-  tier2.position.set(-2.75, 1.06, -0.75);
-  g.add(tier2);
-  const supGeo = new THREE.BoxGeometry(0.35, 1.3, 0.04);
+  for (const y of TIER_Y) {
+    const tier = mesh(tierGeo.clone(), wood, { roughness: 0.7 });
+    tier.position.set(-2.75, y, -0.75);
+    g.add(tier);
+  }
+  const supGeo = new THREE.BoxGeometry(0.35, 1.9, 0.04);
   const supA = mesh(supGeo, darkWood, { roughness: 0.8 });
-  supA.position.set(-2.75, 0.75, -1.58);
+  supA.position.set(-2.75, 1.0, -1.58);
   g.add(supA);
   const supB = mesh(supGeo.clone(), darkWood, { roughness: 0.8 });
-  supB.position.set(-2.75, 0.75, 0.08);
+  supB.position.set(-2.75, 1.0, 0.08);
   g.add(supB);
   return g;
 }
 
 function buildHangerRail() {
   const g = new THREE.Group();
-  const rod = mesh(new THREE.CylinderGeometry(0.015, 0.015, 3.3, 16), 0xaaaaaa, {
+  const rod = mesh(new THREE.CylinderGeometry(0.015, 0.015, 5.0, 16), 0xaaaaaa, {
     metalness: 0.8,
     roughness: 0.3,
   });
@@ -490,12 +729,11 @@ function buildHangerRail() {
   rod.position.set(0, 2.0, 2.85);
   g.add(rod);
   const bracketGeo = new THREE.BoxGeometry(0.03, 0.15, 0.05);
-  const b1 = mesh(bracketGeo, 0x888888, { metalness: 0.7, roughness: 0.4 });
-  b1.position.set(-1.68, 2.0, 2.87);
-  g.add(b1);
-  const b2 = mesh(bracketGeo.clone(), 0x888888, { metalness: 0.7, roughness: 0.4 });
-  b2.position.set(1.68, 2.0, 2.87);
-  g.add(b2);
+  for (const bx of [-2.35, 0, 2.35]) {
+    const b = mesh(bracketGeo.clone(), 0x888888, { metalness: 0.7, roughness: 0.4 });
+    b.position.set(bx, 2.0, 2.87);
+    g.add(b);
+  }
   return g;
 }
 
@@ -503,18 +741,21 @@ function buildHangerRail() {
 // Fixed slot layout
 // ---------------------------------------------------------------------------
 
-const ITEM_ORDER = SLAP_ITEMS.filter((it) => it.id !== "hand").map((it) => it.id);
-const COSTUME_ORDER = COSTUMES.filter((c) => c.id !== "suit").map((c) => c.id);
+const ITEM_ORDER = SLAP_ITEMS.map((it) => it.id);
+const COSTUME_ORDER = COSTUMES.map((c) => c.id);
 
+// 3 tiers x 3 slots = 9 shelf slots, filled in SLAP_ITEMS order.
 const ITEM_SLOT_Z = [-1.35, -0.75, -0.15];
+const ITEM_SLOT_Y = TIER_Y.map((y) => y + 0.04);
 function itemSlotPos(id) {
   const idx = ITEM_ORDER.indexOf(id);
   if (idx < 0) return null;
-  const tier = idx < 3 ? 0 : 1;
-  return { x: -2.7, y: tier === 0 ? 0.5 : 1.1, z: ITEM_SLOT_Z[idx % 3] };
+  const tier = Math.floor(idx / 3);
+  return { x: -2.7, y: ITEM_SLOT_Y[tier], z: ITEM_SLOT_Z[idx % 3] };
 }
 
-const COSTUME_SLOT_X = [-1.6, -0.96, -0.32, 0.32, 0.96, 1.6];
+// 10 hanger slots spanning x [-2.4, 2.4], filled in COSTUMES order.
+const COSTUME_SLOT_X = Array.from({ length: 10 }, (_, i) => -2.4 + (4.8 * i) / 9);
 function costumeSlotPos(id) {
   const idx = COSTUME_ORDER.indexOf(id);
   if (idx < 0) return null;
@@ -526,6 +767,7 @@ function costumeSlotPos(id) {
 // ---------------------------------------------------------------------------
 
 export function buildWeaponModel(id) {
+  if (id === "hand") return null;
   const b = ITEM_BUILDERS[id];
   return b ? b().group : null;
 }
@@ -544,8 +786,6 @@ export function createItemManager(scene) {
   function spawn(kind, id) {
     const key = kind + ":" + id;
     if (spawned.has(key)) return;
-    if (kind === "item" && id === "hand") return;
-    if (kind === "costume" && id === "suit") return;
 
     let built;
     let slot;
@@ -608,16 +848,27 @@ export function createItemManager(scene) {
   function setEquipped(itemId) {
     for (const o of activeObjects) {
       if (o.kind !== "item") continue;
-      o.group.visible = !(itemId !== "hand" && o.id === itemId);
-      o.selected = itemId !== "hand" && o.id === itemId ? false : o.selected;
+      const hidden = o.id === itemId;
+      o.group.visible = !hidden;
+      if (hidden) o.selected = false;
     }
   }
 
   function setWornCostume(costumeId) {
     for (const o of activeObjects) {
       if (o.kind !== "costume") continue;
-      o.group.visible = !(costumeId !== "suit" && o.id === costumeId);
+      o.group.visible = o.id !== costumeId;
     }
+  }
+
+  function spawnedIds() {
+    const items = [];
+    const costumes = [];
+    for (const o of activeObjects) {
+      if (o.kind === "item") items.push(o.id);
+      else costumes.push(o.id);
+    }
+    return { items, costumes };
   }
 
   function update(t, dt) {
@@ -649,5 +900,5 @@ export function createItemManager(scene) {
     }
   }
 
-  return { spawn, clickableMeshes, setEquipped, setWornCostume, update };
+  return { spawn, clickableMeshes, setEquipped, setWornCostume, update, spawnedIds };
 }

@@ -2,15 +2,16 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createOffice } from "./office.js";
 import { createOjisan } from "./ojisan.js";
-import { createBGM } from "./bgm.js";
+import { createBGM, TRACKS } from "./bgm.js";
 import { SLAP_ITEMS, COSTUMES, createItemManager } from "./items.js";
 import { createSlapper } from "./slapper.js";
+import { createFPSControls } from "./fpscontrols.js";
 import { createAnimal } from "./animal.js";
 import { maybeSlapVoice, screamVoice } from "./voices.js";
 import { getReply, getSlapLine, getStageLine, getEndingLine } from "./dialog.js";
 
-const TOTAL_POINTS = 100000;
-const STAGE_THRESHOLDS = [0, 5000, 12000, 22000, 35000, 50000, 68000, 85000]; // ステージ0〜7
+const TOTAL_POINTS = 500000;
+const STAGE_THRESHOLDS = [0, 25000, 60000, 110000, 175000, 250000, 340000, 425000]; // ステージ0〜7
 
 // ---------- 3D シーン ----------
 const app = document.getElementById("app");
@@ -33,6 +34,7 @@ controls.minDistance = 1.2;
 controls.maxDistance = 6;
 controls.maxPolarAngle = Math.PI * 0.55;
 
+const fps = createFPSControls(camera, renderer.domElement);
 const office = createOffice(scene);
 const ojisan = createOjisan(scene);
 const items = createItemManager(scene);
@@ -185,6 +187,20 @@ const ITEM_SOUNDS = {
     ding(ac, t + 0.03, 1568, 0.4, 0.18);
     ding(ac, t + 0.09, 2093, 0.5, 0.15);
     ding(ac, t + 0.15, 2637, 0.6, 0.12);
+  },
+  paper(ac, t) {
+    noiseBurst(ac, t, { freq: 1600, dur: 0.11, q: 0.6, gain: 0.85 });
+    noiseBurst(ac, t + 0.015, { freq: 700, dur: 0.08, gain: 0.4, type: "lowpass" });
+    thump(ac, t, { from: 200, to: 90, dur: 0.08, gain: 0.25 });
+  },
+  gun(ac, t) {
+    // ラタタタッ!と4連射
+    for (let i = 0; i < 4; i++) {
+      const tt = t + i * 0.055;
+      noiseBurst(ac, tt, { freq: 800, dur: 0.045, q: 0.7, gain: 0.65 });
+      thump(ac, tt, { from: 220, to: 70, dur: 0.05, gain: 0.45 });
+    }
+    noiseBurst(ac, t + 0.23, { freq: 2500, dur: 0.06, gain: 0.25, type: "highpass" });
   },
   paw(ac, t) {
     // もふっとした低音ボヨン+キュッというぬいぐるみの鳴き
@@ -346,11 +362,7 @@ function onPetAnimal(hitPoint) {
   slapper.pet(hitPoint);
   petSound();
   checkPetUnlocks(true);
-  if (petCount % 25 === 0 && petCount < 100) {
-    toast(`🐻 クマ君なでなで ${petCount}回目…(100回撫でると何かが…?)`);
-  } else if (petCount % 100 === 0 && petCount > 100 && petCount < 1000) {
-    toast(`🐻 クマ君なでなで ${petCount}回目…(1000回でまだ何かが…?)`);
-  } else if (petCount % 10 === 0) {
+  if (petCount % 10 === 0) {
     toast(`🐻 クマ君なでなで ${petCount}回目`);
   }
 }
@@ -377,20 +389,105 @@ function updateBearGrowth(dt) {
 }
 animal.group.scale.setScalar(bearTargetScale()); // 起動時は即適用
 
-// デフォルトに戻すボタン
-document.getElementById("reset-hand").addEventListener("click", (e) => {
-  if (equipped.id !== "hand") equip(SLAP_ITEMS[0]);
-  e.target.blur();
-});
-document.getElementById("reset-suit").addEventListener("click", (e) => {
-  if (ojisan.getCostume() !== "suit") {
-    ojisan.setCostume("suit");
-    items.setWornCostume("suit");
-    toast("👔 いつものスーツに戻した!");
-    say("ふう、やっぱりスーツが落ち着くわい。", 2500);
+// 素手とスーツも実物として棚/ハンガーに常設(使用中は非表示になる)
+items.spawn("item", "hand");
+items.spawn("costume", "suit");
+items.setEquipped("hand");
+items.setWornCostume("suit");
+
+// ---------- 部屋オブジェクトのクリックギミック ----------
+const CLICK_UNLOCKS = {
+  trash:  { count: 50,  kind: "item",    id: "newspaper",  name: "丸めた新聞紙",
+            line: "ゴミ箱から新聞紙!?昭和のしつけ道具じゃないか…" },
+  boxes:  { count: 100, kind: "costume", id: "boxrobo",    name: "段ボールロボ",
+            line: "段ボールから服が…ワシ、ロボになるんか?" },
+  locker: { count: 50,  kind: "costume", id: "tuxedo",     name: "タキシード",
+            line: "ロッカーにタキシード…誰のじゃ?まあ、着るがの。" },
+  fridge: { count: 150, kind: "costume", id: "penguin",    name: "ペンギンの着ぐるみ",
+            line: "冷蔵庫からペンギン服…ひんやりしとるのう!" },
+  muscle: { count: 500, kind: "item",    id: "machinegun", name: "マシンガン",
+            line: "ちょ、警備員さん!?それはやりすぎじゃろ!!" },
+  musicposter: { count: 30, kind: "bgm", id: "android",    name: "ぴっちぴち・アンドロイド",
+            line: "おっ、このアーティストの曲が聴きたくなってきたのう。" },
+  records:     { count: 80, kind: "bgm", id: "gedatsu",    name: "解脱",
+            line: "このレコード…なんだか心が無になりそうじゃ…。" },
+};
+// クリック回数を記録する全オブジェクト(ハズレも含む — 宝探し用)
+const CLICK_NAMES = {
+  trash: "ゴミ箱", boxes: "段ボール", locker: "ロッカー", fridge: "冷蔵庫", muscle: "警備員",
+  player: "レコードプレイヤー", records: "レコードの山", musicposter: "音楽ポスター",
+  copier: "コピー機", cooler: "ウォーターサーバー", safe: "金庫", microwave: "電子レンジ",
+  fan: "扇風機", umbrella: "傘立て", dartboard: "ダーツボード", plant: "観葉植物",
+};
+// BGM管理
+function trackTitle(id) {
+  const t = TRACKS.find((x) => x.id === id);
+  return t ? t.title : id;
+}
+function availableTracks() {
+  const list = ["heya", "sekkai"];
+  if (dropped.has("bgm:android")) list.push("android");
+  if (dropped.has("bgm:gedatsu")) list.push("gedatsu");
+  return list;
+}
+function cycleTrack() {
+  const avail = availableTracks();
+  const cur = bgm.track;
+  const idx = avail.indexOf(cur);
+  const next = avail[(idx + 1) % avail.length];
+  bgm.setTrack(next);
+  if (!bgm.playing) bgm.start();
+  toast(`♪ ${trackTitle(next)}`);
+}
+const CLICKS_KEY = "oshiri_clicks";
+let clicks = {};
+try { clicks = JSON.parse(localStorage.getItem(CLICKS_KEY) || "{}") || {}; } catch { clicks = {}; }
+function saveClicks() { localStorage.setItem(CLICKS_KEY, JSON.stringify(clicks)); }
+function tickSound() {
+  const ac = ctx();
+  const t = ac.currentTime;
+  noiseBurst(ac, t, { freq: 2200, dur: 0.04, gain: 0.3, type: "highpass" });
+  thump(ac, t, { from: 320, to: 180, dur: 0.05, gain: 0.2 });
+}
+function checkClickUnlocks(announce) {
+  for (const [cid, cfg] of Object.entries(CLICK_UNLOCKS)) {
+    const key = (cfg.kind === "item" ? "item:" : cfg.kind === "costume" ? "cos:" : "bgm:") + cfg.id;
+    if ((clicks[cid] || 0) >= cfg.count && !dropped.has(key)) {
+      dropped.add(key);
+      if (cfg.kind === "bgm") {
+        if (announce) {
+          playDropSound();
+          toast(`🎵 新しいBGM『${cfg.name}』を獲得!レコードプレイヤーで切替できます`);
+          say(cfg.line, 3800);
+        }
+      } else {
+        items.spawn(cfg.kind, cfg.id);
+        if (announce) {
+          playDropSound();
+          toast(`${cfg.kind === "item" ? "🎁" : "👗"} 隠し${cfg.kind === "item" ? "アイテム" : "衣装"}『${cfg.name}』が出現!`);
+          say(cfg.line, 3800);
+        }
+      }
+    }
   }
-  e.target.blur();
-});
+}
+function onObjectClick(clickId) {
+  clicks[clickId] = (clicks[clickId] || 0) + 1;
+  saveClicks();
+  office.react(clickId);
+  if (clickId === "player") {
+    // レコードプレイヤーはBGM切替(獲得済みの曲を順番に)
+    cycleTrack();
+    return;
+  }
+  tickSound();
+  checkClickUnlocks(true);
+  const n = clicks[clickId];
+  if (n % 10 === 0) {
+    toast(`👆 ${CLICK_NAMES[clickId] || clickId}: ${n}回目`);
+  }
+}
+checkClickUnlocks(false); // 保存済みクリック数ぶんを起動時に復元
 
 // ---------- クリック処理(尻叩き / アイテム拾い / 着せ替え) ----------
 const raycaster = new THREE.Raycaster();
@@ -413,21 +510,30 @@ document.addEventListener("pointerdown", unlockAudio);
 document.addEventListener("touchend", unlockAudio, { passive: true });
 document.addEventListener("click", unlockAudio);
 renderer.domElement.addEventListener("pointerup", (e) => {
-  if (ending) return;
+  if (!gameMode || ending) return; // スタート画面中は無効
   if (!downPos || Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]) > 6) return;
   pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   raycaster.setFromCamera(pointer, camera);
+  // FPSモードは目の前まで近づかないとクリックできない
+  const inReach = (hit) => gameMode !== "fps" || hit.distance <= INTERACT_RANGE;
 
   // 1) 動物(撫でる — 装備に関係なく手で)
   const animalHits = raycaster.intersectObjects(animal.clickableMeshes, true);
-  if (animalHits.length > 0) {
+  if (animalHits.length > 0 && inReach(animalHits[0])) {
     onPetAnimal(animalHits[0].point);
+    return;
+  }
+
+  // 1.5) 部屋のクリックギミック(段ボール/ゴミ箱/ロッカー/冷蔵庫/警備員)
+  const officeHits = raycaster.intersectObjects(office.clickables, true);
+  if (officeHits.length > 0 && officeHits[0].object.userData.clickId && inReach(officeHits[0])) {
+    onObjectClick(officeHits[0].object.userData.clickId);
     return;
   }
 
   // 2) アイテム / 衣装
   const itemHits = raycaster.intersectObjects(items.clickableMeshes(), true);
-  if (itemHits.length > 0) {
+  if (itemHits.length > 0 && inReach(itemHits[0])) {
     const ud = itemHits[0].object.userData;
     if (ud.kind === "item") {
       const def = SLAP_ITEMS.find((s) => s.id === ud.id);
@@ -448,7 +554,7 @@ renderer.domElement.addEventListener("pointerup", (e) => {
 
   // 3) 尻叩き
   const hits = raycaster.intersectObjects(ojisan.buttMeshes, false);
-  if (hits.length === 0) return;
+  if (hits.length === 0 || !inReach(hits[0])) return;
 
   slapCount++;
   points = Math.min(points + equipped.points, TOTAL_POINTS);
@@ -495,6 +601,10 @@ let endingT = 0;
 function startEnding() {
   ending = true;
   endingPhase = 1;
+  if (gameMode === "fps") {
+    localStorage.setItem("oshiri_god", "1"); // FPSモードクリアで神様モード解禁
+    fps.disable(); // エンディングはシネマティックカメラに切替
+  }
   slapCountEl.textContent = TOTAL_POINTS.toLocaleString();
   slapBarFill.style.width = "100%";
   flashStage();
@@ -527,10 +637,74 @@ function updateEnding(dt) {
     endingPhase = 3;
     bgm.stop();
     const sec = Math.round((Date.now() - startedAt) / 1000);
-    endingStats.textContent = `獲得ポイント: ${TOTAL_POINTS.toLocaleString()}pt / 叩いた回数: ${slapCount}発 / プレイ時間: ${Math.floor(sec / 60)}分${sec % 60}秒`;
+    const got = items.spawnedIds();
+    const itemMissing = SLAP_ITEMS.length - got.items.length;
+    const cosMissing = COSTUMES.length - got.costumes.length;
+    const bgmGot = availableTracks();
+    const clickList = Object.keys(CLICK_NAMES)
+      .map((id) => `${CLICK_NAMES[id]}×${clicks[id] || 0}`)
+      .join(" ・ ");
+    endingStats.innerHTML =
+      `獲得ポイント: ${TOTAL_POINTS.toLocaleString()}pt / 叩いた回数: ${slapCount}発 / プレイ時間: ${Math.floor(sec / 60)}分${sec % 60}秒<br>` +
+      `🎁 アイテム: ${got.items.length} / ${SLAP_ITEMS.length}` +
+      (itemMissing > 0 ? `(未入手 ${itemMissing})` : "(コンプリート!)") +
+      ` ・ 👗 衣装: ${got.costumes.length} / ${COSTUMES.length}` +
+      (cosMissing > 0 ? `(未入手 ${cosMissing})` : "(コンプリート!)") +
+      `<br>🎵 BGM: ${bgmGot.length} / ${TRACKS.length}` +
+      (bgmGot.length < TRACKS.length ? `(未獲得 ${TRACKS.length - bgmGot.length})` : "(コンプリート!)") +
+      ` — ${bgmGot.map(trackTitle).join("、")}` +
+      `<br><span style="font-size:12px;opacity:.75;line-height:1.8">👆 クリック記録: ${clickList} ・ 🐻 なでなで×${petCount}</span>`;
     endingEl.classList.add("show");
     requestAnimationFrame(() => endingEl.classList.add("visible"));
   }
+}
+
+// ---------- スタート画面 / モード管理 ----------
+const INTERACT_RANGE = 1.5; // FPSモードの近接クリック射程(m)
+let gameMode = null; // null=スタート画面 | "fps" | "god"
+const startScreenEl = document.getElementById("start-screen");
+const modeFpsBtn = document.getElementById("mode-fps");
+const modeGodBtn = document.getElementById("mode-god");
+const godUnlocked = localStorage.getItem("oshiri_god") === "1";
+if (godUnlocked) {
+  modeGodBtn.textContent = "👼 神様モードで始める";
+  document.getElementById("mode-god-hint").style.display = "none";
+} else {
+  modeGodBtn.classList.add("locked");
+}
+controls.enabled = false; // スタート画面の間はカメラ操作なし
+
+function beginGame(mode) {
+  gameMode = mode;
+  startScreenEl.style.display = "none";
+  bgm.start(); // ボタン押下=正式なユーザー操作なので確実に再生できる
+  bgmStarted = true;
+  if (mode === "fps") {
+    fps.enable();
+  } else {
+    controls.enabled = true;
+  }
+  say("おお、いらっしゃい。散らかっとるが、まあゆっくりしていきなさい。", 4500);
+}
+modeFpsBtn.addEventListener("click", () => beginGame("fps"));
+modeGodBtn.addEventListener("click", () => {
+  if (godUnlocked) beginGame("god");
+});
+
+// FPSモード: 照準の射程内ハイライト用に全クリック対象をレイキャスト
+const _center = new THREE.Vector2(0, 0);
+let crosshairTick = 0;
+function updateCrosshair() {
+  if (!fps.enabled || (++crosshairTick % 6) !== 0) return;
+  raycaster.setFromCamera(_center, camera);
+  const targets = [
+    ...ojisan.buttMeshes,
+    ...animal.clickableMeshes,
+    ...office.clickables,
+    ...items.clickableMeshes(),
+  ];
+  const hits = raycaster.intersectObjects(targets, true);
+  fps.setInRange(hits.length > 0 && hits[0].distance <= INTERACT_RANGE);
 }
 
 // ---------- ループ ----------
@@ -546,11 +720,22 @@ window.__dbg = () => ({
   petCount,
   pos: [+ojisan.group.position.x.toFixed(2), +ojisan.group.position.z.toFixed(2)],
 });
-// デバッグ用: 撫で回数を直接設定
+// デバッグ用: 撫で回数/クリック数を直接設定
 window.__setPets = (n) => { petCount = n; localStorage.setItem(PETS_KEY, n); };
+window.__setClicks = (id, n) => { clicks[id] = n; saveClicks(); };
+window.__clicks = () => ({ ...clicks });
 window.__items = items;
 window.__animal = animal;
 window.__slapper = slapper;
+window.__office = office;
+window.__bgm = bgm;
+window.__ojisan = ojisan;
+window.__fps = fps;
+window.__forceEnd = () => { if (!ending) { points = TOTAL_POINTS; startEnding(); } };
+window.__screenPos = (x, y, z) => {
+  const v = new THREE.Vector3(x, y, z).project(camera);
+  return [Math.round((v.x * 0.5 + 0.5) * innerWidth), Math.round((-v.y * 0.5 + 0.5) * innerHeight), +v.z.toFixed(3)];
+};
 // デバッグ用: rAFが止まる環境でも時間を早送りして検証する
 window.__ff = (sec = 1, steps = 60) => {
   const dt = sec / steps;
@@ -567,8 +752,6 @@ window.__ff = (sec = 1, steps = 60) => {
   renderer.render(scene, camera);
   return window.__dbg();
 };
-say("おお、いらっしゃい。散らかっとるが、まあゆっくりしていきなさい。", 4500);
-
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
   ojisan.update(clock.elapsedTime, dt);
@@ -577,8 +760,14 @@ renderer.setAnimationLoop(() => {
   slapper.update(clock.elapsedTime, dt);
   animal.update(clock.elapsedTime, dt);
   updateBearGrowth(dt);
-  if (ending) updateEnding(dt);
-  else controls.update();
+  if (ending) {
+    updateEnding(dt);
+  } else if (fps.enabled) {
+    fps.update(dt);
+    updateCrosshair();
+  } else {
+    controls.update();
+  }
   updateBubblePos();
   renderer.render(scene, camera);
 });

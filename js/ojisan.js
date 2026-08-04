@@ -24,6 +24,13 @@ const SPACE_GLASS = 0xbfe8ff;
 const BEAR_BROWN = 0x6b4423;
 const BEAR_TAN = 0xd8ab7a;
 const GOLD = 0xffd24d;
+const BOX_BROWN = 0xb5895a;
+const BOX_TAPE = 0xe0cda0;
+const TUX_BLACK = 0x131316;
+const TUX_BOWTIE = 0xb31217;
+const PENGUIN_BLACK = 0x16181c;
+const PENGUIN_WHITE = 0xf4f4f0;
+const PENGUIN_ORANGE = 0xff8c1a;
 
 // segment presets ("higher poly" pass): [radial, vertical]
 const SEG_HI = [28, 20]; // hero surfaces: head, butt
@@ -441,6 +448,19 @@ export function createOjisan(scene) {
 
   const goldCrownMat = mat(GOLD, 0.2, 0.9);
 
+  const boxCardboardMat = mat(BOX_BROWN, 0.85, 0);
+  const boxTapeMat = mat(BOX_TAPE, 0.6, 0);
+
+  const tuxShirtFrontMat = mat(0xffffff, 0.5, 0);
+  const tuxBowMat = mat(TUX_BOWTIE, 0.5, 0.05);
+  const tuxHatMat = mat(TUX_BLACK, 0.35, 0.2);
+
+  const penguinHoodMat = mat(PENGUIN_BLACK, 0.6, 0);
+  const penguinBeakMat = mat(PENGUIN_ORANGE, 0.5, 0);
+  const penguinBellyMat = mat(PENGUIN_WHITE, 0.55, 0);
+  const penguinFeetMat = mat(PENGUIN_ORANGE, 0.5, 0);
+  const penguinTailMat = mat(PENGUIN_BLACK, 0.6, 0);
+
   // base/target torso + pants colors (shirtMat also colors belly +
   // arm sleeves; pantsMat also colors thighs/shins/hips)
   const TORSO_SUIT_COLOR = shirtMat.color.clone();
@@ -455,6 +475,12 @@ export function createOjisan(scene) {
   const PANTS_BEAR_COLOR = new THREE.Color(BEAR_BROWN);
   const TORSO_GOLD_COLOR = new THREE.Color(GOLD);
   const PANTS_GOLD_COLOR = new THREE.Color(GOLD);
+  const TORSO_BOXROBO_COLOR = new THREE.Color(BOX_BROWN);
+  const PANTS_BOXROBO_COLOR = new THREE.Color(BOX_BROWN);
+  const TORSO_TUXEDO_COLOR = new THREE.Color(TUX_BLACK);
+  const PANTS_TUXEDO_COLOR = new THREE.Color(TUX_BLACK);
+  const TORSO_PENGUIN_COLOR = new THREE.Color(PENGUIN_BLACK);
+  const PANTS_PENGUIN_COLOR = new THREE.Color(PENGUIN_BLACK);
 
   let currentCostume = "suit";
 
@@ -626,7 +652,111 @@ export function createOjisan(scene) {
   }
   const goldParts = [goldCrownBand, ...goldSpikes];
 
-  const COSTUME_IDS = ["suit", "nurse", "dino", "space", "magical", "bear", "gold"];
+  // ---- boxrobo: cardboard box torso + tape stripes + box helmet
+  // w/ dark eye-slit + cardboard tube bracers on the forearms ----
+  const boxTorso = costumeMesh(new THREE.BoxGeometry(0.52, 0.5, 0.34), boxCardboardMat, torsoLean);
+  boxTorso.position.set(0, 0.24, 0.01);
+  const boxTapeH = costumeMesh(new THREE.BoxGeometry(0.53, 0.05, 0.35), boxTapeMat, torsoLean);
+  boxTapeH.position.set(0, 0.24, 0.01);
+  const boxTapeV = costumeMesh(new THREE.BoxGeometry(0.05, 0.51, 0.35), boxTapeMat, torsoLean);
+  boxTapeV.position.set(0, 0.24, 0.01);
+  const boxHelmet = costumeMesh(new THREE.BoxGeometry(0.32, 0.3, 0.32), boxCardboardMat, head);
+  boxHelmet.position.set(0, 0.01, 0.02);
+  const boxHelmetTape = costumeMesh(new THREE.BoxGeometry(0.33, 0.05, 0.33), boxTapeMat, head);
+  boxHelmetTape.position.set(0, 0.01, 0.02);
+  const boxEyeSlit = costumeMesh(new THREE.BoxGeometry(0.22, 0.04, 0.02), darkMat, head);
+  boxEyeSlit.position.set(0, 0.02, 0.19);
+  function boxBracer(elbowGroup) {
+    const b = costumeMesh(new THREE.CylinderGeometry(0.075, 0.075, 0.14, CYL_SEG), boxCardboardMat, elbowGroup);
+    b.position.set(0, 0.1, 0);
+    return b;
+  }
+  const boxBracerL = boxBracer(armL.elbow);
+  const boxBracerR = boxBracer(armR.elbow);
+  const boxParts = [boxTorso, boxTapeH, boxTapeV, boxHelmet, boxHelmetTape, boxEyeSlit, boxBracerL, boxBracerR];
+
+  // ---- tuxedo: black jacket (shirtMat/pantsMat recolor) + white
+  // shirt-front V panel w/ tiny buttons + red bow tie + pocket
+  // square hint + black top hat ----
+  const tuxShirtL = costumeMesh(new THREE.BoxGeometry(0.09, 0.28, 0.02), tuxShirtFrontMat, torsoLean);
+  tuxShirtL.position.set(-0.045, 0.36, 0.153);
+  tuxShirtL.rotation.z = 0.25;
+  const tuxShirtR = costumeMesh(new THREE.BoxGeometry(0.09, 0.28, 0.02), tuxShirtFrontMat, torsoLean);
+  tuxShirtR.position.set(0.045, 0.36, 0.153);
+  tuxShirtR.rotation.z = -0.25;
+  const tuxButtons = [];
+  for (let i = 0; i < 3; i++) {
+    const btn = costumeMesh(new THREE.SphereGeometry(0.012, 8, 8), darkMat, torsoLean);
+    btn.position.set(0, 0.4 - i * 0.07, 0.163);
+    tuxButtons.push(btn);
+  }
+  const tuxBowL = costumeMesh(new THREE.BoxGeometry(0.07, 0.05, 0.025), tuxBowMat, torsoLean);
+  tuxBowL.position.set(-0.045, 0.44, 0.165);
+  tuxBowL.rotation.z = 0.5;
+  const tuxBowR = costumeMesh(new THREE.BoxGeometry(0.07, 0.05, 0.025), tuxBowMat, torsoLean);
+  tuxBowR.position.set(0.045, 0.44, 0.165);
+  tuxBowR.rotation.z = -0.5;
+  const tuxBowKnot = costumeMesh(new THREE.BoxGeometry(0.03, 0.03, 0.03), tuxBowMat, torsoLean);
+  tuxBowKnot.position.set(0, 0.44, 0.165);
+  const tuxPocketSquare = costumeMesh(new THREE.BoxGeometry(0.05, 0.035, 0.015), tuxShirtFrontMat, torsoLean);
+  tuxPocketSquare.position.set(-0.14, 0.32, 0.157);
+  tuxPocketSquare.rotation.z = 0.15;
+  const tuxHatBrim = costumeMesh(new THREE.CylinderGeometry(0.16, 0.16, 0.02, CYL_SEG), tuxHatMat, head);
+  tuxHatBrim.position.set(0, 0.2, 0);
+  const tuxHatTop = costumeMesh(new THREE.CylinderGeometry(0.115, 0.125, 0.16, CYL_SEG), tuxHatMat, head);
+  tuxHatTop.position.set(0, 0.29, 0);
+  const tuxParts = [
+    tuxShirtL,
+    tuxShirtR,
+    ...tuxButtons,
+    tuxBowL,
+    tuxBowR,
+    tuxBowKnot,
+    tuxPocketSquare,
+    tuxHatBrim,
+    tuxHatTop,
+  ];
+
+  // ---- penguin: black kigurumi hood w/ orange beak + eye dots +
+  // white belly panel + black limbs (shirtMat/pantsMat recolor) +
+  // orange webbed-feet covers + tiny black tail ----
+  const penguinHoodBack = costumeMesh(new THREE.SphereGeometry(0.21, 20, 16), penguinHoodMat, head);
+  penguinHoodBack.scale.set(1.15, 1.1, 0.9);
+  penguinHoodBack.position.set(0, 0.05, -0.06);
+  const penguinBeak = costumeMesh(new THREE.ConeGeometry(0.045, 0.09, 10), penguinBeakMat, head);
+  penguinBeak.rotation.x = Math.PI / 2;
+  penguinBeak.position.set(0, 0.0, 0.22);
+  const penguinEyeL = costumeMesh(new THREE.SphereGeometry(0.02, 10, 10), darkMat, head);
+  penguinEyeL.position.set(-0.075, 0.05, 0.18);
+  const penguinEyeR = costumeMesh(new THREE.SphereGeometry(0.02, 10, 10), darkMat, head);
+  penguinEyeR.position.set(0.075, 0.05, 0.18);
+  const penguinHeadParts = [penguinHoodBack, penguinBeak, penguinEyeL, penguinEyeR];
+
+  const penguinBelly = costumeMesh(new THREE.SphereGeometry(0.16, 16, 12), penguinBellyMat, torsoLean);
+  penguinBelly.position.set(0, 0.1, 0.19);
+  penguinBelly.scale.set(0.85, 0.85, 0.6);
+
+  function penguinFoot(shinPivot) {
+    const f = costumeMesh(new THREE.BoxGeometry(0.16, 0.02, 0.27), penguinFeetMat, shinPivot);
+    f.position.set(0, 0.35, 0.07);
+    return f;
+  }
+  const penguinFootL = penguinFoot(legL.shinPivot);
+  const penguinFootR = penguinFoot(legR.shinPivot);
+
+  const penguinTail = makeTail(pelvis, {
+    baseZ: -0.28,
+    segLen1: 0.03,
+    segLen2: 0.015,
+    segR1: 0.045,
+    segR2: 0.025,
+    material: penguinTailMat,
+    tipR: 0.02,
+  });
+
+  const penguinParts = [...penguinHeadParts, penguinBelly, penguinFootL, penguinFootR];
+
+  const COSTUME_IDS = ["suit", "nurse", "dino", "space", "magical", "bear", "gold", "boxrobo", "tuxedo", "penguin"];
 
   function hideAllCostumeParts() {
     dressSkirt.visible = false;
@@ -642,6 +772,10 @@ export function createOjisan(scene) {
     bearBellyPatch.visible = false;
     bearTail.base.visible = false;
     for (const m of goldParts) m.visible = false;
+    for (const m of boxParts) m.visible = false;
+    for (const m of tuxParts) m.visible = false;
+    for (const m of penguinParts) m.visible = false;
+    penguinTail.base.visible = false;
   }
 
   function setCostume(id) {
@@ -705,6 +839,25 @@ export function createOjisan(scene) {
       tieKnot.visible = false;
       tieBody.visible = false;
       for (const m of goldParts) m.visible = true;
+    } else if (id === "boxrobo") {
+      shirtMat.color.copy(TORSO_BOXROBO_COLOR);
+      pantsMat.color.copy(PANTS_BOXROBO_COLOR);
+      tieKnot.visible = false;
+      tieBody.visible = false;
+      for (const m of boxParts) m.visible = true;
+    } else if (id === "tuxedo") {
+      shirtMat.color.copy(TORSO_TUXEDO_COLOR);
+      pantsMat.color.copy(PANTS_TUXEDO_COLOR);
+      tieKnot.visible = false;
+      tieBody.visible = false;
+      for (const m of tuxParts) m.visible = true;
+    } else if (id === "penguin") {
+      shirtMat.color.copy(TORSO_PENGUIN_COLOR);
+      pantsMat.color.copy(PANTS_PENGUIN_COLOR);
+      tieKnot.visible = false;
+      tieBody.visible = false;
+      for (const m of penguinParts) m.visible = true;
+      penguinTail.base.visible = true;
     }
     // "suit": defaults above already restore the original look
   }

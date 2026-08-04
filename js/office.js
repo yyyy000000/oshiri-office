@@ -13,6 +13,10 @@ function smoothstep(edge0, edge1, x) {
   return t * t * (3 - 2 * t);
 }
 
+function easeInOutQuad(t) {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
+
 export function createOffice(scene) {
   // Floor
   const floorGeom = new THREE.PlaneGeometry(6, 6);
@@ -111,6 +115,22 @@ export function createOffice(scene) {
     });
   }
 
+  // Clickable registry: meshes the player can click, tagged with userData.clickId
+  const clickables = [];
+  function tagClickable(root, id) {
+    root.traverse((obj) => {
+      if (obj.isMesh) {
+        obj.userData.clickId = id;
+        clickables.push(obj);
+      }
+    });
+  }
+
+  // Generic material helper for the new procedural props
+  function stdMat(color, roughness = 0.7, metalness = 0.05, extra = {}) {
+    return new THREE.MeshStandardMaterial({ color, roughness, metalness, ...extra });
+  }
+
   // Scattered papers on desk
   const paperMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0 });
   for (let i = 0; i < 8; i++) {
@@ -145,8 +165,9 @@ export function createOffice(scene) {
     registerClutter(paper);
   }
 
-  // Stacked cardboard boxes in corner
+  // Stacked cardboard boxes in corner [CLICKABLE: boxes]
   const boxMat = new THREE.MeshStandardMaterial({ color: 0xb8860b });
+  const boxMeshes = [];
   for (let i = 0; i < 4; i++) {
     const box = new THREE.Mesh(
       new THREE.BoxGeometry(0.4, 0.4, 0.4),
@@ -155,15 +176,18 @@ export function createOffice(scene) {
     box.position.set(-2.2, 0.2 + i * 0.42, -2.2);
     box.rotation.z = (Math.random() - 0.5) * 0.2;
     scene.add(box);
+    boxMeshes.push(box);
   }
+  for (const box of boxMeshes) tagClickable(box, "boxes");
 
-  // Trash can
+  // Trash can [CLICKABLE: trash]
   const trashCan = new THREE.Mesh(
     new THREE.CylinderGeometry(0.25, 0.25, 0.5, 16),
     new THREE.MeshStandardMaterial({ color: 0x666666 })
   );
   trashCan.position.set(-2.5, 0.25, 0.5);
   scene.add(trashCan);
+  tagClickable(trashCan, "trash");
 
   // Crumpled paper around trash
   const crumpleMat = new THREE.MeshStandardMaterial({ color: 0xe0e0e0 });
@@ -266,21 +290,567 @@ export function createOffice(scene) {
   stem.position.set(2.5, 0.35, 1.5);
   stem.rotation.x = 0.3;
   scene.add(stem);
+  tagClickable(pot, "plant");
+  tagClickable(stem, "plant");
 
-  // Lighting
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+  // ================================================================
+  // NEW PROPS
+  // ================================================================
+
+  // ① Copier — beige box, dark glass lid, paper tray
+  {
+    const copier = new THREE.Group();
+    copier.position.set(-2.6, 0, 1.6);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.85, 0.5), stdMat(0xe8dcc0, 0.8, 0.05));
+    body.position.y = 0.425;
+    copier.add(body);
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 0.46), stdMat(0x232328, 0.2, 0.3));
+    lid.position.set(0, 0.875, 0);
+    copier.add(lid);
+    const tray = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.06, 0.16), stdMat(0xcfcfcf, 0.6, 0.1));
+    tray.position.set(0, 0.18, 0.32);
+    copier.add(tray);
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.02), stdMat(0x2c2c2c, 0.5, 0.2));
+    panel.position.set(0.18, 0.68, 0.26);
+    copier.add(panel);
+    scene.add(copier);
+    tagClickable(copier, "copier");
+    var copierGroup = copier;
+  }
+
+  // ② Water cooler — white stand + translucent blue bottle
+  {
+    const cooler = new THREE.Group();
+    cooler.position.set(2.7, 0, -0.6);
+    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 0.9, 14), stdMat(0xf5f5f5, 0.6, 0.05));
+    stand.position.y = 0.45;
+    cooler.add(stand);
+    const basin = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.07, 16), stdMat(0x9aa0a6, 0.5, 0.2));
+    basin.position.y = 0.935;
+    cooler.add(basin);
+    const bottle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.18, 0.48, 16),
+      new THREE.MeshStandardMaterial({ color: 0x3f9fd6, transparent: true, opacity: 0.55, roughness: 0.15, metalness: 0.05 })
+    );
+    bottle.position.y = 1.2;
+    cooler.add(bottle);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, 0.08, 12), stdMat(0x3f9fd6, 0.2, 0.05, { transparent: true, opacity: 0.6 }));
+    neck.position.y = 1.48;
+    cooler.add(neck);
+    for (const [dx, color] of [[-0.06, 0xdd3333], [0.06, 0x3366dd]]) {
+      const spigot = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.04, 0.03), stdMat(color, 0.5, 0.2));
+      spigot.position.set(dx, 0.75, 0.18);
+      cooler.add(spigot);
+    }
+    scene.add(cooler);
+    tagClickable(cooler, "cooler");
+    var coolerGroup = cooler;
+  }
+
+  // ③ Locker — tall gray steel locker with vent slits + handle [CLICKABLE: locker]
+  {
+    const locker = new THREE.Group();
+    locker.position.set(-1.0, 0, -2.74);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.85, 0.42), stdMat(0x8a97a3, 0.55, 0.4));
+    body.position.y = 0.925;
+    locker.add(body);
+    const seam = new THREE.Mesh(new THREE.BoxGeometry(0.015, 1.85, 0.02), stdMat(0x40474f, 0.5, 0.3));
+    seam.position.set(0.15, 0.925, 0.21);
+    locker.add(seam);
+    for (let i = 0; i < 4; i++) {
+      const slit = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.02, 0.01), stdMat(0x2c3238, 0.6, 0.2));
+      slit.position.set(-0.06, 1.55 - i * 0.07, 0.215);
+      locker.add(slit);
+    }
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.14, 0.04), stdMat(0x1f2226, 0.4, 0.5));
+    handle.position.set(0.19, 0.95, 0.23);
+    locker.add(handle);
+    scene.add(locker);
+    tagClickable(locker, "locker");
+    var lockerGroup = locker;
+  }
+
+  // ④ Mini fridge — white box with door seam + handle [CLICKABLE: fridge]
+  let fridgeTopY = 0;
+  {
+    const fridge = new THREE.Group();
+    fridge.position.set(-2.7, 0, 2.65);
+    const dims = { w: 0.55, h: 0.68, d: 0.55 };
+    const body = new THREE.Mesh(new THREE.BoxGeometry(dims.w, dims.h, dims.d), stdMat(0xf2f2f0, 0.5, 0.1));
+    body.position.y = dims.h / 2;
+    fridge.add(body);
+    const seam = new THREE.Mesh(new THREE.BoxGeometry(dims.w + 0.005, 0.012, dims.d + 0.005), stdMat(0xcfcfcf, 0.5, 0.1));
+    seam.position.y = dims.h * 0.68;
+    fridge.add(seam);
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.22, 0.04), stdMat(0xb0b0b0, 0.3, 0.6));
+    handle.position.set(dims.w / 2 - 0.02, dims.h * 0.6, dims.d / 2 + 0.02);
+    fridge.add(handle);
+    scene.add(fridge);
+    tagClickable(fridge, "fridge");
+    var fridgeGroup = fridge;
+    fridgeTopY = dims.h;
+  }
+
+  // ⑤ Microwave — sits on top of the mini fridge
+  {
+    const micro = new THREE.Group();
+    micro.position.set(-2.7, fridgeTopY, 2.65);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.28, 0.4), stdMat(0x2a2a2c, 0.5, 0.2));
+    body.position.y = 0.14;
+    micro.add(body);
+    const windowMesh = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.17, 0.02), stdMat(0x111318, 0.2, 0.3));
+    windowMesh.position.set(-0.06, 0.15, 0.21);
+    micro.add(windowMesh);
+    const buttons = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.2, 0.02), stdMat(0x53565c, 0.4, 0.3));
+    buttons.position.set(0.16, 0.14, 0.21);
+    micro.add(buttons);
+    scene.add(micro);
+    tagClickable(micro, "microwave");
+    var microGroup = micro;
+  }
+
+  // ⑥ Electric fan — stand fan with an oscillating head
+  let fanHead;
+  {
+    const fan = new THREE.Group();
+    fan.position.set(2.75, 0, 1.9);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.04, 16), stdMat(0x2b2b2e, 0.5, 0.3));
+    base.position.y = 0.02;
+    fan.add(base);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.9, 10), stdMat(0x33363a, 0.5, 0.3));
+    pole.position.y = 0.47;
+    fan.add(pole);
+
+    fanHead = new THREE.Group();
+    fanHead.position.y = 0.95;
+    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.14, 14), stdMat(0x3a3d42, 0.5, 0.3));
+    motor.rotation.z = Math.PI / 2;
+    fanHead.add(motor);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.03, 10), stdMat(0xcfcfcf, 0.3, 0.5));
+    hub.rotation.z = Math.PI / 2;
+    hub.position.z = 0.1;
+    fanHead.add(hub);
+    for (let i = 0; i < 3; i++) {
+      const cage = new THREE.Mesh(new THREE.TorusGeometry(0.05 + i * 0.06, 0.006, 6, 20), stdMat(0xaaaaaa, 0.4, 0.4));
+      cage.position.z = 0.1;
+      fanHead.add(cage);
+    }
+    fan.add(fanHead);
+    scene.add(fan);
+    tagClickable(fan, "fan");
+    var fanGroup = fan;
+  }
+
+  // ⑦ Safe — small heavy dark-green safe with round dial
+  {
+    const safe = new THREE.Group();
+    safe.position.set(-2.75, 0, -2.4);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.48, 0.44), stdMat(0x1f3d2b, 0.5, 0.35));
+    body.position.y = 0.24;
+    safe.add(body);
+    const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.03, 20), stdMat(0xcccccc, 0.3, 0.6));
+    dial.rotation.x = Math.PI / 2;
+    dial.position.set(0.05, 0.28, 0.23);
+    safe.add(dial);
+    const dialNub = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.05, 0.01), stdMat(0x333333, 0.4, 0.4));
+    dialNub.position.set(0.05, 0.32, 0.245);
+    safe.add(dialNub);
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.03), stdMat(0x14231a, 0.5, 0.3));
+    handle.position.set(-0.16, 0.24, 0.235);
+    safe.add(handle);
+    scene.add(safe);
+    tagClickable(safe, "safe");
+    var safeGroup = safe;
+  }
+
+  // ⑧ Umbrella stand — cylinder with 2 leaning umbrellas
+  {
+    const standGroup = new THREE.Group();
+    standGroup.position.set(0.9, 0, 2.8);
+    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.35, 16), stdMat(0x2f2f2f, 0.5, 0.3));
+    stand.position.y = 0.175;
+    standGroup.add(stand);
+
+    function umbrella(color, tiltX, tiltZ, rimAngle) {
+      const group = new THREE.Group();
+      const rim = 0.1;
+      group.position.set(Math.sin(rimAngle) * rim, 0.32, Math.cos(rimAngle) * rim);
+      group.rotation.x = tiltX;
+      group.rotation.z = tiltZ;
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.85, 8), stdMat(0x555555, 0.5, 0.3));
+      pole.position.y = 0.42;
+      group.add(pole);
+      const canopy = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.22, 10), stdMat(color, 0.6, 0.05));
+      canopy.position.y = 0.85;
+      group.add(canopy);
+      const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.012, 6, 10), stdMat(0xf2f2f2, 0.6, 0.05));
+      stripe.rotation.x = Math.PI / 2;
+      stripe.position.y = 0.8;
+      group.add(stripe);
+      return group;
+    }
+
+    standGroup.add(umbrella(0xb5451d, 0.16, 0.05, 0.6));
+    standGroup.add(umbrella(0x223355, -0.05, -0.18, 3.5));
+    scene.add(standGroup);
+    tagClickable(standGroup, "umbrella");
+    var umbrellaGroup = standGroup;
+  }
+
+  // ⑨ Dartboard — ring-colored disc on the right wall with 2 tiny darts
+  {
+    const board = new THREE.Group();
+    board.position.set(2.95, 1.7, -1.5);
+    board.rotation.z = Math.PI / 2; // orients disc normal to point into the room (-x)
+    const rings = [
+      { r: 0.28, color: 0x1a1a1a, y: 0 },
+      { r: 0.24, color: 0xf2f2f2, y: 0.006 },
+      { r: 0.18, color: 0xcc2b2b, y: 0.012 },
+      { r: 0.12, color: 0xf2f2f2, y: 0.018 },
+      { r: 0.07, color: 0x1a1a1a, y: 0.024 },
+      { r: 0.03, color: 0xcc2b2b, y: 0.03 }
+    ];
+    for (const ring of rings) {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(ring.r, ring.r, 0.02, 28), stdMat(ring.color, 0.8, 0));
+      mesh.position.y = ring.y;
+      board.add(mesh);
+    }
+    scene.add(board);
+    tagClickable(board, "dartboard");
+    var dartboardGroup = board;
+
+    function dart(x, y, z) {
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.09, 8), stdMat(0x999999, 0.3, 0.6));
+      shaft.rotation.z = Math.PI / 2;
+      shaft.position.set(x, y, z);
+      scene.add(shaft);
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.006, 0.03, 8), stdMat(0x555555, 0.3, 0.6));
+      tip.rotation.z = -Math.PI / 2;
+      tip.position.set(x - 0.06, y, z);
+      scene.add(tip);
+      const flight = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.03, 8), stdMat(0xdd3333, 0.6, 0.05));
+      flight.rotation.z = Math.PI / 2;
+      flight.position.set(x + 0.05, y, z);
+      scene.add(flight);
+    }
+    dart(2.9, 1.72, -1.48);
+    dart(2.9, 1.65, -1.53);
+  }
+
+  // ⑩ Security guard — big, friendly, muscular. [CLICKABLE: muscle]
+  let guardTorso, guardHead, shoulderPivotL, shoulderPivotR;
+  const armCrossedL = { x: 1.0, y: 0, z: 0.55 };
+  const armFlexedL = { x: 0.0, y: 0, z: 1.55 };
+  const armCrossedR = { x: 1.0, y: 0, z: -0.55 };
+  const armFlexedR = { x: 0.0, y: 0, z: -1.55 };
+  {
+    const SKIN = 0x4a3020;
+    const PANTS = 0x1b1b1e;
+    const BOOT = 0x0c0c0c;
+    const TANK = 0x121214;
+    const HAIR = 0x0d0805;
+    const GLASSES = 0x08080a;
+
+    const guard = new THREE.Group();
+    const guardPos = new THREE.Vector3(2.5, 0, 2.3);
+    guard.position.copy(guardPos);
+    guard.rotation.y = Math.atan2(0 - guardPos.x, 0 - guardPos.z);
+
+    for (const dx of [-0.13, 0.13]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.13, 0.8, 12), stdMat(PANTS, 0.7, 0.05));
+      leg.position.set(dx, 0.4, 0);
+      guard.add(leg);
+      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.12, 0.3), stdMat(BOOT, 0.6, 0.1));
+      boot.position.set(dx, 0.06, 0.04);
+      guard.add(boot);
+    }
+
+    guardTorso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.66, 0.32), stdMat(TANK, 0.6, 0.05));
+    guardTorso.position.set(0, 1.13, 0);
+    guard.add(guardTorso);
+
+    for (const dx of [-0.32, 0.32]) {
+      const shoulderCap = new THREE.Mesh(new THREE.SphereGeometry(0.145, 16, 12), stdMat(SKIN, 0.7, 0.02));
+      shoulderCap.position.set(dx, 1.44, 0.02);
+      guard.add(shoulderCap);
+    }
+
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.12, 12), stdMat(SKIN, 0.7, 0.02));
+    neck.position.set(0, 1.52, 0);
+    guard.add(neck);
+
+    guardHead = new THREE.Group();
+    guardHead.position.set(0, 1.78, 0);
+    const headSphere = new THREE.Mesh(new THREE.SphereGeometry(0.205, 20, 16), stdMat(SKIN, 0.7, 0.02));
+    guardHead.add(headSphere);
+    const flatTop = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.09, 0.3), stdMat(HAIR, 0.8, 0));
+    flatTop.position.set(0, 0.235, -0.02);
+    guardHead.add(flatTop);
+    const sunglasses = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.06, 0.05), stdMat(GLASSES, 0.2, 0.3));
+    sunglasses.position.set(0, 0.02, 0.185);
+    guardHead.add(sunglasses);
+    guard.add(guardHead);
+
+    function buildArm(sign) {
+      const pivot = new THREE.Group();
+      pivot.position.set(sign * 0.34, 1.42, 0);
+      const bicep = new THREE.Mesh(new THREE.CapsuleGeometry(0.115, 0.22, 4, 8), stdMat(SKIN, 0.7, 0.02));
+      bicep.position.set(0, -0.14, 0.03);
+      pivot.add(bicep);
+      const forearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.24, 4, 8), stdMat(SKIN, 0.7, 0.02));
+      forearm.position.set(0, -0.3, 0.16);
+      forearm.rotation.x = 1.15;
+      pivot.add(forearm);
+      const fist = new THREE.Mesh(new THREE.SphereGeometry(0.095, 14, 12), stdMat(SKIN, 0.7, 0.02));
+      fist.position.set(0, -0.2, 0.34);
+      pivot.add(fist);
+      return pivot;
+    }
+
+    shoulderPivotL = buildArm(-1);
+    shoulderPivotL.rotation.set(armCrossedL.x, armCrossedL.y, armCrossedL.z);
+    guard.add(shoulderPivotL);
+
+    shoulderPivotR = buildArm(1);
+    shoulderPivotR.rotation.set(armCrossedR.x, armCrossedR.y, armCrossedR.z);
+    guard.add(shoulderPivotR);
+
+    scene.add(guard);
+    tagClickable(guard, "muscle");
+  }
+
+  // ⑪ Record player on a small side table [CLICKABLE: player]
+  let recordPlatter;
+  const playerSpinBurst = { active: false, startT: null, duration: 0.6 };
+  {
+    const playerGroup = new THREE.Group();
+    playerGroup.position.set(2.45, 0, -2.45);
+
+    // small dark side table
+    const tableTop = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.04, 0.4), stdMat(0x2b1d14, 0.6, 0.1));
+    tableTop.position.y = 0.48;
+    playerGroup.add(tableTop);
+    const tableLegMat = stdMat(0x1c130d, 0.6, 0.1);
+    for (const [lx, lz] of [[-0.21, -0.16], [0.21, -0.16], [-0.21, 0.16], [0.21, 0.16]]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.46, 0.035), tableLegMat);
+      leg.position.set(lx, 0.23, lz);
+      playerGroup.add(leg);
+    }
+
+    // turntable plinth
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.34), stdMat(0x18181a, 0.4, 0.3));
+    plinth.position.y = 0.53;
+    playerGroup.add(plinth);
+
+    // platter (spins continuously, faster burst on react)
+    recordPlatter = new THREE.Group();
+    recordPlatter.position.set(-0.03, 0.565, 0);
+    const platterDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.015, 32), stdMat(0x101010, 0.3, 0.2));
+    recordPlatter.add(platterDisc);
+    const centerLabel = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.017, 20), stdMat(0xcc2222, 0.4, 0.1));
+    recordPlatter.add(centerLabel);
+    const spindle = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.03, 8), stdMat(0xdddddd, 0.3, 0.5));
+    spindle.position.y = 0.02;
+    recordPlatter.add(spindle);
+    playerGroup.add(recordPlatter);
+
+    // tonearm
+    const armBase = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.03, 12), stdMat(0x888888, 0.3, 0.5));
+    armBase.position.set(0.16, 0.565, -0.12);
+    playerGroup.add(armBase);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.012, 0.012), stdMat(0xaaaaaa, 0.3, 0.5));
+    arm.position.set(0.09, 0.585, -0.07);
+    arm.rotation.y = 0.5;
+    playerGroup.add(arm);
+
+    // propped-open lid hint
+    const lid = new THREE.Mesh(
+      new THREE.BoxGeometry(0.44, 0.01, 0.36),
+      new THREE.MeshStandardMaterial({ color: 0x9fd6ff, transparent: true, opacity: 0.22, roughness: 0.2, metalness: 0.1 })
+    );
+    lid.position.set(0, 0.76, -0.34);
+    lid.rotation.x = -1.15;
+    playerGroup.add(lid);
+
+    scene.add(playerGroup);
+    tagClickable(playerGroup, "player");
+    var playerGroupRef = playerGroup;
+  }
+
+  // ⑫ Messy record pile next to the player [CLICKABLE: records]
+  {
+    const pileGroup = new THREE.Group();
+    pileGroup.position.set(1.85, 0, -2.6);
+    const darkSleeveColors = [0x1a1a1a, 0x2b2b2e, 0x232326, 0x181818, 0x2f2f33];
+    let stackY = 0.01;
+    for (let i = 0; i < 7; i++) {
+      const w = 0.32 + Math.random() * 0.02;
+      const thickness = 0.012 + Math.random() * 0.006;
+      const sleeve = new THREE.Mesh(
+        new THREE.BoxGeometry(w, thickness, w * 0.98),
+        stdMat(darkSleeveColors[i % darkSleeveColors.length], 0.7, 0.05)
+      );
+      sleeve.position.set((Math.random() - 0.5) * 0.03, stackY + thickness / 2, (Math.random() - 0.5) * 0.03);
+      sleeve.rotation.y = (Math.random() - 0.5) * 0.5;
+      pileGroup.add(sleeve);
+      stackY += thickness;
+    }
+    // a couple of colorful sleeves leaning against the stack
+    const leanColors = [0xdd5533, 0x3388cc];
+    for (let i = 0; i < 2; i++) {
+      const lean = new THREE.Mesh(
+        new THREE.BoxGeometry(0.31, 0.012, 0.31),
+        stdMat(leanColors[i], 0.6, 0.05)
+      );
+      lean.position.set(0.17 + i * 0.05, 0.13, 0.02);
+      lean.rotation.z = Math.PI / 2 - 0.35 - i * 0.1;
+      lean.rotation.y = (Math.random() - 0.5) * 0.3;
+      pileGroup.add(lean);
+    }
+    scene.add(pileGroup);
+    tagClickable(pileGroup, "records");
+    var pileGroupRef = pileGroup;
+  }
+
+  // ⑬ Music artist poster on the back wall [CLICKABLE: musicposter]
+  // RaDIOHIP『ぴっちぴち・アンドロイド』のポスター画像を貼る
+  {
+    const musicPoster = new THREE.Group();
+    musicPoster.position.set(-0.4, 1.9, -2.92);
+
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.94, 1.28, 0.04), stdMat(0x1a1a1a, 0.6, 0.2));
+    musicPoster.add(frame);
+
+    const posterTex = new THREE.TextureLoader().load("assets/radiohip.jpg");
+    posterTex.colorSpace = THREE.SRGBColorSpace;
+    const art = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.85, 1.2), // 726x1024のアスペクト比に合わせる
+      new THREE.MeshStandardMaterial({ map: posterTex, roughness: 0.85, metalness: 0 })
+    );
+    art.position.z = 0.021;
+    musicPoster.add(art);
+
+    scene.add(musicPoster);
+    tagClickable(musicPoster, "musicposter");
+    var musicPosterGroupRef = musicPoster;
+  }
+
+  // ================================================================
+  // LIGHTING — dim, moody room lit mainly by ceiling spotlights
+  // ================================================================
+  const ambientLight = new THREE.AmbientLight(0x2b3a55, 0.1);
   scene.add(ambientLight);
-  const ambientBase = { color: new THREE.Color(0xffffff), intensity: 0.5 };
+  const ambientBase = { color: new THREE.Color(0x2b3a55), intensity: 0.1 };
 
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
+  // Old sole directional light: weakened drastically, kept only as a faint fill
+  // (also reused as the "sunburst" when the roof opens at the end)
+  const directionalLight = new THREE.DirectionalLight(0xdfe8ff, 0.05);
   directionalLight.position.set(2, 3, 2);
   scene.add(directionalLight);
-  const directionalBase = { color: new THREE.Color(0xffffff), intensity: 0.7 };
+  const directionalBase = { color: new THREE.Color(0xdfe8ff), intensity: 0.05 };
 
   const deskLamp = new THREE.PointLight(0xffcc99, 0.8);
   deskLamp.position.set(0.4, 1.2, 0.7);
   scene.add(deskLamp);
   const deskLampBase = { color: new THREE.Color(0xffcc99), intensity: 0.8 };
+
+  // Ceiling spotlights + their visible fixtures
+  const spotConfigs = [
+    { pos: [0, 2.88, 0.6], target: [0, 0, 0.75], intensity: 13 }, // over the desk
+    { pos: [-1.3, 2.88, -1.4], target: [-1.3, 0, -1.4], intensity: 10 }, // over the other half (shelves/boxes)
+    { pos: [1.8, 2.88, 1.1], target: [1.8, 0, 1.1], intensity: 10 } // over the right side clutter
+  ];
+  const ceilingSpots = [];
+  const spotBases = [];
+  const ceilingFixtures = [];
+  for (const cfg of spotConfigs) {
+    const spot = new THREE.SpotLight(0xfff0d0, cfg.intensity, 7, 0.6, 0.4, 1.6);
+    spot.position.set(...cfg.pos);
+    scene.add(spot);
+    spot.target.position.set(...cfg.target);
+    scene.add(spot.target);
+    ceilingSpots.push(spot);
+    spotBases.push({ color: new THREE.Color(0xfff0d0), intensity: cfg.intensity });
+
+    const housing = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.14, 0.16, 0.12, 16),
+      stdMat(0x1a1a1a, 0.6, 0.3)
+    );
+    housing.position.set(cfg.pos[0], 2.94, cfg.pos[2]);
+    scene.add(housing);
+    const bulb = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1, 0.1, 0.02, 16),
+      new THREE.MeshStandardMaterial({ color: 0xfff2d0, emissive: 0xffcc66, emissiveIntensity: 1.3 })
+    );
+    bulb.position.set(cfg.pos[0], 2.87, cfg.pos[2]);
+    scene.add(bulb);
+    ceilingFixtures.push(housing, bulb);
+  }
+
+  // Display lighting — warm accent spots so the item shelf and hanger rail read
+  // clearly against the otherwise dim room.
+  const displayFixtures = [];
+
+  const shelfLight = new THREE.SpotLight(0xffcc88, 6, 6, 0.6, 0.5, 1.5);
+  shelfLight.position.set(-1.8, 2.9, -0.75);
+  scene.add(shelfLight);
+  shelfLight.target.position.set(-2.75, 1.0, -0.75);
+  scene.add(shelfLight.target);
+  const shelfLightBase = { color: new THREE.Color(0xffcc88), intensity: 6 };
+  const shelfFixture = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.1, 0.12, 0.1, 12),
+    stdMat(0x1a1a1a, 0.6, 0.3)
+  );
+  shelfFixture.position.set(-1.8, 2.93, -0.75);
+  scene.add(shelfFixture);
+  displayFixtures.push(shelfFixture);
+
+  const railLights = [];
+  const railLightBases = [];
+  const railConfigs = [
+    { pos: [-1.0, 2.9, 1.8], target: [-1.0, 1.9, 2.9] },
+    { pos: [1.0, 2.9, 1.8], target: [1.0, 1.9, 2.9] }
+  ];
+  for (const cfg of railConfigs) {
+    const railLight = new THREE.SpotLight(0xffcc88, 5, 6, 0.7, 0.5, 1.5);
+    railLight.position.set(...cfg.pos);
+    scene.add(railLight);
+    railLight.target.position.set(...cfg.target);
+    scene.add(railLight.target);
+    railLights.push(railLight);
+    railLightBases.push({ color: new THREE.Color(0xffcc88), intensity: 5 });
+
+    const railFixture = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.11, 0.09, 12),
+      stdMat(0x1a1a1a, 0.6, 0.3)
+    );
+    railFixture.position.set(cfg.pos[0], cfg.pos[1] + 0.03, cfg.pos[2]);
+    scene.add(railFixture);
+    displayFixtures.push(railFixture);
+  }
+
+  // レコードプレイヤーのコーナーと警備員を照らすアクセント照明
+  const accentConfigs = [
+    { pos: [1.7, 2.9, -1.8], target: [2.3, 0.5, -2.45] },  // レコードプレイヤー+レコードの山
+    { pos: [1.8, 2.9, 1.6], target: [2.5, 1.0, 2.3] },     // 警備員
+  ];
+  for (const cfg of accentConfigs) {
+    const accentLight = new THREE.SpotLight(0xffcc88, 5, 7, 0.55, 0.5, 1.5);
+    accentLight.position.set(...cfg.pos);
+    scene.add(accentLight);
+    accentLight.target.position.set(...cfg.target);
+    scene.add(accentLight.target);
+    railLights.push(accentLight); // 進行時の色変化・屋根オープン処理は既存レール灯と同じ扱い
+    railLightBases.push({ color: new THREE.Color(0xffcc88), intensity: 5 });
+
+    const accentFixture = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.11, 0.09, 12),
+      stdMat(0x1a1a1a, 0.6, 0.3)
+    );
+    accentFixture.position.set(cfg.pos[0], cfg.pos[1] + 0.03, cfg.pos[2]);
+    scene.add(accentFixture);
+    displayFixtures.push(accentFixture);
+  }
 
   // Escalation target colors
   const sunsetColor = new THREE.Color(0xff2f6d);
@@ -294,15 +864,34 @@ export function createOffice(scene) {
   function setProgress(p) {
     progress = clamp01(p);
 
-    // Lighting: neutral white -> hot sunset red/magenta; ambient dims slightly
-    ambientLight.color.copy(ambientBase.color).lerp(sunsetColor, progress * 0.7);
-    ambientLight.intensity = lerp(ambientBase.intensity, ambientBase.intensity * 0.8, progress);
+    // Ambient: stays dim throughout, tints toward the hot mood
+    ambientLight.color.copy(ambientBase.color).lerp(sunsetColor, progress * 0.6);
+    ambientLight.intensity = lerp(ambientBase.intensity, ambientBase.intensity * 1.4, progress);
 
+    // Weak fill light nudges toward the hot mood too (barely noticeable)
     directionalLight.color.copy(directionalBase.color).lerp(sunsetColor, progress);
+
+    // Ceiling spotlights: warm white -> hot red, glow intensifies
+    for (let i = 0; i < ceilingSpots.length; i++) {
+      const spot = ceilingSpots[i];
+      const base = spotBases[i];
+      spot.color.copy(base.color).lerp(sunsetColor, progress);
+      spot.intensity = lerp(base.intensity, base.intensity * 1.6, progress);
+    }
 
     // Desk lamp color shift
     deskLamp.color.copy(deskLampBase.color).lerp(deskLampHotColor, progress);
 
+    // Display accent lights: tint only partly and keep intensity up so the
+    // shelf/rail stay legible even as the room escalates
+    shelfLight.color.copy(shelfLightBase.color).lerp(sunsetColor, progress * 0.4);
+    shelfLight.intensity = lerp(shelfLightBase.intensity, shelfLightBase.intensity * 1.1, progress);
+    for (let i = 0; i < railLights.length; i++) {
+      const rl = railLights[i];
+      const base = railLightBases[i];
+      rl.color.copy(base.color).lerp(sunsetColor, progress * 0.4);
+      rl.intensity = lerp(base.intensity, base.intensity * 1.1, progress);
+    }
 
     // Clutter chaos: wilder tilt, and levitation from p >= 0.5
     const tiltAmount = progress * Math.PI * 1.4;
@@ -336,15 +925,148 @@ export function createOffice(scene) {
   let roofSnapshotDirectionalColor = null;
   let roofSnapshotDeskLampColor = null;
   let roofSnapshotAmbientIntensity = 0;
+  let roofSnapshotDirectionalIntensity = 0;
 
   function openRoof() {
     ceiling.visible = false;
+    // Ceiling fixtures/spotlights go with the ceiling; bright ambient/sun takes over
+    for (const fx of ceilingFixtures) fx.visible = false;
+    for (const spot of ceilingSpots) spot.visible = false;
+    for (const fx of displayFixtures) fx.visible = false;
+
     roofOpening = true;
     roofOpenStartT = null;
     roofSnapshotAmbientColor = ambientLight.color.clone();
     roofSnapshotDirectionalColor = directionalLight.color.clone();
     roofSnapshotDeskLampColor = deskLamp.color.clone();
     roofSnapshotAmbientIntensity = ambientLight.intensity;
+    roofSnapshotDirectionalIntensity = directionalLight.intensity;
+  }
+
+  // --- Reaction system: quick feedback animations for clickable props ---
+  function makeBounceState(meshes) {
+    return {
+      active: false,
+      startT: null,
+      duration: 0.3,
+      targets: meshes.map((mesh) => ({
+        mesh,
+        basePos: mesh.position.clone(),
+        baseScale: mesh.scale.clone()
+      }))
+    };
+  }
+
+  function updateBounce(state, t) {
+    if (!state.active) return;
+    if (state.startT === null) state.startT = t;
+    const u = clamp01((t - state.startT) / state.duration);
+    const hop = Math.sin(Math.PI * u);
+    const squash = Math.sin(Math.PI * 2 * u);
+    const scaleY = 1 + squash * 0.25;
+    const scaleXZ = 1 - squash * 0.15;
+    for (const tgt of state.targets) {
+      tgt.mesh.position.set(tgt.basePos.x, tgt.basePos.y + hop * 0.14, tgt.basePos.z);
+      tgt.mesh.scale.set(tgt.baseScale.x * scaleXZ, tgt.baseScale.y * scaleY, tgt.baseScale.z * scaleXZ);
+    }
+    if (u >= 1) {
+      state.active = false;
+      for (const tgt of state.targets) {
+        tgt.mesh.position.copy(tgt.basePos);
+        tgt.mesh.scale.copy(tgt.baseScale);
+      }
+    }
+  }
+
+  const bounceStates = {
+    boxes: makeBounceState(boxMeshes),
+    trash: makeBounceState([trashCan]),
+    locker: makeBounceState([lockerGroup]),
+    fridge: makeBounceState([fridgeGroup]),
+    copier: makeBounceState([copierGroup]),
+    cooler: makeBounceState([coolerGroup]),
+    safe: makeBounceState([safeGroup]),
+    microwave: makeBounceState([microGroup]),
+    fan: makeBounceState([fanGroup]),
+    umbrella: makeBounceState([umbrellaGroup]),
+    dartboard: makeBounceState([dartboardGroup]),
+    plant: makeBounceState([pot, stem]),
+    player: makeBounceState([playerGroupRef]),
+    records: makeBounceState([pileGroupRef]),
+    musicposter: makeBounceState([musicPosterGroupRef])
+  };
+
+  const muscleState = { active: false, startT: null, duration: 0.6 };
+
+  function updateMuscle(t) {
+    const breathe = Math.sin(t * 1.3) * 0.02;
+    const idleNod = Math.sin(t * 2.1) * 0.045;
+
+    let f = 0;
+    if (muscleState.active) {
+      if (muscleState.startT === null) muscleState.startT = t;
+      const u = clamp01((t - muscleState.startT) / muscleState.duration);
+      f = u < 0.5 ? easeInOutQuad(u / 0.5) : easeInOutQuad(1 - (u - 0.5) / 0.5);
+      if (u >= 1) muscleState.active = false;
+    }
+
+    shoulderPivotL.rotation.x = lerp(armCrossedL.x, armFlexedL.x, f);
+    shoulderPivotL.rotation.z = lerp(armCrossedL.z, armFlexedL.z, f);
+    shoulderPivotR.rotation.x = lerp(armCrossedR.x, armFlexedR.x, f);
+    shoulderPivotR.rotation.z = lerp(armCrossedR.z, armFlexedR.z, f);
+
+    const puff = f * 0.1;
+    guardTorso.scale.set(1 + puff, 1 + breathe, 1 + puff);
+
+    const flourishNod = f * 0.18 * Math.sin(t * 22);
+    guardHead.rotation.x = idleNod + flourishNod;
+  }
+
+  const fanBoostState = { active: false, startT: null, duration: 1.0 };
+
+  function updateFan(t) {
+    let freq = 0.5;
+    if (fanBoostState.active) {
+      if (fanBoostState.startT === null) fanBoostState.startT = t;
+      const u = clamp01((t - fanBoostState.startT) / fanBoostState.duration);
+      freq = lerp(3.5, 0.5, u);
+      if (u >= 1) fanBoostState.active = false;
+    }
+    fanHead.rotation.y = Math.sin(t * freq) * 0.6;
+  }
+
+  // Record player platter: spins continuously, with a faster decaying burst on react
+  const platterBaseSpeed = 1.1;
+  function updatePlayer(t, dt) {
+    recordPlatter.rotation.y += dt * platterBaseSpeed;
+    if (playerSpinBurst.active) {
+      if (playerSpinBurst.startT === null) playerSpinBurst.startT = t;
+      const u = clamp01((t - playerSpinBurst.startT) / playerSpinBurst.duration);
+      const extra = (1 - u) * 20;
+      recordPlatter.rotation.y += extra * dt;
+      if (u >= 1) playerSpinBurst.active = false;
+    }
+  }
+
+  function react(clickId) {
+    if (clickId === "muscle") {
+      muscleState.active = true;
+      muscleState.startT = null;
+      return;
+    }
+    if (clickId === "fan") {
+      fanBoostState.active = true;
+      fanBoostState.startT = null;
+    }
+    if (clickId === "player") {
+      playerSpinBurst.active = true;
+      playerSpinBurst.startT = null;
+    }
+    const state = bounceStates[clickId];
+    if (state) {
+      state.active = true;
+      state.startT = null;
+    }
   }
 
   function update(t, dt) {
@@ -352,11 +1074,17 @@ export function createOffice(scene) {
       if (roofOpenStartT === null) roofOpenStartT = t;
       const rp = clamp01((t - roofOpenStartT) / roofOpenDuration);
       ambientLight.color.copy(roofSnapshotAmbientColor).lerp(brightWarmColor, rp);
-      ambientLight.intensity = lerp(roofSnapshotAmbientIntensity, 0.9, rp);
+      ambientLight.intensity = lerp(roofSnapshotAmbientIntensity, 1.1, rp);
       directionalLight.color.copy(roofSnapshotDirectionalColor).lerp(brightWarmColor, rp);
+      directionalLight.intensity = lerp(roofSnapshotDirectionalIntensity, 1.3, rp);
       deskLamp.color.copy(roofSnapshotDeskLampColor).lerp(brightWarmColor, rp);
       if (rp >= 1) roofOpening = false;
     }
+
+    updateFan(t);
+    updateMuscle(t);
+    updatePlayer(t, dt);
+    for (const key in bounceStates) updateBounce(bounceStates[key], t);
 
     if (progress < 0.5) return;
 
@@ -378,5 +1106,5 @@ export function createOffice(scene) {
 
   setProgress(0);
 
-  return { setProgress, openRoof, update };
+  return { setProgress, openRoof, update, clickables, react };
 }
