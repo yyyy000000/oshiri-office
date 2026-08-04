@@ -11,8 +11,8 @@ import { createHoshi, HOSHI_LINES } from "./hoshi.js";
 import { maybeSlapVoice, screamVoice } from "./voices.js";
 import { getReply, getSlapLine, getStageLine, getEndingLine } from "./dialog.js";
 
-const TOTAL_POINTS = 500000;
-const STAGE_THRESHOLDS = [0, 25000, 60000, 110000, 175000, 250000, 340000, 425000]; // ステージ0〜7
+const TOTAL_POINTS = 1000000;
+const STAGE_THRESHOLDS = [0, 50000, 120000, 220000, 350000, 500000, 680000, 850000]; // ステージ0〜7
 
 // ---------- 3D シーン ----------
 const app = document.getElementById("app");

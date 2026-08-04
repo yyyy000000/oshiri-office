@@ -1021,9 +1021,14 @@ export function createOjisan(scene) {
   function jumpsEnabled(pr) {
     return pr >= 0.75;
   }
+  // 終盤ランプ: p=0.75→1.0で0→1。ゴールに近づくほど速く・跳びまくる(難易度アップ)
+  function endgameRamp(pr) {
+    return clamp01((pr - 0.75) / 0.25);
+  }
   function currentSpeed(pr) {
     if (pr < 0.55) return 0.5;
-    return THREE.MathUtils.lerp(1.3, 1.6, clamp01((pr - 0.55) / 0.45));
+    const base = THREE.MathUtils.lerp(1.3, 1.6, clamp01((pr - 0.55) / 0.45));
+    return base * (1 + endgameRamp(pr) * 0.9);
   }
 
   function pickWaypoint() {
@@ -1182,9 +1187,9 @@ export function createOjisan(scene) {
     // brief stagger while standing: freeze locomotion for the first
     // half-second of the slap and stumble forward harder than the
     // seated jolt.
-    // 40,000pt(p=0.08)以降は連打で足止めできると簡単すぎるため、よろけ凍結を無効化
-    // (叩かれジョルトの見た目は残る)
-    const staggering = stoodUp && slapActive && slapElapsed < 0.5 && progress < 0.08;
+    // 40,000pt(ゴール1,000,000ptでp=0.04)以降は連打で足止めできると簡単すぎるため、
+    // よろけ凍結を無効化(叩かれジョルトの見た目は残る)
+    const staggering = stoodUp && slapActive && slapElapsed < 0.5 && progress < 0.04;
 
     // ---- breathing ----
     const breathe = Math.sin(t * 1.6) * 0.02;
@@ -1238,7 +1243,7 @@ export function createOjisan(scene) {
             jumpCooldown -= dt;
             if (jumpCooldown <= 0) {
               startJump();
-              jumpCooldown = randRange(2, 4);
+              jumpCooldown = randRange(2, 4) * (1 - 0.7 * endgameRamp(pr));
             }
           }
         } else if (locoState === "WALK") {
@@ -1259,7 +1264,7 @@ export function createOjisan(scene) {
             jumpCooldown -= dt;
             if (jumpCooldown <= 0) {
               startJump();
-              jumpCooldown = randRange(3, 6);
+              jumpCooldown = randRange(3, 6) * (1 - 0.7 * endgameRamp(pr));
             }
           }
         }
@@ -1293,7 +1298,8 @@ export function createOjisan(scene) {
     const staggerScale = 1 + standBlend * 2; // bigger stumble once standing
     const pelvisX = THREE.MathUtils.lerp(0, walkPos.x, standBlend) + shakeX;
     const pelvisZ = THREE.MathUtils.lerp(0, walkPos.y, standBlend) + slapJoltZ * staggerScale;
-    const pelvisY = THREE.MathUtils.lerp(SIT_PELVIS_Y, STAND_PELVIS_Y, standBlend) + jumpArc * JUMP_HEIGHT * standBlend;
+    const pelvisY = THREE.MathUtils.lerp(SIT_PELVIS_Y, STAND_PELVIS_Y, standBlend) +
+      jumpArc * JUMP_HEIGHT * (1 + endgameRamp(progress) * 1.2) * standBlend;
     pelvis.position.set(pelvisX, pelvisY, pelvisZ);
     pelvis.rotation.z = shakeRotZ;
     pelvis.rotation.y = shakeRotY;
