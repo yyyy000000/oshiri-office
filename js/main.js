@@ -551,12 +551,24 @@ const HINT_LINES = {
   hoshi500: "オレ様をもっとクリックしろよ。いいことあるぜ、たぶんな。",
   hoshi1000: "オレ様を愛し続けたやつには…ご褒美だ。F**k yeah!",
 };
-// おじさんへの質問ネタ振り(会話のヒント)
-const QUESTION_TOPICS = ["宇宙", "ロケット", "ダジャレ", "尻", "名前", "若い頃", "カラオケ", "パチンコ", "星"];
+// おじさんへの質問ネタ振り(dialog.jsの全キーワードエントリを網羅)
+// 「〜について質問」が自然な話題キーワード
+const QUESTION_TOPICS = [
+  "名前", "仕事", "掃除", "尻", "音楽", "疲れ", "ビール", "家族", "ラーメン",
+  "天気", "休み", "上司", "ゴルフ", "野球", "パチンコ", "カラオケ", "若い頃",
+  "給料", "結婚", "ダイエット", "健康診断", "腰痛", "スマホ", "星", "宇宙",
+  "ロケット", "夢", "好物", "タバコ", "ペット", "老後", "ダジャレ",
+];
 const QUESTION_HINT_TEMPLATES = [
   (t) => `おっさんに「${t}」について質問してみ?たぶん面白いぜ。`,
   (t) => `ヒマなら、おっさんに「${t}」の話でも聞いてやれよ。`,
   (t) => `おっさんな、「${t}」って言われると喋りだすぜ。試してみな。`,
+];
+// そのまま声をかける形が自然な言葉
+const SAY_TOPICS = ["こんにちは", "おはよう", "ありがとう", "ばか", "がんばれ", "かわいい", "帰りたい"];
+const SAY_HINT_TEMPLATES = [
+  (t) => `おっさんに「${t}」って言ってやれよ。`,
+  (t) => `試しにおっさんに「${t}」って言ってみな。反応が笑えるぜ。`,
 ];
 function lockedHintPool() {
   const pool = [];
@@ -577,6 +589,10 @@ function hoshiLineOnClick() {
     const pool = lockedHintPool();
     if (pool.length > 0 && Math.random() < 0.5) {
       return pool[Math.floor(Math.random() * pool.length)];
+    }
+    if (Math.random() < SAY_TOPICS.length / (SAY_TOPICS.length + QUESTION_TOPICS.length)) {
+      const t = SAY_TOPICS[Math.floor(Math.random() * SAY_TOPICS.length)];
+      return SAY_HINT_TEMPLATES[Math.floor(Math.random() * SAY_HINT_TEMPLATES.length)](t);
     }
     const t = QUESTION_TOPICS[Math.floor(Math.random() * QUESTION_TOPICS.length)];
     return QUESTION_HINT_TEMPLATES[Math.floor(Math.random() * QUESTION_HINT_TEMPLATES.length)](t);
@@ -703,7 +719,7 @@ function handleGameClick(cssX, cssY) {
   ojisan.slap();
   playItemSound(equipped.sound);
   const voiceLine = maybeSlapVoice(ojisan.getCostume(), points / TOTAL_POINTS);
-  if (voiceLine) say(voiceLine, 5000);
+  if (voiceLine) say(voiceLine, 15000);
   applyProgress();
   checkUnlocks(true);
 
