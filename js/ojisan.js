@@ -1012,22 +1012,24 @@ export function createOjisan(scene) {
   let jumpElapsed = 0;
   let jumpCooldown = randRange(2, 4);
 
+  // 動き変化はアイテム出現ptに同期(p=points/1,000,000):
+  // 立つ3,500(ハリセン)/徘徊8,000(バチ)/走る20,000(フライパン)/ジャンプ100,000(孫の手)
   function isRunPhase(pr) {
-    return pr >= 0.55;
+    return pr >= 0.02;
   }
   function wanderEnabled(pr) {
-    return pr >= 0.3;
+    return pr >= 0.008;
   }
   function jumpsEnabled(pr) {
-    return pr >= 0.75;
+    return pr >= 0.1;
   }
-  // 終盤ランプ: p=0.75→1.0で0→1。ゴールに近づくほど速く・跳びまくる(難易度アップ)
+  // 終盤ランプ: p=0.1(孫の手出現)→1.0で0→1。ゴールに近づくほど速く・跳びまくる
   function endgameRamp(pr) {
-    return clamp01((pr - 0.75) / 0.25);
+    return clamp01((pr - 0.1) / 0.9);
   }
   function currentSpeed(pr) {
-    if (pr < 0.55) return 0.5;
-    const base = THREE.MathUtils.lerp(1.3, 1.6, clamp01((pr - 0.55) / 0.45));
+    if (pr < 0.02) return 0.5;
+    const base = THREE.MathUtils.lerp(1.3, 1.6, clamp01((pr - 0.02) / 0.98));
     return base * (1 + endgameRamp(pr) * 0.9);
   }
 
@@ -1184,12 +1186,9 @@ export function createOjisan(scene) {
         slapLookY = 2.3 * lookIn * (1 - lookOut);
       }
     }
-    // brief stagger while standing: freeze locomotion for the first
-    // half-second of the slap and stumble forward harder than the
-    // seated jolt.
-    // 40,000pt(ゴール1,000,000ptでp=0.04)以降は連打で足止めできると簡単すぎるため、
-    // よろけ凍結を無効化(叩かれジョルトの見た目は残る)
-    const staggering = stoodUp && slapActive && slapElapsed < 0.5 && progress < 0.04;
+    // よろけによる移動凍結は完全廃止(連打で足止めできると簡単すぎるため)。
+    // 叩かれジョルトの見た目(slapJoltZ等)は残る
+    const staggering = false;
 
     // ---- breathing ----
     const breathe = Math.sin(t * 1.6) * 0.02;
@@ -1208,7 +1207,7 @@ export function createOjisan(scene) {
 
     // ==== locomotion: sit -> stand -> wander/run/jump ====
     if (!stoodUp) {
-      if (progress >= 0.1) {
+      if (progress >= 0.0035) {
         standUpElapsed += dt;
         standBlend = ease(Math.min(standUpElapsed / STANDUP_DURATION, 1));
         walkPos.set(

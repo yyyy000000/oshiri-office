@@ -4,28 +4,30 @@ import * as THREE from "three";
 // Data
 // ---------------------------------------------------------------------------
 
+// バランス設計(総叩数2,000発): 区間叩数 素手100/スリッパ300/ハリセン300/バチ400/
+// フライパン400/孫の手500。隠しアイテムは常にその時点の通常最強を上回るご褒美
 export const SLAP_ITEMS = [
-  { id: "hand", name: "素手", points: 10, unlock: 0, sound: "hand" },
-  { id: "slipper", name: "スリッパ", points: 100, unlock: 2500, sound: "slipper" },
-  { id: "newspaper", name: "丸めた新聞紙", points: 300, unlock: -1, sound: "paper" },
-  { id: "harisen", name: "ハリセン", points: 800, unlock: 15000, sound: "harisen" },
-  { id: "bachi", name: "太鼓のバチ", points: 2000, unlock: 50000, sound: "drum" },
-  { id: "pan", name: "フライパン", points: 4000, unlock: 150000, sound: "pan" },
-  { id: "golden", name: "金の孫の手", points: 6000, unlock: 300000, sound: "gold" },
-  { id: "machinegun", name: "マシンガン", points: 8000, unlock: -1, sound: "gun" },
-  { id: "pawpunch", name: "もふもふクマパンチ", points: 10000, unlock: -1, sound: "paw" },
-  { id: "starrod", name: "スターロッド", points: 12000, unlock: -1, sound: "star" },
+  { id: "hand", name: "素手", points: 5, unlock: 0, sound: "hand" },
+  { id: "slipper", name: "スリッパ", points: 10, unlock: 500, sound: "slipper" },
+  { id: "newspaper", name: "丸めた新聞紙", points: 12, unlock: -1, sound: "paper" },
+  { id: "harisen", name: "ハリセン", points: 15, unlock: 3500, sound: "harisen" },
+  { id: "bachi", name: "太鼓のバチ", points: 30, unlock: 8000, sound: "drum" },
+  { id: "pan", name: "フライパン", points: 200, unlock: 20000, sound: "pan" },
+  { id: "golden", name: "金の孫の手", points: 1800, unlock: 100000, sound: "gold" },
+  { id: "machinegun", name: "マシンガン", points: 2500, unlock: -1, sound: "gun" },
+  { id: "pawpunch", name: "もふもふクマパンチ", points: 5000, unlock: -1, sound: "paw" },
+  { id: "starrod", name: "スターロッド", points: 10000, unlock: -1, sound: "star" },
 ];
 
 export const COSTUMES = [
   { id: "suit", name: "いつものスーツ", unlock: 0 },
-  { id: "nurse", name: "ナース服", unlock: 40000 },
+  { id: "nurse", name: "ナース服", unlock: 5000 },
   { id: "boxrobo", name: "段ボールロボ", unlock: -1 },
-  { id: "dino", name: "恐竜の着ぐるみ", unlock: 100000 },
+  { id: "dino", name: "恐竜の着ぐるみ", unlock: 50000 },
   { id: "tuxedo", name: "タキシード", unlock: -1 },
-  { id: "space", name: "宇宙服", unlock: 225000 },
+  { id: "space", name: "宇宙服", unlock: 250000 },
   { id: "penguin", name: "ペンギンの着ぐるみ", unlock: -1 },
-  { id: "magical", name: "魔法少女", unlock: 375000 },
+  { id: "magical", name: "魔法少女", unlock: 600000 },
   { id: "bear", name: "クマの着ぐるみ", unlock: -1 },
   { id: "gold", name: "黄金スーツ", unlock: -1 },
   { id: "hoshi", name: "星の着ぐるみ", unlock: -1 },

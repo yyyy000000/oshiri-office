@@ -12,7 +12,8 @@ import { maybeSlapVoice, screamVoice } from "./voices.js";
 import { getReply, getSlapLine, getStageLine, getEndingLine } from "./dialog.js";
 
 const TOTAL_POINTS = 1000000;
-const STAGE_THRESHOLDS = [0, 50000, 120000, 220000, 350000, 500000, 680000, 850000]; // ステージ0〜7
+// ステージ演出の閾値: 序盤はアイテム出現(3,500/8,000/20,000/100,000)に同期
+const STAGE_THRESHOLDS = [0, 3500, 8000, 20000, 100000, 300000, 550000, 800000]; // ステージ0〜7
 
 // ---------- 3D シーン ----------
 const app = document.getElementById("app");
@@ -549,7 +550,7 @@ const HINT_LINES = {
   pet100: "あのクマ、もっとかわいがってやれよ。妬いてねーし。",
   pet1000: "クマを撫で続けたやつだけが見られる景色があるらしいぜ。",
   hoshi500: "オレ様をもっとクリックしろよ。いいことあるぜ、たぶんな。",
-  hoshi1000: "オレ様を愛し続けたやつには…ご褒美だ。F**k yeah!",
+  hoshi1000: "オレ様を愛し続けたやつには…最強のご褒美だ。F**k yeah!",
 };
 // おじさんへの質問ネタ振り(dialog.jsの全キーワードエントリを網羅)
 // 「〜について質問」が自然な話題キーワード
@@ -578,8 +579,8 @@ function lockedHintPool() {
   }
   if (!dropped.has("cos:bear")) pool.push(HINT_LINES.pet100);
   else if (!dropped.has("cos:gold")) pool.push(HINT_LINES.pet1000);
-  if (!dropped.has("item:starrod")) pool.push(HINT_LINES.hoshi500);
-  else if (!dropped.has("cos:hoshi")) pool.push(HINT_LINES.hoshi1000);
+  if (!dropped.has("cos:hoshi")) pool.push(HINT_LINES.hoshi500);
+  else if (!dropped.has("item:starrod")) pool.push(HINT_LINES.hoshi1000);
   return pool;
 }
 function hoshiLineOnClick() {
@@ -607,22 +608,22 @@ function hoshiSound() {
 }
 function checkHoshiUnlocks(announce) {
   const n = clicks.hoshi || 0;
-  if (n >= 500 && !dropped.has("item:starrod")) {
-    dropped.add("item:starrod");
-    items.spawn("item", "starrod");
-    if (announce) {
-      playDropSound();
-      toast("⭐ 隠しアイテム『スターロッド』が棚に出現!(+12000pt)");
-      sayHoshi("オレ様の力、貸してやるよ。F**k yeah!", 3600);
-    }
-  }
-  if (n >= 1000 && !dropped.has("cos:hoshi")) {
+  if (n >= 500 && !dropped.has("cos:hoshi")) {
     dropped.add("cos:hoshi");
     items.spawn("costume", "hoshi");
     if (announce) {
       playDropSound();
       toast("⭐ 隠し衣装『星の着ぐるみ』がハンガーに出現!");
       sayHoshi("おっさんをオレ様にしてやれ。光栄だろ?That's me!", 3800);
+    }
+  }
+  if (n >= 1000 && !dropped.has("item:starrod")) {
+    dropped.add("item:starrod");
+    items.spawn("item", "starrod");
+    if (announce) {
+      playDropSound();
+      toast("⭐ 隠しアイテム『スターロッド』が棚に出現!(+10000pt)");
+      sayHoshi("オレ様の力、貸してやるよ。F**k yeah!", 3600);
     }
   }
 }
