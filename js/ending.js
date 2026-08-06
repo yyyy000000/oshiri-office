@@ -33,26 +33,27 @@ export function createEndingFx(scene) {
     scene.add(clouds);
   }
 
-  // おじさん本体と同じモデルを緑肌+白ブリーフに色替え
-  function greenify(api) {
-    const seen = new Map();
+  // おじさん星人: 服・髪はおじさんと同じ、肌(0xe0a978)だけ緑に。
+  // setProgressが顔色をlerpで戻すことがあるため、マテリアル参照を保持して毎フレーム上書きする
+  const ALIEN_GREEN = new THREE.Color(0x5cb86e);
+  const ALIEN_SKIN_REF = new THREE.Color(0xe0a978);
+  function greenifySkin(api) {
+    const mats = [];
     api.group.traverse((o) => {
-      if (o.isMesh && o.material && !Array.isArray(o.material)) {
-        if (!seen.has(o.material)) {
-          const m = o.material.clone();
-          m.color.set(0x5cb86e);
-          if (m.emissive) m.emissive.setScalar(0);
-          seen.set(o.material, m);
+      if (o.isMesh && o.material && !Array.isArray(o.material) && o.material.color) {
+        const c = o.material.color;
+        if (
+          Math.abs(c.r - ALIEN_SKIN_REF.r) < 0.08 &&
+          Math.abs(c.g - ALIEN_SKIN_REF.g) < 0.08 &&
+          Math.abs(c.b - ALIEN_SKIN_REF.b) < 0.08 &&
+          !mats.includes(o.material)
+        ) {
+          mats.push(o.material);
         }
-        o.material = seen.get(o.material);
       }
     });
-    const brief = new THREE.Mesh(
-      new THREE.BoxGeometry(0.52, 0.2, 0.42),
-      new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.8 })
-    );
-    brief.position.set(0, 0.52, 0);
-    api.group.add(brief);
+    for (const m of mats) m.color.copy(ALIEN_GREEN);
+    return mats;
   }
 
   function buildDest(dest) {
@@ -90,39 +91,54 @@ export function createEndingFx(scene) {
       destGroup.add(earth);
       destGroup.position.y = PLATFORM_TOP_Y;
     } else if (dest === "butt") {
-      // お尻の形をした惑星(巨大な双球+割れ目)
-      const buttMat = new THREE.MeshStandardMaterial({ color: 0xf5a9c0, roughness: 0.6 });
-      for (const sx of [-1, 1]) {
-        const cheek = new THREE.Mesh(new THREE.SphereGeometry(3.6, 22, 18), buttMat);
-        cheek.position.set(sx * 2.5, -2.9, 0);
-        destGroup.add(cheek);
+      // おしり星: 地平線の見えない広大な土の大地(地球のような惑星の地表)+青空に雲
+      const soil = new THREE.MeshStandardMaterial({ color: 0x8a6a4e, roughness: 0.95 });
+      const disk = new THREE.Mesh(new THREE.CylinderGeometry(70, 70, 2, 48), soil);
+      disk.position.y = -1.0;
+      destGroup.add(disk);
+      const craterMat = new THREE.MeshStandardMaterial({ color: 0x6d5138, roughness: 0.95 });
+      for (let i = 0; i < 24; i++) {
+        const cr = new THREE.Mesh(new THREE.CylinderGeometry(0.6 + Math.random() * 1.2, 0.9 + Math.random() * 1.4, 0.12, 16), craterMat);
+        const a = Math.random() * Math.PI * 2;
+        const r = 2 + Math.random() * 30;
+        cr.position.set(Math.cos(a) * r, 0.02, Math.sin(a) * r);
+        destGroup.add(cr);
       }
-      const cleft = new THREE.Mesh(
-        new THREE.BoxGeometry(0.35, 5.2, 6.4),
-        new THREE.MeshStandardMaterial({ color: 0xd07a95, roughness: 0.8 })
-      );
-      cleft.position.set(0, -3.1, 0);
-      destGroup.add(cleft);
-      destGroup.position.y = PLATFORM_TOP_Y - 0.4;
+      // 青空に浮かぶ雲(地表の上空)
+      for (let i = 0; i < 16; i++) {
+        const c = new THREE.Group();
+        for (let j = 0; j < 4; j++) {
+          const cs = new THREE.Mesh(new THREE.SphereGeometry(1.2 + Math.random() * 1.0, 10, 8), cloudMat);
+          cs.position.set((Math.random() - 0.5) * 3.4, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 2.2);
+          cs.scale.y = 0.5;
+          c.add(cs);
+        }
+        const a = Math.random() * Math.PI * 2;
+        const r = 8 + Math.random() * 35;
+        c.position.set(Math.cos(a) * r, 6 + Math.random() * 12, Math.sin(a) * r);
+        destGroup.add(c);
+      }
+      destGroup.position.y = PLATFORM_TOP_Y;
     }
     if (destGroup) scene.add(destGroup);
   }
 
-  // おじさん星人(butt到着時のみ)。本体と同じcreateOjisanの色替え・空気椅子で座っている
+  // おじさん星人(おしり星のみ)10人。土の大地のあちこちに立って歩き回っている
   function buildAliens() {
     const spots = [
-      [-3.4, 0.4, 1.6, 0.5], [-1.6, 0.7, -1.9, -0.4], [1.8, 0.7, 1.9, 2.6],
-      [3.5, 0.4, -1.4, -2.2], [0.1, 0.9, 2.6, 3.1],
+      [7.0, 3.0], [-7.0, 2.5], [3.0, 9.0], [-4.0, 8.0], [0.5, 11.0],
+      [8.0, -2.0], [-8.0, -2.0], [2.5, -7.0], [-3.0, -7.5], [5.0, 6.0],
     ];
-    for (const [x, y, z, rot] of spots) {
+    for (const [x, z] of spots) {
       const api = createOjisan(scene);
-      greenify(api);
+      const skinMats = greenifySkin(api);
       scene.remove(api.group);
       destGroup.add(api.group);
-      api.group.position.set(x, y, z);
-      api.group.rotation.y = rot;
+      api.group.position.set(x, 0, z);
+      api.group.rotation.y = Math.random() * Math.PI * 2;
       api.group.scale.setScalar(0.9);
-      aliens.push(api);
+      api.setProgress(0.05 + Math.random() * 0.05); // 立ち上がって歩き回る進行度
+      aliens.push({ api, skinMats });
     }
   }
 
@@ -145,9 +161,23 @@ export function createEndingFx(scene) {
     }
   }
 
-  // 素手エンド: おじさんの位置に大きな星が生まれる
+  // 素手エンド: おじさんの位置に大きな星が生まれる(色はおじさんの肌色)
   function buildBigStar(pos) {
     bigStar = createHoshi();
+    const skin = new THREE.Color(0xe0a978);
+    const hsl = {};
+    bigStar.group.traverse((o) => {
+      if (o.isMesh && o.material && !Array.isArray(o.material) && o.material.color) {
+        const m = o.material.clone();
+        m.color.getHSL(hsl);
+        if (hsl.l > 0.25) m.color.copy(skin); // 目などの暗い部分はそのまま
+        if (m.emissive) {
+          m.emissive.copy(skin);
+          m.emissiveIntensity = 0.3;
+        }
+        o.material = m;
+      }
+    });
     bigStar.group.scale.setScalar(4);
     bigStar.group.position.copy(pos);
     scene.add(bigStar.group);
@@ -164,7 +194,10 @@ export function createEndingFx(scene) {
   // 毎フレーム: 護衛の追従・星人と星のアニメ
   const _v = new THREE.Vector3();
   function update(t, dt, ojisanPos) {
-    for (const a of aliens) a.update(t, dt);
+    for (const a of aliens) {
+      a.api.update(t, dt);
+      for (const m of a.skinMats) m.color.copy(ALIEN_GREEN);
+    }
     for (const s of starClones) {
       s.angle += dt * 0.9;
       s.api.group.position.set(

@@ -977,6 +977,10 @@ let bearEscort = false;
 let starEscort = false;
 let arrivalT = 0;
 let bigStarBuilt = false;
+let starTransformT = 0; // 素手エンドの変身タイマー
+let glowMats = null; // 変身時に発光させるおじさんのマテリアル
+let endBigStar = null; // 変身後の星(飛行を続けるため保持)
+let starFlightY = 0; // 変身後の飛行高度
 const DEST_LABELS = { cloud: "雲の上", moon: "月面", butt: "おしり星", star: "星になった" };
 
 function startEnding() {
@@ -1019,13 +1023,38 @@ function updateEnding(dt) {
       ojisan.group.position.y = PLATFORM_TOP_Y;
       arrivalT += dt;
     } else if (endingDest === "star" && ojisan.group.position.y > 70) {
+      // 変身演出: ピカーッと発光 → ホワイトアウト → 白が明けると肌色の星に
+      starTransformT += dt;
       if (!bigStarBuilt) {
-        bigStarBuilt = true;
-        ojisan.group.visible = false; // おじさんは星になった
-        endFx.buildBigStar(ojisan.group.position.clone());
+        ojisan.group.position.y = 70.5; // 変身中はその場で停止
+        if (!glowMats) {
+          glowMats = [];
+          ojisan.group.traverse((o) => {
+            if (o.isMesh && o.material && !Array.isArray(o.material) && o.material.emissive) {
+              if (!glowMats.includes(o.material)) glowMats.push(o.material);
+            }
+          });
+        }
+        const glow = Math.min(starTransformT / 1.4, 1);
+        for (const m of glowMats) {
+          m.emissive.setRGB(1, 1, 1);
+          m.emissiveIntensity = glow * 2.2;
+        }
+        if (starTransformT > 1.0) stageFlash.classList.add("whiteout");
+        if (starTransformT > 2.1) {
+          bigStarBuilt = true;
+          ojisan.group.visible = false; // おじさんは星になった
+          endBigStar = endFx.buildBigStar(ojisan.group.position.clone());
+        }
+      } else {
+        stageFlash.classList.remove("whiteout"); // 白がゆっくり明けて星が現れる
+        // 星になった後も宇宙を飛び続ける
+        // (launch()が毎フレームy=80を書き戻すため、専用の高度で上書きする)
+        starFlightY = Math.max(starFlightY, ojisan.group.position.y) + dt * 3.5;
+        ojisan.group.position.y = starFlightY;
+        if (endBigStar) endBigStar.group.position.y = starFlightY;
+        arrivalT += dt;
       }
-      ojisan.group.position.y = 70.5;
-      arrivalT += dt;
     }
   }
   const y = ojisan.group.position.y;
@@ -1050,11 +1079,17 @@ function updateEnding(dt) {
     hoshi.group.rotation.y += dt * 4;
   }
   const spaceMix = Math.min(y / 45, 1);
-  scene.background.lerpColors(new THREE.Color(0x2a2a35), new THREE.Color(0x000005), spaceMix);
+  if (endingDest === "butt") {
+    // おしり星は宇宙ではなく、雲の浮かぶ青空の惑星
+    scene.background.lerpColors(new THREE.Color(0x2a2a35), new THREE.Color(0x7ec8f0), spaceMix);
+    starField.visible = false;
+  } else {
+    scene.background.lerpColors(new THREE.Color(0x2a2a35), new THREE.Color(0x000005), spaceMix);
+    starField.visible = true;
+    starField.material.opacity = spaceMix;
+    starField.position.y = y * 0.5;
+  }
   if (scene.fog) scene.fog.far = 16 + spaceMix * 200;
-  starField.visible = true;
-  starField.material.opacity = spaceMix;
-  starField.position.y = y * 0.5;
   const arrived = endingPhase === 2 && arrivalT > (endingDest === "star" ? 3 : 4);
   if (arrived) {
     endingPhase = 3;

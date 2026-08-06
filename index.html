@@ -186,6 +186,8 @@
     background: #fff; opacity: 0; transition: opacity 1.2s;
   }
   #stage-flash.on { opacity: .85; transition: opacity .05s; }
+  /* 素手エンドの変身ホワイトアウト(ゆっくり白→星が現れる) */
+  #stage-flash.whiteout { opacity: 1; transition: opacity .9s ease-in; }
 
   #ending {
     position: fixed; inset: 0; z-index: 20; display: none;
