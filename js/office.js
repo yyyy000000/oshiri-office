@@ -490,9 +490,33 @@ export function createOffice(scene) {
       collider.position.y = 0.875;
       guardGroup.add(collider);
       tagClickable(collider, "muscle");
-      playClip(gltf, model, "Idle");
+      // 通常はIdle。フィーバー中は左右パンチを交互に出してモンキーダンス化
+      guardMixer = new THREE.AnimationMixer(model);
+      const findClip = (name) =>
+        gltf.animations.find((c) => c.name.toLowerCase().includes(name.toLowerCase()));
+      const idleClip = findClip("|Idle") || findClip("Idle");
+      guardActions = {
+        idle: idleClip ? guardMixer.clipAction(idleClip) : null,
+        punchL: findClip("Punch_Left") ? guardMixer.clipAction(findClip("Punch_Left")) : null,
+        punchR: findClip("Punch_Right") ? guardMixer.clipAction(findClip("Punch_Right")) : null,
+      };
+      if (guardActions.idle) {
+        guardActions.idle.play();
+        guardCurrentAction = guardActions.idle;
+      }
     }).catch((err) => console.error("soldier load failed", err));
     scene.add(guardGroup);
+  }
+  let guardMixer = null;
+  let guardActions = null;
+  let guardCurrentAction = null;
+  let guardDanceT = 0;
+  const guardBaseYaw = guardGroup.rotation.y;
+  function switchGuardAction(next) {
+    if (!next || guardCurrentAction === next) return;
+    next.reset().fadeIn(0.12).play();
+    if (guardCurrentAction) guardCurrentAction.fadeOut(0.12);
+    guardCurrentAction = next;
   }
   // ⑪ Record player on a small side table [CLICKABLE: player]
   let recordPlatter;
@@ -837,6 +861,13 @@ export function createOffice(scene) {
   function setFever(on) {
     feverOn = on;
     for (const f of feverLights) f.light.visible = on;
+    if (!on) {
+      // キャリーちゃんのダンスを終了してIdleへ戻す
+      guardDanceT = 0;
+      if (guardActions) switchGuardAction(guardActions.idle);
+      guardGroup.position.y = 0;
+      guardGroup.rotation.y = guardBaseYaw;
+    }
   }
 
   // --- Reaction system: quick feedback animations for clickable props ---
@@ -947,7 +978,17 @@ export function createOffice(scene) {
     }
 
     updateFan(t);
-    updateMixers(dt); // 警備員(Soldier)等のGLBアニメ
+    updateMixers(dt);
+    if (guardMixer) guardMixer.update(dt);
+    // フィーバー中のキャリーちゃん: 左右パンチ交互+弾み+体振り=モンキーダンス
+    if (feverOn && guardActions) {
+      guardDanceT += dt;
+      switchGuardAction(
+        Math.floor(guardDanceT / 0.4) % 2 ? guardActions.punchL : guardActions.punchR
+      );
+      guardGroup.position.y = Math.abs(Math.sin(guardDanceT * 6)) * 0.14;
+      guardGroup.rotation.y = guardBaseYaw + Math.sin(guardDanceT * 3.2) * 0.5;
+    }
     updatePlayer(t, dt);
     if (feverOn) {
       for (const f of feverLights) {

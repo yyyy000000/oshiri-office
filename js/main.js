@@ -814,6 +814,7 @@ function endFeverTime(silent) {
   bgm.stopFever();
   office.setFever(false);
   applyProgress(); // クマ・星のテンションを進行度相応に戻す
+  hoshi.group.position.y = 0.745; // 星をデスクに着地させる
   feverBanner.classList.remove("show");
   slapCounterBox.classList.remove("fever");
   if (!silent) {
@@ -826,6 +827,8 @@ function updateFever(dt) {
   if (feverActive) {
     const remain = feverEndsAt - clock.elapsedTime;
     feverSecEl.textContent = Math.max(0, Math.ceil(remain));
+    // 星はデスクの上でぴょんぴょん跳ねる
+    hoshi.group.position.y = 0.745 + Math.abs(Math.sin(clock.elapsedTime * 7)) * 0.25;
     if (remain <= 0) endFeverTime(false);
   } else if (
     points >= 500 && points < TOTAL_POINTS &&
