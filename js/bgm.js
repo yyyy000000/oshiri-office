@@ -270,6 +270,7 @@ const TRACK_DEFS = {
 // ---------------------------------------------------------------------
 
 const MASTER_GAIN_BASE = 0.15; // matches the old synth-only default loudness
+let userVolume = 1; // 設定パネルのBGM音量(0〜1)
 const FILE_GAIN = 0.8; // per-file-track balance gain, so files don't sit far from synth loudness
 const FILE_SCHEDULE_AHEAD = 0.3; // seconds; how far ahead the sekkai pair-chain schedules its next chunk
 
@@ -452,7 +453,7 @@ export function createBGM() {
     }
     if (masterGain === null) {
       masterGain = audioContext.createGain();
-      masterGain.gain.value = MASTER_GAIN_BASE;
+      masterGain.gain.value = MASTER_GAIN_BASE * userVolume;
       masterGain.connect(audioContext.destination);
     }
     if (jukeboxGain === null) {
@@ -631,6 +632,11 @@ export function createBGM() {
       .catch(() => {});
   };
 
+  const setVolume = (v) => {
+    userVolume = Math.max(0, Math.min(1, v));
+    if (masterGain) masterGain.gain.value = MASTER_GAIN_BASE * userVolume;
+  };
+
   return {
     start,
     stop,
@@ -639,6 +645,7 @@ export function createBGM() {
     startFever,
     stopFever,
     playEnding,
+    setVolume,
     get playing() {
       return isPlaying;
     },

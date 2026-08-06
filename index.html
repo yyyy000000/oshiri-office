@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>おしりオフィス 〜1000叩きで宇宙へ〜</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -85,12 +85,25 @@
     position: fixed; left: 16px; bottom: 16px; z-index: 5;
     display: flex; flex-direction: column; gap: 8px; width: min(340px, 60vw);
   }
+  #chat-toggle { display: none; }
+  @media (max-width: 760px) {
+    /* 仮想スティック(左下24〜144px)と被らないよう上へ。畳んだ状態がデフォルト */
+    #controls { bottom: 156px; width: min(340px, 78vw); }
+    #chat-toggle {
+      display: block; align-self: flex-start; width: 44px; height: 44px;
+      border: 1px solid rgba(255,255,255,.3); border-radius: 50%;
+      background: rgba(255,255,255,.16); color: #fff; font-size: 20px;
+      font-family: inherit; cursor: pointer;
+    }
+    #controls.collapsed #chat-row, #controls.collapsed #hint { display: none; }
+  }
   #chat-row { display: flex; gap: 6px; }
   #chat-input {
     flex: 1; border: none; border-radius: 18px; padding: 10px 14px;
-    font-size: 14px; font-family: inherit; background: rgba(255,255,255,.92);
-    outline: none;
+    font-size: 16px; font-family: inherit; background: rgba(255,255,255,.92);
+    outline: none; touch-action: manipulation;
   }
+  button { touch-action: manipulation; }
   #chat-send {
     border: none; border-radius: 18px; padding: 10px 16px; font-size: 14px;
     font-family: inherit; cursor: pointer; background: #4a90d9; color: #fff; font-weight: bold;
@@ -217,7 +230,8 @@
   }
   .end-clicks span { white-space: nowrap; }
   .end-clicks span b { color: #ffd76e; font-weight: bold; }
-  /* ヘルプボタン(ゲーム中いつでも操作説明を見られる) */
+  /* 右下ボタン群: 図鑑・設定・ヘルプ */
+  #zukan-btn, #settings-btn,
   #help-btn {
     position: fixed; right: 16px; bottom: 16px; z-index: 9;
     width: 44px; height: 44px; border-radius: 50%; border: none;
@@ -225,12 +239,44 @@
     font-family: inherit; cursor: pointer; text-shadow: 0 1px 3px #000;
     border: 1px solid rgba(255,255,255,.3);
   }
-  #help-overlay {
+  #settings-btn { right: 68px; font-size: 19px; }
+  #zukan-btn { right: 120px; font-size: 19px; }
+  #help-overlay, #settings-overlay, #zukan-overlay {
     position: fixed; inset: 0; z-index: 25; display: none;
     align-items: center; justify-content: center; padding: 20px;
-    background: rgba(8,6,14,.82); cursor: pointer;
+    background: rgba(8,6,14,.82);
   }
-  #help-overlay.show { display: flex; }
+  #help-overlay { cursor: pointer; }
+  #help-overlay.show, #settings-overlay.show, #zukan-overlay.show { display: flex; }
+  #settings-card, #zukan-card {
+    background: rgba(40,30,60,.97); border: 1px solid rgba(255,255,255,.2);
+    border-radius: 16px; padding: 20px 22px; width: min(440px, 92vw);
+    max-height: 80vh; overflow-y: auto; color: #fff; font-size: 13px;
+  }
+  #settings-card h3, #zukan-card h3 { font-size: 16px; margin-bottom: 12px; letter-spacing: 2px; color: #ffd76e; }
+  .set-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+  .set-row label { width: 110px; flex-shrink: 0; }
+  .set-row input[type="range"] { flex: 1; }
+  .set-row .set-val { width: 42px; text-align: right; opacity: .8; }
+  .modal-close {
+    margin-top: 14px; width: 100%; border: none; border-radius: 12px; padding: 10px;
+    font-family: inherit; font-size: 14px; font-weight: bold; cursor: pointer;
+    background: rgba(255,255,255,.15); color: #fff;
+  }
+  .zk-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .zk-tabs button {
+    flex: 1; border: none; border-radius: 10px; padding: 8px; font-family: inherit;
+    font-weight: bold; cursor: pointer; background: rgba(255,255,255,.12); color: #fff;
+  }
+  .zk-tabs button.active { background: #ff6b9d; }
+  .zk-section-title { font-size: 12px; opacity: .7; margin: 10px 0 6px; letter-spacing: 1px; }
+  .zk-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .zk {
+    background: rgba(255,255,255,.12); border-radius: 8px; padding: 4px 10px; font-size: 12px;
+  }
+  .zk-miss { opacity: .45; background: rgba(0,0,0,.35); }
+  .zk-rec { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 4px 12px; font-size: 12px; }
+  .zk-rec b { color: #ffd76e; }
   #help-card {
     background: rgba(40,30,60,.95); border: 1px solid rgba(255,255,255,.2);
     border-radius: 16px; padding: 22px 26px; max-width: 440px;
@@ -281,6 +327,8 @@
     <div id="equip-line">🖐 <span id="equip-name">素手</span>(+<span id="equip-pts">5</span>pt)</div>
   </div>
   <div id="toast-area"></div>
+  <button id="zukan-btn" title="ずかん">📖</button>
+  <button id="settings-btn" title="せってい">⚙️</button>
   <button id="help-btn" title="あそびかた">?</button>
   <div id="help-overlay">
     <div id="help-card">
@@ -298,11 +346,35 @@
   <div id="stage-flash"></div>
   <div id="fever-banner">🕺 FEVER TIME! ×2 <span class="fever-sec" id="fever-sec">15</span></div>
   <div id="controls">
+    <button id="chat-toggle" title="おじさんに質問">💬</button>
     <div id="chat-row">
       <input id="chat-input" type="text" placeholder="おじさんに質問してみよう" maxlength="60">
       <button id="chat-send">送信</button>
     </div>
     <div id="hint">叩けば叩くほど、何かが起こる…</div>
+  </div>
+  <div id="settings-overlay">
+    <div id="settings-card">
+      <h3>⚙️ せってい</h3>
+      <div class="set-row"><label>BGM音量</label><input type="range" id="set-bgm" min="0" max="100" step="5"><span class="set-val" id="set-bgm-val"></span></div>
+      <div class="set-row"><label>効果音音量</label><input type="range" id="set-sfx" min="0" max="100" step="5"><span class="set-val" id="set-sfx-val"></span></div>
+      <div class="set-row"><label>ボイス読み上げ</label><input type="checkbox" id="set-voice"></div>
+      <div class="set-row"><label>視点感度</label><input type="range" id="set-look" min="50" max="200" step="10"><span class="set-val" id="set-look-val"></span></div>
+      <div class="set-row touch-only"><label>スティック感度</label><input type="range" id="set-stick" min="50" max="200" step="10"><span class="set-val" id="set-stick-val"></span></div>
+      <div class="set-row"><label>移動速度</label><input type="range" id="set-move" min="50" max="150" step="10"><span class="set-val" id="set-move-val"></span></div>
+      <button class="modal-close" id="settings-close">とじる</button>
+    </div>
+  </div>
+  <div id="zukan-overlay">
+    <div id="zukan-card">
+      <h3>📖 ずかん</h3>
+      <div class="zk-tabs">
+        <button id="zk-tab-col" class="active">コレクション</button>
+        <button id="zk-tab-rec">きろく</button>
+      </div>
+      <div id="zukan-content"></div>
+      <button class="modal-close" id="zukan-close">とじる</button>
+    </div>
   </div>
   <div id="ending">
     <div class="stars">✦ ✧ ✦</div>

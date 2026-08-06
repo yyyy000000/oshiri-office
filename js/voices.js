@@ -117,6 +117,13 @@ const SCREAM_LINES = {
   hoshi: ["星の力、全開じゃあああ!", "エフ、星になって輝くぜええええ!"],
 };
 
+// 設定パネルのボイス読み上げON/OFF(OFFでもセリフ文字列は返す=吹き出しは出る)
+let voicesEnabled = true;
+export function setVoicesEnabled(flag) {
+  voicesEnabled = !!flag;
+  if (!voicesEnabled && "speechSynthesis" in window) speechSynthesis.cancel();
+}
+
 let jaVoice = null;
 function loadVoices() {
   if (!("speechSynthesis" in window)) return;
@@ -136,6 +143,7 @@ export function maybeSlapVoice(costumeId, progress = 0) {
   if (speechSynthesis.speaking) return null; // 重ねない
   const set = VOICE_SETS[costumeId] || VOICE_SETS.suit;
   const line = set.lines[Math.floor(Math.random() * set.lines.length)];
+  if (!voicesEnabled) return line; // 読み上げOFFでも吹き出しは出す
   const u = new SpeechSynthesisUtterance(line);
   if (jaVoice) u.voice = jaVoice;
   u.lang = "ja-JP";
@@ -151,7 +159,7 @@ export function maybeSlapVoice(costumeId, progress = 0) {
 export function screamVoice(costumeId) {
   const lines = SCREAM_LINES[costumeId] || SCREAM_LINES.suit;
   const line = lines[Math.floor(Math.random() * lines.length)];
-  if (!("speechSynthesis" in window)) return line;
+  if (!("speechSynthesis" in window) || !voicesEnabled) return line;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(line);
   if (jaVoice) u.voice = jaVoice;

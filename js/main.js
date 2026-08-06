@@ -8,7 +8,7 @@ import { createSlapper } from "./slapper.js";
 import { createFPSControls } from "./fpscontrols.js";
 import { createAnimal } from "./animal.js";
 import { createHoshi, HOSHI_LINES } from "./hoshi.js";
-import { maybeSlapVoice, screamVoice } from "./voices.js";
+import { maybeSlapVoice, screamVoice, setVoicesEnabled } from "./voices.js";
 import { getReply, getSlapLine, getStageLine, getEndingLine, ENDING_TEXTS, getCostumeEndLine } from "./dialog.js";
 import { createEndingFx, PLATFORM_TOP_Y } from "./ending.js";
 
@@ -164,10 +164,19 @@ try {
 } catch (_) { /* 非対応環境は無視 */ }
 
 let audioCtx = null;
+let sfxGain = null; // 効果音の音量設定用マスターゲイン
 function ctx() {
   audioCtx ??= new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === "suspended") audioCtx.resume();
+  if (!sfxGain) {
+    sfxGain = audioCtx.createGain();
+    sfxGain.gain.value = settings.sfx;
+    sfxGain.connect(audioCtx.destination);
+  }
   return audioCtx;
+}
+function sfxOut(ac) {
+  return sfxGain || ac.destination;
 }
 function noiseBurst(ac, t, { dur = 0.12, freq = 900, q = 0.8, gain = 0.9, type = "bandpass" }) {
   const len = Math.floor(ac.sampleRate * dur);
@@ -183,7 +192,7 @@ function noiseBurst(ac, t, { dur = 0.12, freq = 900, q = 0.8, gain = 0.9, type =
   const g = ac.createGain();
   g.gain.setValueAtTime(gain, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + dur + 0.03);
-  src.connect(f).connect(g).connect(ac.destination);
+  src.connect(f).connect(g).connect(sfxOut(ac));
   src.start(t);
 }
 function thump(ac, t, { from = 180, to = 60, dur = 0.12, gain = 0.5, type = "sine" }) {
@@ -194,7 +203,7 @@ function thump(ac, t, { from = 180, to = 60, dur = 0.12, gain = 0.5, type = "sin
   const g = ac.createGain();
   g.gain.setValueAtTime(gain, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + dur + 0.02);
-  osc.connect(g).connect(ac.destination);
+  osc.connect(g).connect(sfxOut(ac));
   osc.start(t);
   osc.stop(t + dur + 0.05);
 }
@@ -205,7 +214,7 @@ function ding(ac, t, freq, dur = 0.5, gain = 0.25) {
   const g = ac.createGain();
   g.gain.setValueAtTime(gain, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  osc.connect(g).connect(ac.destination);
+  osc.connect(g).connect(sfxOut(ac));
   osc.start(t);
   osc.stop(t + dur);
 }
@@ -224,7 +233,7 @@ const ITEM_SOUNDS = {
       const gg = ac.createGain();
       gg.gain.setValueAtTime(g, t);
       gg.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
-      osc.connect(gg).connect(ac.destination);
+      osc.connect(gg).connect(sfxOut(ac));
       osc.start(t);
       osc.stop(t + 0.75);
     }
@@ -271,7 +280,7 @@ const ITEM_SOUNDS = {
       lp.type = "lowpass";
       lp.frequency.setValueAtTime(2500, tt);
       lp.frequency.exponentialRampToValueAtTime(500, tt + 0.8);
-      osc.connect(lp).connect(g).connect(ac.destination);
+      osc.connect(lp).connect(g).connect(sfxOut(ac));
       osc.start(tt);
       osc.stop(tt + 0.95);
     }
@@ -293,7 +302,7 @@ const ITEM_SOUNDS = {
     const g = ac.createGain();
     g.gain.setValueAtTime(0.5, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
-    src.connect(bp).connect(g).connect(ac.destination);
+    src.connect(bp).connect(g).connect(sfxOut(ac));
     src.start(t);
     noiseBurst(ac, t + 0.13, { freq: 1800, dur: 0.06, gain: 0.7 });
   },
@@ -308,7 +317,7 @@ const ITEM_SOUNDS = {
       const sg = ac.createGain();
       sg.gain.setValueAtTime(0.12, t + dt0);
       sg.gain.exponentialRampToValueAtTime(0.001, t + dt0 + 0.1);
-      sq.connect(sg).connect(ac.destination);
+      sq.connect(sg).connect(sfxOut(ac));
       sq.start(t + dt0);
       sq.stop(t + dt0 + 0.12);
     }
@@ -334,7 +343,7 @@ const ITEM_SOUNDS = {
     const sg = ac.createGain();
     sg.gain.setValueAtTime(0.15, t + 0.05);
     sg.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-    sq.connect(sg).connect(ac.destination);
+    sq.connect(sg).connect(sfxOut(ac));
     sq.start(t + 0.05);
     sq.stop(t + 0.25);
   },
@@ -361,7 +370,7 @@ function playRocketSound() {
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(0.55, t + 1.2);
   g.gain.exponentialRampToValueAtTime(0.0001, t + 9);
-  src.connect(lp).connect(g).connect(ac.destination);
+  src.connect(lp).connect(g).connect(sfxOut(ac));
   src.start(t);
 }
 function playDropSound() {
@@ -941,7 +950,9 @@ renderer.domElement.addEventListener("pointerup", (e) => {
 window.addEventListener("keydown", (e) => {
   if (e.code !== "Space" || e.repeat) return;
   if (gameMode !== "fps") return;
-  if (helpOverlay.classList.contains("show")) return;
+  if (helpOverlay.classList.contains("show") ||
+      document.getElementById("settings-overlay").classList.contains("show") ||
+      document.getElementById("zukan-overlay").classList.contains("show")) return;
   const el = document.activeElement;
   if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
   e.preventDefault();
@@ -1083,7 +1094,7 @@ function updateEnding(dt) {
       `<div class="end-section-title">👆 クリック探索のきろく</div>` +
       `<div class="end-clicks">${clickRows}</div>`;
     // 結果画面の下からゲーム中UIが透けないよう隠す
-    for (const id of ["controls", "slap-counter", "toast-area", "bubble", "hoshi-bubble", "carrie-bubble", "fever-banner", "title-bar", "help-btn"]) {
+    for (const id of ["controls", "slap-counter", "toast-area", "bubble", "hoshi-bubble", "carrie-bubble", "fever-banner", "title-bar", "help-btn", "settings-btn", "zukan-btn"]) {
       const el = document.getElementById(id);
       if (el) el.style.display = "none";
     }
@@ -1126,6 +1137,87 @@ document.getElementById("help-btn").addEventListener("click", (e) => {
   helpOverlay.classList.add("show");
 });
 helpOverlay.addEventListener("click", () => helpOverlay.classList.remove("show"));
+
+
+// ---------- 設定パネル(音量・感度・移動速度) ----------
+const SETTINGS_KEY = "oshiri_settings";
+let settings = { bgm: 1, sfx: 1, voice: true, look: 1, stick: 1, move: 1 };
+try { settings = Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}")); } catch { /* 壊れた保存値は無視 */ }
+function applySettings() {
+  bgm.setVolume(settings.bgm);
+  if (sfxGain) sfxGain.gain.value = settings.sfx;
+  setVoicesEnabled(settings.voice);
+  fps.setSensitivity({ look: settings.look, stick: settings.stick, move: settings.move });
+}
+function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+const settingsOverlay = document.getElementById("settings-overlay");
+document.getElementById("settings-btn").addEventListener("click", () => settingsOverlay.classList.add("show"));
+document.getElementById("settings-close").addEventListener("click", () => settingsOverlay.classList.remove("show"));
+function bindSlider(id, key) {
+  const el = document.getElementById(id);
+  const val = document.getElementById(id + "-val");
+  el.value = Math.round(settings[key] * 100);
+  if (val) val.textContent = el.value;
+  el.addEventListener("input", () => {
+    settings[key] = el.value / 100;
+    if (val) val.textContent = el.value;
+    applySettings();
+    saveSettings();
+  });
+}
+bindSlider("set-bgm", "bgm");
+bindSlider("set-sfx", "sfx");
+bindSlider("set-look", "look");
+bindSlider("set-stick", "stick");
+bindSlider("set-move", "move");
+{
+  const vc = document.getElementById("set-voice");
+  vc.checked = settings.voice;
+  vc.addEventListener("change", () => { settings.voice = vc.checked; applySettings(); saveSettings(); });
+}
+if (!("ontouchstart" in window)) {
+  for (const el of document.querySelectorAll(".touch-only")) el.style.display = "none";
+}
+applySettings();
+
+// ---------- 図鑑(コレクション+きろく) ----------
+const zukanOverlay = document.getElementById("zukan-overlay");
+const zukanContent = document.getElementById("zukan-content");
+const zkTabCol = document.getElementById("zk-tab-col");
+const zkTabRec = document.getElementById("zk-tab-rec");
+let zkTab = "col";
+function renderZukan() {
+  if (zkTab === "col") {
+    const got = items.spawnedIds();
+    const gotItems = new Set(got.items);
+    const gotCos = new Set(got.costumes);
+    const gotBgm = new Set(availableTracks());
+    const row = (list, gotSet, nameOf) => list.map((x) => {
+      const ok = gotSet.has(x.id);
+      return `<span class="zk${ok ? "" : " zk-miss"}">${ok ? nameOf(x) : "???"}</span>`;
+    }).join("");
+    zukanContent.innerHTML =
+      `<div class="zk-section-title">🎁 アイテム(${gotItems.size}/${SLAP_ITEMS.length})</div><div class="zk-grid">${row(SLAP_ITEMS, gotItems, (x) => x.name)}</div>` +
+      `<div class="zk-section-title">👗 衣装(${gotCos.size}/${COSTUMES.length})</div><div class="zk-grid">${row(COSTUMES, gotCos, (x) => x.name)}</div>` +
+      `<div class="zk-section-title">🎵 BGM(${gotBgm.size}/${TRACKS.length})</div><div class="zk-grid">${row(TRACKS, gotBgm, (x) => x.title)}</div>`;
+  } else {
+    const rows = Object.keys(CLICK_NAMES).map((id) => `<span>${CLICK_NAMES[id]} <b>×${clicks[id] || 0}</b></span>`).join("");
+    zukanContent.innerHTML =
+      `<div class="zk-section-title">今回のプレイ</div><div class="zk-rec"><span>ポイント <b>${points.toLocaleString()}</b></span><span>叩いた数 <b>${slapCount}</b></span></div>` +
+      `<div class="zk-section-title">つうさん</div><div class="zk-rec"><span>🐻 なでなで <b>×${petCount}</b></span>${rows}</div>`;
+  }
+  zkTabCol.classList.toggle("active", zkTab === "col");
+  zkTabRec.classList.toggle("active", zkTab === "rec");
+}
+document.getElementById("zukan-btn").addEventListener("click", () => { renderZukan(); zukanOverlay.classList.add("show"); });
+document.getElementById("zukan-close").addEventListener("click", () => zukanOverlay.classList.remove("show"));
+zkTabCol.addEventListener("click", () => { zkTab = "col"; renderZukan(); });
+zkTabRec.addEventListener("click", () => { zkTab = "rec"; renderZukan(); });
+
+// ---------- スマホ: 質問ウィンドウの折りたたみ(スティックとの被り対策) ----------
+const controlsBox = document.getElementById("controls");
+if ("ontouchstart" in window) controlsBox.classList.add("collapsed");
+document.getElementById("chat-toggle").addEventListener("click", () => controlsBox.classList.toggle("collapsed"));
 
 modeFpsBtn.addEventListener("click", () => beginGame("fps"));
 modeGodBtn.addEventListener("click", () => {

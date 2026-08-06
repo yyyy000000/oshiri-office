@@ -19,6 +19,13 @@ const TAP_MAX_MOVE = 10;
 
 export function createFPSControls(camera, domElement) {
   let enabled = false;
+  // 設定パネルから変更できる感度倍率
+  const sens = { look: 1, stick: 1, move: 1 };
+  function setSensitivity(v) {
+    if (v.look) sens.look = v.look;
+    if (v.stick) sens.stick = v.stick;
+    if (v.move) sens.move = v.move;
+  }
   let previousFov = camera.fov;
 
   let yaw = 0;
@@ -248,8 +255,8 @@ export function createFPSControls(camera, domElement) {
     if (lookIsDrag) {
       const dx = touch.clientX - lookLast.x;
       const dy = touch.clientY - lookLast.y;
-      yaw -= THREE.MathUtils.degToRad(dx * LOOK_YAW_DEG_PER_PX);
-      pitch += THREE.MathUtils.degToRad(-dy * LOOK_PITCH_DEG_PER_PX);
+      yaw -= THREE.MathUtils.degToRad(dx * LOOK_YAW_DEG_PER_PX * sens.look);
+      pitch += THREE.MathUtils.degToRad(-dy * LOOK_PITCH_DEG_PER_PX * sens.look);
       pitch = THREE.MathUtils.clamp(pitch, -PITCH_LIMIT, PITCH_LIMIT);
       e.preventDefault();
     }
@@ -303,8 +310,8 @@ export function createFPSControls(camera, domElement) {
     if (e.pointerType === "touch") return;
     const dx = e.clientX - mouseLast.x;
     const dy = e.clientY - mouseLast.y;
-    yaw -= THREE.MathUtils.degToRad(dx * LOOK_YAW_DEG_PER_PX);
-    pitch += THREE.MathUtils.degToRad(-dy * LOOK_PITCH_DEG_PER_PX);
+    yaw -= THREE.MathUtils.degToRad(dx * LOOK_YAW_DEG_PER_PX * sens.look);
+    pitch += THREE.MathUtils.degToRad(-dy * LOOK_PITCH_DEG_PER_PX * sens.look);
     pitch = THREE.MathUtils.clamp(pitch, -PITCH_LIMIT, PITCH_LIMIT);
     mouseLast.x = e.clientX;
     mouseLast.y = e.clientY;
@@ -322,10 +329,10 @@ export function createFPSControls(camera, domElement) {
     if (isTypingTarget()) return;
 
     // 矢印キー = 視点(←→ 回転 / ↑↓ 見上げ・見下ろし)
-    if (keys.has("ArrowLeft")) yaw += YAW_SPEED * dt;
-    if (keys.has("ArrowRight")) yaw -= YAW_SPEED * dt;
-    if (keys.has("ArrowUp")) pitch += PITCH_SPEED * dt;
-    if (keys.has("ArrowDown")) pitch -= PITCH_SPEED * dt;
+    if (keys.has("ArrowLeft")) yaw += YAW_SPEED * sens.look * dt;
+    if (keys.has("ArrowRight")) yaw -= YAW_SPEED * sens.look * dt;
+    if (keys.has("ArrowUp")) pitch += PITCH_SPEED * sens.look * dt;
+    if (keys.has("ArrowDown")) pitch -= PITCH_SPEED * sens.look * dt;
     pitch = THREE.MathUtils.clamp(pitch, -PITCH_LIMIT, PITCH_LIMIT);
 
     // W/S = 前後移動, A/D = 左右平行移動
@@ -340,8 +347,8 @@ export function createFPSControls(camera, domElement) {
       const sinYaw = Math.sin(yaw);
       const cosYaw = Math.cos(yaw);
       // yaw=0 faces +z; forward = (sin(yaw), 0, cos(yaw)), right = (-cos(yaw), 0, sin(yaw))
-      camera.position.x += (sinYaw * moveDir - cosYaw * strafeDir) * MOVE_SPEED * dt;
-      camera.position.z += (cosYaw * moveDir + sinYaw * strafeDir) * MOVE_SPEED * dt;
+      camera.position.x += (sinYaw * moveDir - cosYaw * strafeDir) * MOVE_SPEED * sens.move * dt;
+      camera.position.z += (cosYaw * moveDir + sinYaw * strafeDir) * MOVE_SPEED * sens.move * dt;
     }
   }
 
@@ -351,13 +358,13 @@ export function createFPSControls(camera, domElement) {
     const forwardAmount = -stickVec.y; // -1..1
     const yawAmount = -stickVec.x; // horizontal drag rotates yaw
 
-    yaw += yawAmount * YAW_SPEED * dt;
+    yaw += yawAmount * YAW_SPEED * sens.stick * dt;
 
     if (Math.abs(forwardAmount) > 0.001) {
       const sinYaw = Math.sin(yaw);
       const cosYaw = Math.cos(yaw);
-      camera.position.x += sinYaw * forwardAmount * MOVE_SPEED * dt;
-      camera.position.z += cosYaw * forwardAmount * MOVE_SPEED * dt;
+      camera.position.x += sinYaw * forwardAmount * MOVE_SPEED * sens.move * dt;
+      camera.position.z += cosYaw * forwardAmount * MOVE_SPEED * sens.move * dt;
     }
   }
 
@@ -506,6 +513,7 @@ export function createFPSControls(camera, domElement) {
     disable,
     update,
     setInRange,
+    setSensitivity,
     get enabled() {
       return enabled;
     },
