@@ -765,6 +765,11 @@ function buildHangerRail() {
 // Fixed slot layout
 // ---------------------------------------------------------------------------
 
+// 棚のスロット間隔(約0.4m)に収まらない長物の陳列縮小率
+const SHELF_DISPLAY_SCALE = {
+  baguette: 0.6, guitar: 0.5, kasa: 0.45, machinegun: 0.6, pan: 0.7,
+};
+
 const ITEM_ORDER = SLAP_ITEMS.map((it) => it.id);
 const COSTUME_ORDER = COSTUMES.map((c) => c.id);
 
@@ -832,6 +837,14 @@ export function createItemManager(scene) {
       slot = itemSlotPos(id);
       if (!slot) return;
       built = fn();
+      // 長物は棚のスロット幅に収まるよう陳列時のみ縮小(装備時のサイズは変えない)
+      const ds = SHELF_DISPLAY_SCALE[id];
+      if (ds) {
+        const wrap = new THREE.Group();
+        built.group.scale.setScalar(ds);
+        wrap.add(built.group);
+        built = { group: wrap, restY: (built.restY || 0) * ds };
+      }
     } else if (kind === "costume") {
       if (!COSTUME_CFG[id]) return;
       slot = costumeSlotPos(id);

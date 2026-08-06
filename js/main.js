@@ -1015,12 +1015,12 @@ function updateEnding(dt) {
     }
   }
   const y = ojisan.group.position.y;
-  // クマ護衛: 巨大クマがおじさんを抱えて一緒に飛ぶ
+  // クマ護衛: おじさんに被らないよう、画面奥を並走して飛ぶ
   if (bearEscort && endingPhase >= 2 && y > 1) {
     animal.group.position.set(
-      ojisan.group.position.x + 0.1,
-      y - 2.6,
-      ojisan.group.position.z + 0.9
+      ojisan.group.position.x - 1.8,
+      y - 1.4,
+      ojisan.group.position.z + 3.2
     );
   }
   // 星の仲間・おじさん星人・大星のアニメーション

@@ -177,7 +177,8 @@
   #ending {
     position: fixed; inset: 0; z-index: 20; display: none;
     align-items: center; justify-content: center; flex-direction: column; gap: 18px;
-    background: radial-gradient(ellipse at 50% 40%, rgba(20,16,60,.88), rgba(0,0,8,.96));
+    /* 背後の飛行アニメが見えるよう、かなり薄いオーバーレイに */
+    background: radial-gradient(ellipse at 50% 40%, rgba(20,16,60,.28), rgba(0,0,8,.5));
     color: #fff; text-align: center; opacity: 0; transition: opacity 2s;
   }
   #ending.show { display: flex; }
