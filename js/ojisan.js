@@ -120,17 +120,7 @@ export function createOjisan(scene) {
   const pantsBaseMetalness = pantsMat.metalness;
 
   // ---- stool ----
-  const stoolSeat = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.06, CYL_SEG), mat(STOOL, 0.5, 0.3));
-  stoolSeat.position.set(0, 0.42, 0);
-  group.add(stoolSeat);
-
-  const stoolPole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.36, CYL_SEG), mat(STOOL, 0.5, 0.3));
-  stoolPole.position.set(0, 0.24, 0);
-  group.add(stoolPole);
-
-  const stoolBase = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.05, CYL_SEG), mat(STOOL_BASE, 0.6, 0.2));
-  stoolBase.position.set(0, 0.025, 0);
-  group.add(stoolBase);
+  // スツールは削除(おじさんは空気椅子で座る — 座り姿勢はそのまま)
 
   // ---- rocket flame (hidden until launch()) ----
   const flameGroup = new THREE.Group();

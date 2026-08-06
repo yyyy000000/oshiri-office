@@ -1,19 +1,23 @@
 import * as THREE from "three";
+import { glbProp } from "./glb.js";
 
 // ---------------------------------------------------------------------------
 // Data
 // ---------------------------------------------------------------------------
 
-// バランス設計(総叩数2,000発): 区間叩数 素手100/スリッパ300/ハリセン300/バチ400/
-// フライパン400/孫の手500。隠しアイテムは常にその時点の通常最強を上回るご褒美
+// 叩きアイテム12種。素手/丸めた新聞紙/もふもふクマパンチ/スターロッドは手作りモデル、
+// それ以外(スリッパ/バゲット/ギター/ビニール傘/フライパン/ラバーダック/トロフィー/
+// マシンガン)はGLBモデル(assets/models/*.glb)を読み込んで使用
 export const SLAP_ITEMS = [
   { id: "hand", name: "素手", points: 5, unlock: 0, sound: "hand" },
   { id: "slipper", name: "スリッパ", points: 10, unlock: 500, sound: "slipper" },
   { id: "newspaper", name: "丸めた新聞紙", points: 12, unlock: -1, sound: "paper" },
-  { id: "harisen", name: "ハリセン", points: 15, unlock: 3500, sound: "harisen" },
-  { id: "bachi", name: "太鼓のバチ", points: 30, unlock: 8000, sound: "drum" },
+  { id: "baguette", name: "バゲット", points: 15, unlock: 3500, sound: "baguette" },
+  { id: "guitar", name: "ギター", points: 30, unlock: 8000, sound: "guitar" },
+  { id: "kasa", name: "ビニール傘", points: 100, unlock: -1, sound: "kasa" },
   { id: "pan", name: "フライパン", points: 200, unlock: 20000, sound: "pan" },
-  { id: "golden", name: "金の孫の手", points: 1800, unlock: 100000, sound: "gold" },
+  { id: "duck", name: "金庫のラバーダック", points: 800, unlock: -1, sound: "squeak" },
+  { id: "trophy", name: "金のトロフィー", points: 1800, unlock: 100000, sound: "gold" },
   { id: "machinegun", name: "マシンガン", points: 2500, unlock: -1, sound: "gun" },
   { id: "pawpunch", name: "もふもふクマパンチ", points: 5000, unlock: -1, sound: "paw" },
   { id: "starrod", name: "スターロッド", points: 10000, unlock: -1, sound: "star" },
@@ -54,15 +58,6 @@ function mesh(geo, color, opts = {}) {
   m.castShadow = true;
   m.receiveShadow = true;
   return m;
-}
-
-// A small wrapper group lets a cylinder "lie flat" locally (rotation.z) while
-// still being free to yaw within the floor plane via the wrapper's rotation.y.
-function flatHolder(child, yaw) {
-  const holder = new THREE.Group();
-  holder.add(child);
-  holder.rotation.y = yaw;
-  return holder;
 }
 
 // Thin cylinder stretched between two points in the local XY plane. Used for
@@ -135,24 +130,13 @@ function buildHand() {
 }
 
 function buildSlipper() {
-  const g = new THREE.Group();
-  const sole = mesh(new THREE.CapsuleGeometry(0.075, 0.18, 8, 24), 0x4a90e2);
-  sole.rotation.z = Math.PI / 2;
-  sole.scale.set(1, 0.4, 1.3);
-  g.add(sole);
-  const strap = mesh(new THREE.TorusGeometry(0.085, 0.014, 12, 24, Math.PI), 0xffffff);
-  strap.rotation.x = Math.PI / 2;
-  strap.position.set(0, 0.03, 0.02);
-  g.add(strap);
-  // stitching line along the sole rim
-  const stitch = mesh(new THREE.TorusGeometry(0.088, 0.003, 6, 32, Math.PI * 1.6), 0x2a5faa, {
-    roughness: 0.8,
+  // GLBは既に横長(長軸X)・接地済みで自然な「棚に寝かせる」向きのため無回転で使用
+  const g = glbProp("./assets/models/slipper.glb", {
+    clone: true,
+    targetWidth: 0.28,
+    palette: "mono-red",
   });
-  stitch.rotation.x = Math.PI / 2;
-  stitch.rotation.z = 0.3;
-  stitch.position.set(0, 0.006, -0.01);
-  g.add(stitch);
-  return { group: g, restY: 0.035 };
+  return { group: g, restY: 0 };
 }
 
 function buildNewspaper() {
@@ -191,158 +175,110 @@ function buildNewspaper() {
   return { group: g, restY: 0.026 };
 }
 
-function buildHarisen() {
-  const g = new THREE.Group();
-  const pleatCount = 8;
-  const colors = [0xffffff, 0xd32f2f];
-  for (let i = 0; i < pleatCount; i++) {
-    const pleat = mesh(new THREE.BoxGeometry(0.22, 0.008, 0.036), colors[i % 2]);
-    const angle = (i - (pleatCount - 1) / 2) * 0.1;
-    pleat.position.set(Math.cos(angle) * 0.11, 0, Math.sin(angle) * 0.11);
-    pleat.rotation.y = angle;
-    g.add(pleat);
-    // fold crease line on each pleat
-    const crease = mesh(new THREE.BoxGeometry(0.2, 0.009, 0.004), 0x00000, { roughness: 0.9 });
-    crease.material.color.set(colors[i % 2]).multiplyScalar(0.55);
-    crease.position.set(Math.cos(angle) * 0.11, 0, Math.sin(angle) * 0.11);
-    crease.rotation.y = angle;
-    g.add(crease);
-  }
-  const handle = mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.09, 16), 0x8b5a2b);
-  handle.rotation.z = Math.PI / 2;
-  handle.position.set(-0.14, 0, 0);
-  g.add(handle);
-  // binding ferrule where paper meets handle
-  const ferrule = mesh(new THREE.TorusGeometry(0.018, 0.006, 8, 16), 0x5a3a1a);
-  ferrule.rotation.y = Math.PI / 2;
-  ferrule.position.set(-0.065, 0, 0);
-  g.add(ferrule);
-  return { group: g, restY: 0.01 };
+// ---------------------------------------------------------------------------
+// GLB weapon builders (assets/models/*.glb)
+// ---------------------------------------------------------------------------
+
+// GLBの元の向きは不明なので「Z前方・Y上」を仮定し、長物(バゲット/ギター/マシンガン)は
+// 内側のGroup(inner)を回転させて長軸が+Yになるよう補正する。lookAt/rotateXでの
+// スイング演出は呼び出し側(slapper.js)が外側のGroup(outer)に対して直接行うため、
+// outerの回転はスイング毎に上書きされる。よって向き補正は必ずinnerで行い、outerには
+// 一切回転を持たせないこと。
+// GLBは非同期読み込みのため、正しい寸法で正規化できるのはロード完了後(onReady)のみ。
+// その時点でouterがpop演出やスイングで動いていてもズレないよう、測定中だけouterの
+// position/scale/回転を一時的に単位化してから測る。
+function buildGlbLong(url, { targetLen, axis, palette = "mono-red" } = {}) {
+  const outer = new THREE.Group();
+  const inner = new THREE.Group();
+  if (axis === "z") inner.rotation.x = -Math.PI / 2; // 長軸Z -> +Y
+  else if (axis === "x") inner.rotation.z = Math.PI / 2; // 長軸X -> +Y
+  outer.add(inner);
+  const model = glbProp(url, {
+    clone: true,
+    palette,
+    onReady: () => {
+      const savedPos = outer.position.clone();
+      const savedScale = outer.scale.clone();
+      const savedQuat = outer.quaternion.clone();
+      outer.position.set(0, 0, 0);
+      outer.scale.set(1, 1, 1);
+      outer.quaternion.identity();
+
+      outer.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(inner);
+      const size = box.getSize(new THREE.Vector3());
+      if (targetLen && size.y > 1e-4) {
+        inner.scale.setScalar(targetLen / size.y);
+      }
+      outer.updateMatrixWorld(true);
+      const box2 = new THREE.Box3().setFromObject(inner);
+      const center = box2.getCenter(new THREE.Vector3());
+      inner.position.x -= center.x;
+      inner.position.z -= center.z;
+      inner.position.y -= box2.min.y;
+
+      outer.position.copy(savedPos);
+      outer.scale.copy(savedScale);
+      outer.quaternion.copy(savedQuat);
+    },
+  });
+  inner.add(model);
+  return { group: outer, restY: 0 };
 }
 
-function makeBachiStick() {
-  const grp = new THREE.Group();
-  const body = mesh(new THREE.CylinderGeometry(0.007, 0.009, 0.32, 16), 0xb5754a);
-  body.rotation.z = Math.PI / 2;
-  grp.add(body);
-  // wood-grain rings along the stick
-  const ringColor = 0x8a5a35;
-  for (let i = -1; i <= 1; i++) {
-    const ring = mesh(new THREE.TorusGeometry(0.0085, 0.0015, 6, 16), ringColor);
-    ring.rotation.y = Math.PI / 2;
-    ring.position.x = i * 0.09;
-    grp.add(ring);
-  }
-  return grp;
+function buildBaguette() {
+  // 実測: 長軸Z(パンの長さ)、Yが厚み → Z軸をYへ
+  return buildGlbLong("./assets/models/baguette.glb", { targetLen: 0.6, axis: "z", palette: "keep" });
 }
 
-function buildBachi() {
-  const g = new THREE.Group();
-  g.add(flatHolder(makeBachiStick(), 0.4));
-  g.add(flatHolder(makeBachiStick(), -0.4));
-  return { group: g, restY: 0.01 };
+function buildGuitar() {
+  // 実測: 長軸Z(ネック〜ボディ)、Yが薄い厚み → Z軸をYへ
+  return buildGlbLong("./assets/models/guitar.glb", { targetLen: 0.75, axis: "z", palette: "mono-red" });
+}
+
+function buildKasa() {
+  // 実測: 既に長軸がY(閉じた傘が立った状態)のため回転不要、そのままtargetHeightで正規化
+  const g = glbProp("./assets/models/umbrella.glb", {
+    clone: true,
+    targetHeight: 0.8,
+    palette: "mono-red",
+  });
+  return { group: g, restY: 0 };
 }
 
 function buildPan() {
-  const g = new THREE.Group();
-  const body = mesh(new THREE.CylinderGeometry(0.14, 0.13, 0.035, 32), 0x1a1a1a, {
-    metalness: 0.4,
-    roughness: 0.5,
+  // 実測: Yが薄い(鍋が寝ている)、X=鍋本体の幅 → 無回転でtargetWidthのみ正規化
+  const g = glbProp("./assets/models/pan.glb", {
+    clone: true,
+    targetWidth: 0.45,
+    palette: "mono-red",
   });
-  g.add(body);
-  const handle = mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.18, 16), 0x222222);
-  handle.rotation.z = Math.PI / 2;
-  handle.position.set(0.16, 0, 0);
-  g.add(handle);
-  // rivets joining handle to body
-  const rivetGeo = new THREE.SphereGeometry(0.012, 12, 10);
-  const rivet1 = mesh(rivetGeo, 0x333333, { metalness: 0.6, roughness: 0.4 });
-  rivet1.position.set(0.075, 0.012, 0.02);
-  g.add(rivet1);
-  const rivet2 = mesh(rivetGeo.clone(), 0x333333, { metalness: 0.6, roughness: 0.4 });
-  rivet2.position.set(0.075, 0.012, -0.02);
-  g.add(rivet2);
-  // hanging hole at the handle's end
-  const hole = mesh(new THREE.TorusGeometry(0.012, 0.004, 8, 16), 0x111111);
-  hole.rotation.y = Math.PI / 2;
-  hole.position.set(0.245, 0, 0);
-  g.add(hole);
-  return { group: g, restY: 0.02 };
+  return { group: g, restY: 0 };
 }
 
-function buildGolden() {
-  const g = new THREE.Group();
-  const goldOpts = { metalness: 1, roughness: 0.25 };
-  const stick = mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.3, 20), 0xffd700, goldOpts);
-  stick.rotation.z = Math.PI / 2;
-  g.add(stick);
-  // grip grooves along the shaft
-  for (let i = -2; i <= 2; i++) {
-    const groove = mesh(new THREE.TorusGeometry(0.011, 0.0015, 6, 16), 0xe6c200, goldOpts);
-    groove.rotation.y = Math.PI / 2;
-    groove.position.set(-0.05 + i * 0.03, 0, 0);
-    g.add(groove);
-  }
-  const palm = mesh(new THREE.BoxGeometry(0.05, 0.012, 0.03), 0xffd700, goldOpts);
-  palm.position.set(0.17, 0, 0);
-  g.add(palm);
-  for (let i = -1; i <= 1; i++) {
-    const finger = mesh(new THREE.BoxGeometry(0.025, 0.01, 0.008), 0xffd700, goldOpts);
-    finger.position.set(0.2, 0, i * 0.011);
-    g.add(finger);
-    // knuckle joint detail
-    const knuckle = mesh(new THREE.SphereGeometry(0.006, 10, 8), 0xffd700, goldOpts);
-    knuckle.position.set(0.188, 0, i * 0.011);
-    g.add(knuckle);
-  }
-  return { group: g, restY: 0.01 };
+function buildDuck() {
+  // 実測: ほぼ等方だが浮かぶアヒルとして自然なY上向きのままtargetHeightで正規化
+  const g = glbProp("./assets/models/duck.glb", {
+    clone: true,
+    targetHeight: 0.22,
+    palette: "keep",
+  });
+  return { group: g, restY: 0 };
+}
+
+function buildTrophy() {
+  // 実測: 既にYが最大(トロフィーが立った状態)のため回転不要
+  const g = glbProp("./assets/models/trophy.glb", {
+    clone: true,
+    targetHeight: 0.4,
+    palette: "gold",
+  });
+  return { group: g, restY: 0 };
 }
 
 function buildMachinegun() {
-  const g = new THREE.Group();
-  const metal = 0x33363b;
-  const metalDark = 0x1f2124;
-  const wood = 0x7a4a2b;
-  const body = mesh(new THREE.BoxGeometry(0.18, 0.06, 0.05), metal, { metalness: 0.6, roughness: 0.4 });
-  g.add(body);
-  const barrel = mesh(new THREE.CylinderGeometry(0.017, 0.02, 0.16, 16), metal, {
-    metalness: 0.7,
-    roughness: 0.35,
-  });
-  barrel.rotation.z = Math.PI / 2;
-  barrel.position.set(0.17, 0.005, 0);
-  g.add(barrel);
-  const muzzle = mesh(new THREE.TorusGeometry(0.02, 0.007, 10, 16), metalDark, {
-    metalness: 0.6,
-    roughness: 0.4,
-  });
-  muzzle.rotation.y = Math.PI / 2;
-  muzzle.position.set(0.25, 0.005, 0);
-  g.add(muzzle);
-  const mag = mesh(new THREE.BoxGeometry(0.038, 0.11, 0.034), metal, { metalness: 0.5, roughness: 0.45 });
-  mag.rotation.z = 0.22;
-  mag.position.set(-0.015, -0.085, 0);
-  g.add(mag);
-  const grip = mesh(new THREE.BoxGeometry(0.032, 0.085, 0.038), wood, { roughness: 0.7 });
-  grip.rotation.z = 0.3;
-  grip.position.set(-0.07, -0.055, 0);
-  g.add(grip);
-  const stock = mesh(new THREE.BoxGeometry(0.1, 0.045, 0.04), wood, { roughness: 0.7 });
-  stock.position.set(-0.14, -0.005, 0);
-  g.add(stock);
-  // small ammo-belt hint dangling from the magazine
-  for (let i = 0; i < 3; i++) {
-    const link = mesh(new THREE.BoxGeometry(0.013, 0.016, 0.013), 0xb8860b, {
-      metalness: 0.5,
-      roughness: 0.5,
-    });
-    link.position.set(-0.015 - i * 0.005, -0.145 - i * 0.011, 0);
-    g.add(link);
-  }
-  const sight = mesh(new THREE.BoxGeometry(0.018, 0.018, 0.014), metalDark, { metalness: 0.6, roughness: 0.4 });
-  sight.position.set(0.04, 0.04, 0);
-  g.add(sight);
-  return { group: g, restY: 0.175 };
+  // 実測: 長軸X(銃身〜ストック)、Zが薄い厚み → X軸をYへ
+  return buildGlbLong("./assets/models/machinegun.glb", { targetLen: 0.65, axis: "x", palette: "mono-red" });
 }
 
 function buildPawpunch() {
@@ -437,10 +373,12 @@ const ITEM_BUILDERS = {
   hand: buildHand,
   slipper: buildSlipper,
   newspaper: buildNewspaper,
-  harisen: buildHarisen,
-  bachi: buildBachi,
+  baguette: buildBaguette,
+  guitar: buildGuitar,
+  kasa: buildKasa,
   pan: buildPan,
-  golden: buildGolden,
+  duck: buildDuck,
+  trophy: buildTrophy,
   machinegun: buildMachinegun,
   pawpunch: buildPawpunch,
   starrod: buildStarrod,
@@ -831,11 +769,11 @@ function buildHangerRail() {
 const ITEM_ORDER = SLAP_ITEMS.map((it) => it.id);
 const COSTUME_ORDER = COSTUMES.map((c) => c.id);
 
-// 3 tiers holding 10 shelf slots total (4/3/3), filled in SLAP_ITEMS order.
+// 3 tiers holding 12 shelf slots total (4/4/4), filled in SLAP_ITEMS order.
 // Each tier's slots are spread evenly across the shared z-range so tiers
 // with fewer items stay centered instead of bunching to one side.
 const ITEM_SLOT_Y = TIER_Y.map((y) => y + 0.04);
-const ITEM_TIER_COUNTS = [4, 3, 3];
+const ITEM_TIER_COUNTS = [4, 4, 4];
 const ITEM_Z_RANGE = [-1.45, -0.05];
 function itemSlotPos(id) {
   const idx = ITEM_ORDER.indexOf(id);
@@ -909,20 +847,10 @@ export function createItemManager(scene) {
     group.position.set(slot.x, baseY, slot.z);
     group.scale.setScalar(0.0001);
 
-    const meshes = [];
-    group.traverse((o) => {
-      if (o.isMesh) {
-        o.userData.kind = kind;
-        o.userData.id = id;
-        meshes.push(o);
-      }
-    });
-
     scene.add(group);
 
     activeObjects.push({
       group,
-      meshes,
       kind,
       id,
       baseY,
@@ -936,11 +864,26 @@ export function createItemManager(scene) {
     spawned.add(key);
   }
 
+  // GLBは非同期でメッシュが追加されるため、spawn時の一度きりのtraverseでは
+  // 拾いきれないことがある。呼び出しの都度その場でtraverseし直して常に最新の
+  // メッシュ一覧を返す(タグ付けも都度やり直すが冪等なので問題ない)。
+  function tagMeshesOf(o) {
+    const out = [];
+    o.group.traverse((node) => {
+      if (node.isMesh) {
+        node.userData.kind = o.kind;
+        node.userData.id = o.id;
+        out.push(node);
+      }
+    });
+    return out;
+  }
+
   function clickableMeshes() {
     const out = [];
     for (const o of activeObjects) {
       if (!o.group.visible) continue;
-      out.push(...o.meshes);
+      out.push(...tagMeshesOf(o));
     }
     return out;
   }
@@ -981,11 +924,11 @@ export function createItemManager(scene) {
         const s = Math.max(easeOutBack(x), 0);
         g.scale.setScalar(s);
         const flash = Math.max(0, 1 - x) * 1.4;
-        for (const m of o.meshes) m.material.emissiveIntensity = flash;
+        for (const m of tagMeshesOf(o)) m.material.emissiveIntensity = flash;
         if (x >= 1) {
           o.popping = false;
           g.scale.setScalar(1);
-          for (const m of o.meshes) m.material.emissiveIntensity = 0;
+          for (const m of tagMeshesOf(o)) m.material.emissiveIntensity = 0;
         }
         continue;
       }

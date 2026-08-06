@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { glbProp, loadGLTFRaw, applyPalette, playClip, updateMixers } from "./glb.js";
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
@@ -56,23 +57,14 @@ export function createOffice(scene) {
   ceiling.position.y = 3;
   scene.add(ceiling);
 
-  // Desk tabletop
-  const deskTabletop = new THREE.Mesh(
-    new THREE.BoxGeometry(1.4, 0.05, 0.7),
-    new THREE.MeshStandardMaterial({ color: 0x654321 })
-  );
-  deskTabletop.position.set(0, 0.72, 0.75);
-  scene.add(deskTabletop);
-
-  // Desk legs
-  const legMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
-  for (let dx of [-0.6, 0.6]) {
-    for (let dz of [-0.25, 0.25]) {
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.7, 0.05), legMat);
-      leg.position.set(dx, 0.35, 0.75 + dz);
-      scene.add(leg);
-    }
-  }
+  // Desk (GLB: Quaternius Desk。天板高さ≈0.72を保つようtargetHeightで正規化)
+  const deskGroup = glbProp("assets/models/desk.glb", {
+    targetHeight: 0.76,
+    palette: "keep",
+  });
+  deskGroup.position.set(0, 0, 0.75);
+  deskGroup.rotation.y = Math.PI; // 引き出し面をプレイヤー側(-z)へ
+  scene.add(deskGroup);
 
   // Keyboard
   const keyboard = new THREE.Mesh(
@@ -161,29 +153,23 @@ export function createOffice(scene) {
     registerClutter(paper);
   }
 
-  // Stacked cardboard boxes in corner [CLICKABLE: boxes]
-  const boxMat = new THREE.MeshStandardMaterial({ color: 0xb8860b });
-  const boxMeshes = [];
-  for (let i = 0; i < 4; i++) {
-    const box = new THREE.Mesh(
-      new THREE.BoxGeometry(0.4, 0.4, 0.4),
-      boxMat
-    );
-    box.position.set(-2.2, 0.2 + i * 0.42, -2.2);
-    box.rotation.z = (Math.random() - 0.5) * 0.2;
-    scene.add(box);
-    boxMeshes.push(box);
-  }
-  for (const box of boxMeshes) tagClickable(box, "boxes");
+  // Stacked cardboard boxes in corner [CLICKABLE: boxes] (GLB: Quaternius Cardboard Boxes)
+  const boxGroup = glbProp("assets/models/boxes.glb", {
+    targetHeight: 1.2,
+    palette: "keep",
+    onReady: (g) => tagClickable(g, "boxes"),
+  });
+  boxGroup.position.set(-2.2, 0, -2.2);
+  scene.add(boxGroup);
 
-  // Trash can [CLICKABLE: trash]
-  const trashCan = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.25, 0.25, 0.5, 16),
-    new THREE.MeshStandardMaterial({ color: 0x666666 })
-  );
-  trashCan.position.set(-2.5, 0.25, 0.5);
-  scene.add(trashCan);
-  tagClickable(trashCan, "trash");
+  // Trash can [CLICKABLE: trash] (GLB: Quaternius Trashcan)
+  const trashGroup = glbProp("assets/models/trashcan.glb", {
+    targetHeight: 0.55,
+    palette: "keep",
+    onReady: (g) => tagClickable(g, "trash"),
+  });
+  trashGroup.position.set(-2.5, 0, 0.5);
+  scene.add(trashGroup);
 
   // Crumpled paper around trash
   const crumpleMat = new THREE.MeshStandardMaterial({ color: 0xe0e0e0 });
@@ -272,22 +258,14 @@ export function createOffice(scene) {
   scene.add(poster);
   const posterBaseRotZ = poster.rotation.z;
 
-  // Potted plant
-  const potMat = new THREE.MeshStandardMaterial({ color: 0x8b4513 });
-  const pot = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.12, 0.15, 0.2, 12),
-    potMat
-  );
-  pot.position.set(2.5, 0.1, 1.5);
-  scene.add(pot);
-
-  const stemMat = new THREE.MeshStandardMaterial({ color: 0x228b22 });
-  const stem = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.3, 0.02), stemMat);
-  stem.position.set(2.5, 0.35, 1.5);
-  stem.rotation.x = 0.3;
-  scene.add(stem);
-  tagClickable(pot, "plant");
-  tagClickable(stem, "plant");
+  // Potted plant (GLB: Quaternius Houseplant・傘の右側)
+  const plantGroup = glbProp("assets/models/plant.glb", {
+    targetHeight: 0.85,
+    palette: "keep",
+    onReady: (g) => tagClickable(g, "plant"),
+  });
+  plantGroup.position.set(1.55, 0, 2.7);
+  scene.add(plantGroup);
 
   // ================================================================
   // NEW PROPS
@@ -343,73 +321,30 @@ export function createOffice(scene) {
     var coolerGroup = cooler;
   }
 
-  // ③ Locker — tall gray steel locker with vent slits + handle [CLICKABLE: locker]
-  {
-    const locker = new THREE.Group();
-    locker.position.set(-1.0, 0, -2.74);
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.85, 0.42), stdMat(0x8a97a3, 0.55, 0.4));
-    body.position.y = 0.925;
-    locker.add(body);
-    const seam = new THREE.Mesh(new THREE.BoxGeometry(0.015, 1.85, 0.02), stdMat(0x40474f, 0.5, 0.3));
-    seam.position.set(0.15, 0.925, 0.21);
-    locker.add(seam);
-    for (let i = 0; i < 4; i++) {
-      const slit = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.02, 0.01), stdMat(0x2c3238, 0.6, 0.2));
-      slit.position.set(-0.06, 1.55 - i * 0.07, 0.215);
-      locker.add(slit);
-    }
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.14, 0.04), stdMat(0x1f2226, 0.4, 0.5));
-    handle.position.set(0.19, 0.95, 0.23);
-    locker.add(handle);
-    scene.add(locker);
-    tagClickable(locker, "locker");
-    var lockerGroup = locker;
-  }
+  // ③ Locker [CLICKABLE: locker] (GLB: Quaternius Closet・赤アクセント)
+  const lockerGroup = glbProp("assets/models/locker.glb", {
+    targetHeight: 1.85,
+    palette: "mono-red",
+    onReady: (g) => tagClickable(g, "locker"),
+  });
+  lockerGroup.position.set(-1.0, 0, -2.74);
+  scene.add(lockerGroup);
 
-  // ④ Mini fridge — white box with door seam + handle [CLICKABLE: fridge]
-  let fridgeTopY = 0;
-  {
-    const fridge = new THREE.Group();
-    fridge.position.set(-2.7, 0, 2.65);
-    const dims = { w: 0.55, h: 0.68, d: 0.55 };
-    const body = new THREE.Mesh(new THREE.BoxGeometry(dims.w, dims.h, dims.d), stdMat(0xf2f2f0, 0.5, 0.1));
-    body.position.y = dims.h / 2;
-    fridge.add(body);
-    const seam = new THREE.Mesh(new THREE.BoxGeometry(dims.w + 0.005, 0.012, dims.d + 0.005), stdMat(0xcfcfcf, 0.5, 0.1));
-    seam.position.y = dims.h * 0.68;
-    fridge.add(seam);
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.22, 0.04), stdMat(0xb0b0b0, 0.3, 0.6));
-    handle.position.set(dims.w / 2 - 0.02, dims.h * 0.6, dims.d / 2 + 0.02);
-    fridge.add(handle);
-    scene.add(fridge);
-    tagClickable(fridge, "fridge");
-    var fridgeGroup = fridge;
-    fridgeTopY = dims.h;
-  }
+  // ④ Fridge [CLICKABLE: fridge] (GLB: Quaternius Kitchen Fridge・フルサイズ)
+  // (電子レンジは削除済み)
+  const fridgeGroup = glbProp("assets/models/fridge.glb", {
+    targetHeight: 1.55,
+    palette: "keep",
+    onReady: (g) => tagClickable(g, "fridge"),
+  });
+  fridgeGroup.position.set(-2.65, 0, 2.6);
+  scene.add(fridgeGroup);
 
-  // ⑤ Microwave — sits on top of the mini fridge
-  {
-    const micro = new THREE.Group();
-    micro.position.set(-2.7, fridgeTopY, 2.65);
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.28, 0.4), stdMat(0x2a2a2c, 0.5, 0.2));
-    body.position.y = 0.14;
-    micro.add(body);
-    const windowMesh = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.17, 0.02), stdMat(0x111318, 0.2, 0.3));
-    windowMesh.position.set(-0.06, 0.15, 0.21);
-    micro.add(windowMesh);
-    const buttons = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.2, 0.02), stdMat(0x53565c, 0.4, 0.3));
-    buttons.position.set(0.16, 0.14, 0.21);
-    micro.add(buttons);
-    scene.add(micro);
-    tagClickable(micro, "microwave");
-    var microGroup = micro;
-  }
-
-  // ⑥ Electric fan — stand fan with an oscillating head
+  // ⑥ Electric fan — stand fan with an oscillating head(傘の左側)
   let fanHead;
   {
     const fan = new THREE.Group();
-    fan.position.set(2.75, 0, 1.9);
+    fan.position.set(0.25, 0, 2.75);
     const base = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.04, 16), stdMat(0x2b2b2e, 0.5, 0.3));
     base.position.y = 0.02;
     fan.add(base);
@@ -459,38 +394,29 @@ export function createOffice(scene) {
     var safeGroup = safe;
   }
 
-  // ⑧ Umbrella stand — cylinder with 2 leaning umbrellas
+  // ⑧ 傘 — ビニール傘3本が壁に立てかけてある [CLICKABLE: umbrella]
+  // (傘立ては見た目が悪いため廃止。GLB: CreativeTrio Closed Umbrella ×3、色違い)
+  const umbrellaGroup = new THREE.Group();
+  umbrellaGroup.position.set(0.9, 0, 2.8);
   {
-    const standGroup = new THREE.Group();
-    standGroup.position.set(0.9, 0, 2.8);
-    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.35, 16), stdMat(0x2f2f2f, 0.5, 0.3));
-    stand.position.y = 0.175;
-    standGroup.add(stand);
-
-    function umbrella(color, tiltX, tiltZ, rimAngle) {
-      const group = new THREE.Group();
-      const rim = 0.1;
-      group.position.set(Math.sin(rimAngle) * rim, 0.32, Math.cos(rimAngle) * rim);
-      group.rotation.x = tiltX;
-      group.rotation.z = tiltZ;
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.85, 8), stdMat(0x555555, 0.5, 0.3));
-      pole.position.y = 0.42;
-      group.add(pole);
-      const canopy = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.22, 10), stdMat(color, 0.6, 0.05));
-      canopy.position.y = 0.85;
-      group.add(canopy);
-      const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.012, 6, 10), stdMat(0xf2f2f2, 0.6, 0.05));
-      stripe.rotation.x = Math.PI / 2;
-      stripe.position.y = 0.8;
-      group.add(stripe);
-      return group;
+    const configs = [
+      { x: -0.3, tiltX: -0.16, tiltZ: 0.12, palette: "keep" },
+      { x: 0.0, tiltX: -0.2, tiltZ: -0.06, palette: "keep" },
+      { x: 0.32, tiltX: -0.14, tiltZ: 0.18, palette: "keep" },
+    ];
+    for (const c of configs) {
+      const u = glbProp("assets/models/umbrella.glb", {
+        targetHeight: 0.9,
+        palette: c.palette,
+        clone: true,
+        onReady: (g) => tagClickable(g, "umbrella"),
+      });
+      u.position.set(c.x, 0.02, 0);
+      u.rotation.x = c.tiltX; // 壁(+z)に立てかける傾き
+      u.rotation.z = c.tiltZ;
+      umbrellaGroup.add(u);
     }
-
-    standGroup.add(umbrella(0xb5451d, 0.16, 0.05, 0.6));
-    standGroup.add(umbrella(0x223355, -0.05, -0.18, 3.5));
-    scene.add(standGroup);
-    tagClickable(standGroup, "umbrella");
-    var umbrellaGroup = standGroup;
+    scene.add(umbrellaGroup);
   }
 
   // ⑨ Dartboard — ring-colored disc on the right wall with 2 tiny darts
@@ -533,88 +459,41 @@ export function createOffice(scene) {
     dart(2.9, 1.65, -1.53);
   }
 
-  // ⑩ Security guard — big, friendly, muscular. [CLICKABLE: muscle]
-  let guardTorso, guardHead, shoulderPivotL, shoulderPivotR;
-  const armCrossedL = { x: 1.0, y: 0, z: 0.55 };
-  const armFlexedL = { x: 0.0, y: 0, z: 1.55 };
-  const armCrossedR = { x: 1.0, y: 0, z: -0.55 };
-  const armFlexedR = { x: 0.0, y: 0, z: -1.55 };
+  // ⑩ Security guard [CLICKABLE: muscle] (GLB: Quaternius Soldier)
+  // 旧マッチョの腕振りアニメは廃止。Idleクリップがあれば再生し、リアクションは共通バウンス
+  const guardGroup = new THREE.Group();
   {
-    const SKIN = 0x4a3020;
-    const PANTS = 0x1b1b1e;
-    const BOOT = 0x0c0c0c;
-    const TANK = 0x121214;
-    const HAIR = 0x0d0805;
-    const GLASSES = 0x08080a;
-
-    const guard = new THREE.Group();
     const guardPos = new THREE.Vector3(2.5, 0, 2.3);
-    guard.position.copy(guardPos);
-    guard.rotation.y = Math.atan2(0 - guardPos.x, 0 - guardPos.z);
-
-    for (const dx of [-0.13, 0.13]) {
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.13, 0.8, 12), stdMat(PANTS, 0.7, 0.05));
-      leg.position.set(dx, 0.4, 0);
-      guard.add(leg);
-      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.12, 0.3), stdMat(BOOT, 0.6, 0.1));
-      boot.position.set(dx, 0.06, 0.04);
-      guard.add(boot);
-    }
-
-    guardTorso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.66, 0.32), stdMat(TANK, 0.6, 0.05));
-    guardTorso.position.set(0, 1.13, 0);
-    guard.add(guardTorso);
-
-    for (const dx of [-0.32, 0.32]) {
-      const shoulderCap = new THREE.Mesh(new THREE.SphereGeometry(0.145, 16, 12), stdMat(SKIN, 0.7, 0.02));
-      shoulderCap.position.set(dx, 1.44, 0.02);
-      guard.add(shoulderCap);
-    }
-
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.12, 12), stdMat(SKIN, 0.7, 0.02));
-    neck.position.set(0, 1.52, 0);
-    guard.add(neck);
-
-    guardHead = new THREE.Group();
-    guardHead.position.set(0, 1.78, 0);
-    const headSphere = new THREE.Mesh(new THREE.SphereGeometry(0.205, 20, 16), stdMat(SKIN, 0.7, 0.02));
-    guardHead.add(headSphere);
-    const flatTop = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.09, 0.3), stdMat(HAIR, 0.8, 0));
-    flatTop.position.set(0, 0.235, -0.02);
-    guardHead.add(flatTop);
-    const sunglasses = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.06, 0.05), stdMat(GLASSES, 0.2, 0.3));
-    sunglasses.position.set(0, 0.02, 0.185);
-    guardHead.add(sunglasses);
-    guard.add(guardHead);
-
-    function buildArm(sign) {
-      const pivot = new THREE.Group();
-      pivot.position.set(sign * 0.34, 1.42, 0);
-      const bicep = new THREE.Mesh(new THREE.CapsuleGeometry(0.115, 0.22, 4, 8), stdMat(SKIN, 0.7, 0.02));
-      bicep.position.set(0, -0.14, 0.03);
-      pivot.add(bicep);
-      const forearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.24, 4, 8), stdMat(SKIN, 0.7, 0.02));
-      forearm.position.set(0, -0.3, 0.16);
-      forearm.rotation.x = 1.15;
-      pivot.add(forearm);
-      const fist = new THREE.Mesh(new THREE.SphereGeometry(0.095, 14, 12), stdMat(SKIN, 0.7, 0.02));
-      fist.position.set(0, -0.2, 0.34);
-      pivot.add(fist);
-      return pivot;
-    }
-
-    shoulderPivotL = buildArm(-1);
-    shoulderPivotL.rotation.set(armCrossedL.x, armCrossedL.y, armCrossedL.z);
-    guard.add(shoulderPivotL);
-
-    shoulderPivotR = buildArm(1);
-    shoulderPivotR.rotation.set(armCrossedR.x, armCrossedR.y, armCrossedR.z);
-    guard.add(shoulderPivotR);
-
-    scene.add(guard);
-    tagClickable(guard, "muscle");
+    guardGroup.position.copy(guardPos);
+    guardGroup.rotation.y = Math.atan2(0 - guardPos.x, 0 - guardPos.z);
+    loadGLTFRaw("assets/models/soldier.glb").then((gltf) => {
+      const model = gltf.scene;
+      // 注意: スキンメッシュはBox3で実寸が取れない(ボーン基準で身長約1.7・実物大)。
+      // 正規化せずそのまま置く
+      model.scale.setScalar(1.05);
+      // スキンメッシュはバインド空間の境界が巨大でカリング判定が壊れるため無効化+
+      // レイキャスト用境界を現ポーズで計算(クリック判定に必要)
+      model.traverse((o) => {
+        if (o.isSkinnedMesh) {
+          o.frustumCulled = false;
+          o.computeBoundingBox();
+          o.computeBoundingSphere();
+        }
+      });
+      guardGroup.add(model);
+      // three r160はSkinnedMeshのレイキャスト(ポーズ反映)非対応のため、
+      // 透明コライダーでクリック判定する
+      const collider = new THREE.Mesh(
+        new THREE.BoxGeometry(0.65, 1.75, 0.5),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+      );
+      collider.position.y = 0.875;
+      guardGroup.add(collider);
+      tagClickable(collider, "muscle");
+      playClip(gltf, model, "Idle");
+    }).catch((err) => console.error("soldier load failed", err));
+    scene.add(guardGroup);
   }
-
   // ⑪ Record player on a small side table [CLICKABLE: player]
   let recordPlatter;
   const playerSpinBurst = { active: false, startT: null, duration: 0.6 };
@@ -975,48 +854,22 @@ export function createOffice(scene) {
   }
 
   const bounceStates = {
-    boxes: makeBounceState(boxMeshes),
-    trash: makeBounceState([trashCan]),
+    boxes: makeBounceState([boxGroup]),
+    trash: makeBounceState([trashGroup]),
     locker: makeBounceState([lockerGroup]),
     fridge: makeBounceState([fridgeGroup]),
     copier: makeBounceState([copierGroup]),
     cooler: makeBounceState([coolerGroup]),
     safe: makeBounceState([safeGroup]),
-    microwave: makeBounceState([microGroup]),
     fan: makeBounceState([fanGroup]),
     umbrella: makeBounceState([umbrellaGroup]),
     dartboard: makeBounceState([dartboardGroup]),
-    plant: makeBounceState([pot, stem]),
+    plant: makeBounceState([plantGroup]),
+    muscle: makeBounceState([guardGroup]),
     player: makeBounceState([playerGroupRef]),
     records: makeBounceState([pileGroupRef]),
     musicposter: makeBounceState([musicPosterGroupRef])
   };
-
-  const muscleState = { active: false, startT: null, duration: 0.6 };
-
-  function updateMuscle(t) {
-    const breathe = Math.sin(t * 1.3) * 0.02;
-    const idleNod = Math.sin(t * 2.1) * 0.045;
-
-    let f = 0;
-    if (muscleState.active) {
-      if (muscleState.startT === null) muscleState.startT = t;
-      const u = clamp01((t - muscleState.startT) / muscleState.duration);
-      f = u < 0.5 ? easeInOutQuad(u / 0.5) : easeInOutQuad(1 - (u - 0.5) / 0.5);
-      if (u >= 1) muscleState.active = false;
-    }
-
-    shoulderPivotL.rotation.x = lerp(armCrossedL.x, armFlexedL.x, f);
-    shoulderPivotL.rotation.z = lerp(armCrossedL.z, armFlexedL.z, f);
-    shoulderPivotR.rotation.x = lerp(armCrossedR.x, armFlexedR.x, f);
-    shoulderPivotR.rotation.z = lerp(armCrossedR.z, armFlexedR.z, f);
-
-    const puff = f * 0.1;
-    guardTorso.scale.set(1 + puff, 1 + breathe, 1 + puff);
-
-    const flourishNod = f * 0.18 * Math.sin(t * 22);
-    guardHead.rotation.x = idleNod + flourishNod;
-  }
 
   const fanBoostState = { active: false, startT: null, duration: 1.0 };
 
@@ -1045,11 +898,6 @@ export function createOffice(scene) {
   }
 
   function react(clickId) {
-    if (clickId === "muscle") {
-      muscleState.active = true;
-      muscleState.startT = null;
-      return;
-    }
     if (clickId === "fan") {
       fanBoostState.active = true;
       fanBoostState.startT = null;
@@ -1078,7 +926,7 @@ export function createOffice(scene) {
     }
 
     updateFan(t);
-    updateMuscle(t);
+    updateMixers(dt); // 警備員(Soldier)等のGLBアニメ
     updatePlayer(t, dt);
     for (const key in bounceStates) updateBounce(bounceStates[key], t);
 

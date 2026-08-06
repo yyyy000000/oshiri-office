@@ -238,6 +238,69 @@ const ITEM_SOUNDS = {
     }
     noiseBurst(ac, t + 0.23, { freq: 2500, dur: 0.06, gain: 0.25, type: "highpass" });
   },
+  baguette(ac, t) {
+    // バフッという鈍いパン打撃
+    noiseBurst(ac, t, { freq: 500, dur: 0.14, q: 0.5, gain: 0.9, type: "lowpass" });
+    noiseBurst(ac, t + 0.02, { freq: 300, dur: 0.1, gain: 0.4, type: "lowpass" });
+    thump(ac, t, { from: 150, to: 60, dur: 0.12, gain: 0.5 });
+  },
+  guitar(ac, t) {
+    // ジャーン!というかき鳴らし
+    noiseBurst(ac, t, { freq: 3000, dur: 0.04, gain: 0.35, type: "highpass" });
+    for (const [i, f] of [82.4, 110, 146.8, 196, 246.9].entries()) {
+      const osc = ac.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.value = f * (0.995 + Math.random() * 0.01);
+      const g = ac.createGain();
+      const tt = t + i * 0.012;
+      g.gain.setValueAtTime(0.12, tt);
+      g.gain.exponentialRampToValueAtTime(0.001, tt + 0.9);
+      const lp = ac.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.setValueAtTime(2500, tt);
+      lp.frequency.exponentialRampToValueAtTime(500, tt + 0.8);
+      osc.connect(lp).connect(g).connect(ac.destination);
+      osc.start(tt);
+      osc.stop(tt + 0.95);
+    }
+    thump(ac, t, { from: 120, to: 70, dur: 0.1, gain: 0.3 });
+  },
+  kasa(ac, t) {
+    // ビュッというスイング風切り+ペチッ
+    const len = Math.floor(ac.sampleRate * 0.18);
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.sin((i / len) * Math.PI);
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    const bp = ac.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.setValueAtTime(600, t);
+    bp.frequency.exponentialRampToValueAtTime(2400, t + 0.15);
+    bp.Q.value = 1.2;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.5, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    src.connect(bp).connect(g).connect(ac.destination);
+    src.start(t);
+    noiseBurst(ac, t + 0.13, { freq: 1800, dur: 0.06, gain: 0.7 });
+  },
+  squeak(ac, t) {
+    // ラバーダックのキュッキュ
+    noiseBurst(ac, t, { freq: 900, dur: 0.05, gain: 0.4 });
+    for (const [dt0, f0, f1] of [[0, 2200, 3400], [0.09, 3000, 2000]]) {
+      const sq = ac.createOscillator();
+      sq.type = "square";
+      sq.frequency.setValueAtTime(f0, t + dt0);
+      sq.frequency.exponentialRampToValueAtTime(f1, t + dt0 + 0.08);
+      const sg = ac.createGain();
+      sg.gain.setValueAtTime(0.12, t + dt0);
+      sg.gain.exponentialRampToValueAtTime(0.001, t + dt0 + 0.1);
+      sq.connect(sg).connect(ac.destination);
+      sq.start(t + dt0);
+      sq.stop(t + dt0 + 0.12);
+    }
+  },
   star(ac, t) {
     // キラキラ星アルペジオ+軽い打撃音
     noiseBurst(ac, t, { freq: 1400, dur: 0.08, gain: 0.5 });
@@ -453,6 +516,10 @@ const CLICK_UNLOCKS = {
             line: "冷蔵庫からペンギン服…ひんやりしとるのう!" },
   muscle: { count: 500, kind: "item",    id: "machinegun", name: "マシンガン",
             line: "ちょ、警備員さん!?それはやりすぎじゃろ!!" },
+  umbrella: { count: 100, kind: "item",  id: "kasa",       name: "ビニール傘",
+            line: "その傘、誰のか知らんが…借りるんかの?ワシを叩くのに?" },
+  safe:   { count: 200, kind: "item",    id: "duck",       name: "金庫のラバーダック",
+            line: "き、金庫の中身はアヒルじゃったんか…!ワシも知らんかったわい!" },
   musicposter: { count: 30, kind: "bgm", id: "android",    name: "ぴっちぴち・アンドロイド",
             line: "おっ、このアーティストの曲が聴きたくなってきたのう。" },
   records:     { count: 80, kind: "bgm", id: "gedatsu",    name: "解脱",
@@ -462,8 +529,8 @@ const CLICK_UNLOCKS = {
 const CLICK_NAMES = {
   trash: "ゴミ箱", boxes: "段ボール", locker: "ロッカー", fridge: "冷蔵庫", muscle: "警備員",
   player: "レコードプレイヤー", records: "レコードの山", musicposter: "音楽ポスター",
-  copier: "コピー機", cooler: "ウォーターサーバー", safe: "金庫", microwave: "電子レンジ",
-  fan: "扇風機", umbrella: "傘立て", dartboard: "ダーツボード", plant: "観葉植物",
+  copier: "コピー機", cooler: "ウォーターサーバー", safe: "金庫",
+  fan: "扇風機", umbrella: "傘", dartboard: "ダーツボード", plant: "観葉植物",
   hoshi: "星",
 };
 // BGM管理
@@ -547,6 +614,8 @@ const HINT_LINES = {
   muscle: "あのマッチョ警備員、しつこくつついたら面白そうだと思わねえ?",
   musicposter: "あのポスターのやつの曲、聴きたくなってきただろ?",
   records: "レコードの山ってのは、掘るためにあるんだぜ。",
+  umbrella: "壁の傘、突っついてみろよ。雨の日だけの道具じゃねーぜ。",
+  safe: "あの金庫、何入ってんだろうな。開けたくならねえか?",
   pet100: "あのクマ、もっとかわいがってやれよ。妬いてねーし。",
   pet1000: "クマを撫で続けたやつだけが見られる景色があるらしいぜ。",
   hoshi500: "オレ様をもっとクリックしろよ。いいことあるぜ、たぶんな。",
