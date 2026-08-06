@@ -77,8 +77,10 @@ addEventListener("resize", () => {
 // ---------- 吹き出し / トースト ----------
 const bubble = document.getElementById("bubble");
 const hoshiBubble = document.getElementById("hoshi-bubble");
+const carrieBubble = document.getElementById("carrie-bubble");
 let bubbleTimer = 0;
 let hoshiBubbleTimer = 0;
+let carrieBubbleTimer = 0;
 function say(text, ms = 3500) {
   bubble.textContent = text;
   bubble.style.display = "block";
@@ -91,6 +93,12 @@ function sayHoshi(text, ms = 3000) {
   hoshiBubble.style.display = "block";
   clearTimeout(hoshiBubbleTimer);
   hoshiBubbleTimer = setTimeout(() => (hoshiBubble.style.display = "none"), ms);
+}
+function sayCarrie(text, ms = 2400) {
+  carrieBubble.textContent = text;
+  carrieBubble.style.display = "block";
+  clearTimeout(carrieBubbleTimer);
+  carrieBubbleTimer = setTimeout(() => (carrieBubble.style.display = "none"), ms);
 }
 // 話し手の頭上に吹き出しを置く。画面外や背後のときは画面上部に固定表示
 // (FPSで下を向いていてもセリフが読めるように)
@@ -115,11 +123,13 @@ function placeBubble(el, worldPos, pinnedTop) {
   }
 }
 const _hoshiHead = new THREE.Vector3();
+const _carrieHead = new THREE.Vector3(2.5, 1.95, 2.3); // 警備員キャリーちゃんの頭上(固定)
 function updateBubblePos() {
   placeBubble(bubble, ojisan.headPos(), 90);
   _hoshiHead.copy(hoshi.group.position);
   _hoshiHead.y += 0.4;
   placeBubble(hoshiBubble, _hoshiHead, 170);
+  placeBubble(carrieBubble, _carrieHead, 250);
 }
 const toastArea = document.getElementById("toast-area");
 function toast(text) {
@@ -515,26 +525,24 @@ const CLICK_UNLOCKS = {
   fridge: { count: 150, kind: "costume", id: "penguin",    name: "ペンギンの着ぐるみ",
             line: "冷蔵庫からペンギン服…ひんやりしとるのう!" },
   muscle: { count: 500, kind: "item",    id: "machinegun", name: "マシンガン",
-            line: "ちょ、警備員さん!?それはやりすぎじゃろ!!" },
+            line: "ちょ、キャリーちゃん!?それはやりすぎじゃろ!!" },
   umbrella: { count: 100, kind: "item",  id: "kasa",       name: "ビニール傘",
             line: "その傘、誰のか知らんが…借りるんかの?ワシを叩くのに?" },
   safe:   { count: 200, kind: "item",    id: "duck",       name: "金庫のラバーダック",
             line: "き、金庫の中身はアヒルじゃったんか…!ワシも知らんかったわい!" },
   musicposter: { count: 30, kind: "bgm", id: "android",    name: "ぴっちぴち・アンドロイド",
             line: "おっ、このアーティストの曲が聴きたくなってきたのう。" },
-  // レコードの山は3段階解禁(配列は多段階解禁として扱われる)
+  // レコードの山は2段階解禁(配列は多段階解禁として扱われる)。To the zooは星300クリック
   records: [
     { count: 80,  kind: "bgm", id: "gedatsu", name: "解脱",
       line: "このレコード…なんだか心が無になりそうじゃ…。" },
     { count: 200, kind: "bgm", id: "alice",   name: "Alice fell down",
       line: "ほう、不思議な曲が出てきたのう。誰の落とし物じゃ?" },
-    { count: 400, kind: "bgm", id: "zoo",     name: "To the zoo",
-      line: "動物園の曲…?このレコードの山、どこまで深いんじゃ…。" },
   ],
 };
 // クリック回数を記録する全オブジェクト(ハズレも含む — 宝探し用)
 const CLICK_NAMES = {
-  trash: "ゴミ箱", boxes: "段ボール", locker: "ロッカー", fridge: "冷蔵庫", muscle: "警備員",
+  trash: "ゴミ箱", boxes: "段ボール", locker: "ロッカー", fridge: "冷蔵庫", muscle: "警備員キャリーちゃん",
   player: "レコードプレイヤー", records: "レコードの山", musicposter: "音楽ポスター",
   copier: "コピー機", cooler: "ウォーターサーバー", safe: "金庫",
   fan: "扇風機", umbrella: "傘", dartboard: "ダーツボード", plant: "観葉植物",
@@ -596,10 +604,26 @@ function checkClickUnlocks(announce) {
     }
   }
 }
+// 警備員キャリーちゃん: クリックの20%で1〜2語の過激なひとことをぼそっと言う
+const CARRIE_LINES = [
+  "……排除。", "……殲滅。", "……粛清?", "……制圧完了。", "……ロックオン。",
+  "……交戦許可を。", "……武力行使。", "……焦土作戦。", "……対象、確認。", "……逃がさない。",
+  "……包囲済み。", "……掃討。", "……漏れなく。", "……更地に。", "……跡形もなく。",
+  "……容赦不要。", "……慈悲は経費。", "……武器庫、満タン。", "……安全装置?外した。", "……照準、良好。",
+  "……火力こそ正義。", "……会話終了。", "……傾聴。のち砲撃。", "……平和(暫定)。", "……敵、未定。",
+  "……全方位警戒。", "……瞬殺希望。", "……過剰防衛上等。", "……鎮圧予定。", "……立入、禁止。",
+  "……忠告は一度。", "……次は撃つ。", "……もう撃ちたい。", "……指がうずく。", "……嵐、呼ぶ?",
+  "……静粛に。永遠に。", "……命拾い。", "……今日は見逃す。", "……燃やす?", "……冷凍も可。",
+  "……後始末は任せろ。", "……道具は選ばない。", "……素手でも可。", "……逃走は運動。", "……無駄。全部。",
+  "……勝率100%。", "……戦場が呼んでる。", "……給料分は壊す。", "……残業?殲滅する。", "……おじさんは、守る。",
+];
 function onObjectClick(clickId) {
   clicks[clickId] = (clicks[clickId] || 0) + 1;
   saveClicks();
   office.react(clickId);
+  if (clickId === "muscle" && Math.random() < 0.2) {
+    sayCarrie(CARRIE_LINES[Math.floor(Math.random() * CARRIE_LINES.length)]);
+  }
   if (clickId === "player") {
     // レコードプレイヤーはBGM切替(獲得済みの曲を順番に)
     cycleTrack();
@@ -622,13 +646,14 @@ const HINT_LINES = {
   boxes: "あの段ボールの山、気にならねえか?オレは気になるね。",
   locker: "ロッカーってのは、しつこく開けたがるやつに応えるもんだぜ。",
   fridge: "あの冷蔵庫、何入ってんだろうな?なあ?",
-  muscle: "あのマッチョ警備員、しつこくつついたら面白そうだと思わねえ?",
+  muscle: "警備員のキャリーちゃん、しつこくつついたら何かくれそうだぜ。自己責任な。",
   musicposter: "あのポスターのやつの曲、聴きたくなってきただろ?",
   records: "レコードの山ってのは、掘るためにあるんだぜ。",
   umbrella: "壁の傘、突っついてみろよ。雨の日だけの道具じゃねーぜ。",
   safe: "あの金庫、何入ってんだろうな。開けたくならねえか?",
   pet100: "あのクマ、もっとかわいがってやれよ。妬いてねーし。",
   pet1000: "クマを撫で続けたやつだけが見られる景色があるらしいぜ。",
+  hoshi300: "オレ様を構い続けたやつには、いい曲を聴かせてやるよ。",
   hoshi500: "オレ様をもっとクリックしろよ。いいことあるぜ、たぶんな。",
   hoshi1000: "オレ様を愛し続けたやつには…最強のご褒美だ。F**k yeah!",
 };
@@ -662,7 +687,8 @@ function lockedHintPool() {
   }
   if (!dropped.has("cos:bear")) pool.push(HINT_LINES.pet100);
   else if (!dropped.has("cos:gold")) pool.push(HINT_LINES.pet1000);
-  if (!dropped.has("cos:hoshi")) pool.push(HINT_LINES.hoshi500);
+  if (!dropped.has("bgm:zoo")) pool.push(HINT_LINES.hoshi300);
+  else if (!dropped.has("cos:hoshi")) pool.push(HINT_LINES.hoshi500);
   else if (!dropped.has("item:starrod")) pool.push(HINT_LINES.hoshi1000);
   return pool;
 }
@@ -691,6 +717,14 @@ function hoshiSound() {
 }
 function checkHoshiUnlocks(announce) {
   const n = clicks.hoshi || 0;
+  if (n >= 300 && !dropped.has("bgm:zoo")) {
+    dropped.add("bgm:zoo");
+    if (announce) {
+      playDropSound();
+      toast("🎵 新しいBGM『To the zoo』を獲得!レコードプレイヤーで切替できます");
+      sayHoshi("……『To the zoo』やるよ。オレ様の秘蔵コレクションだ。感謝して聴けよな。", 3800);
+    }
+  }
   if (n >= 500 && !dropped.has("cos:hoshi")) {
     dropped.add("cos:hoshi");
     items.spawn("costume", "hoshi");
@@ -722,6 +756,72 @@ function onHoshiClick() {
   }
 }
 checkHoshiUnlocks(false); // 保存済みクリック数ぶんを起動時に復元
+
+// ---------- フィーバータイム ----------
+// 500pt以降、前回終了から2分経過後に毎秒約1/70の確率で発動(平均3〜4分に1回)。
+// 15秒間ポイント2倍+ミラーボール+フィーバー曲+おじさんはパターン移動(5種からランダム)
+const feverBanner = document.getElementById("fever-banner");
+const feverSecEl = document.getElementById("fever-sec");
+const slapCounterBox = document.getElementById("slap-counter");
+const FEVER_DURATION = 15;
+const FEVER_COOLDOWN = 120;
+let feverActive = false;
+let feverEndsAt = 0;
+let lastFeverEnd = 0;
+let feverStartPoints = 0;
+const FEVER_START_LINES = [
+  "フィ、フィーバーじゃとぉ!?体が勝手に動くんじゃー!",
+  "ミラーボール!?ワシの時代が来たのう!",
+  "うおお、血が騒ぐ!ディスコの記憶が蘇るんじゃ!",
+];
+const FEVER_END_LINES = [
+  "はぁ、はぁ…楽しかったのう…",
+  "ふう、ええ汗かいたわい!",
+  "まだ踊り足りん気もするがのう…",
+];
+function startFeverTime(pattern) {
+  if (feverActive || ending) return;
+  feverActive = true;
+  feverEndsAt = clock.elapsedTime + FEVER_DURATION;
+  feverStartPoints = points;
+  ojisan.setFever(pattern || 1 + Math.floor(Math.random() * 5));
+  bgm.startFever();
+  office.setFever(true);
+  animal.setProgress(1); // クマと星もダンス最高潮
+  hoshi.setProgress(1);
+  feverBanner.classList.add("show");
+  slapCounterBox.classList.add("fever");
+  say(FEVER_START_LINES[Math.floor(Math.random() * FEVER_START_LINES.length)], 3000);
+}
+function endFeverTime(silent) {
+  if (!feverActive) return;
+  feverActive = false;
+  lastFeverEnd = clock.elapsedTime;
+  ojisan.setFever(0);
+  bgm.stopFever();
+  office.setFever(false);
+  applyProgress(); // クマ・星のテンションを進行度相応に戻す
+  feverBanner.classList.remove("show");
+  slapCounterBox.classList.remove("fever");
+  if (!silent) {
+    toast(`🕺 フィーバー終了! +${(points - feverStartPoints).toLocaleString()}pt`);
+    say(FEVER_END_LINES[Math.floor(Math.random() * FEVER_END_LINES.length)], 3000);
+  }
+}
+function updateFever(dt) {
+  if (ending || !gameMode) return;
+  if (feverActive) {
+    const remain = feverEndsAt - clock.elapsedTime;
+    feverSecEl.textContent = Math.max(0, Math.ceil(remain));
+    if (remain <= 0) endFeverTime(false);
+  } else if (
+    points >= 500 && points < TOTAL_POINTS &&
+    clock.elapsedTime - lastFeverEnd > FEVER_COOLDOWN &&
+    Math.random() < dt / 70
+  ) {
+    startFeverTime();
+  }
+}
 
 // ---------- クリック処理(尻叩き / アイテム拾い / 着せ替え) ----------
 const raycaster = new THREE.Raycaster();
@@ -798,7 +898,7 @@ function handleGameClick(cssX, cssY) {
   if (hits.length === 0 || !inReach(hits[0])) return;
 
   slapCount++;
-  points = Math.min(points + equipped.points, TOTAL_POINTS);
+  points = Math.min(points + equipped.points * (feverActive ? 2 : 1), TOTAL_POINTS);
   slapper.swing(equipped.id, hits[0].point, camera.position);
   ojisan.slap();
   playItemSound(equipped.sound);
@@ -854,6 +954,7 @@ let endingPhase = 0;
 let endingT = 0;
 
 function startEnding() {
+  endFeverTime(true); // フィーバー中なら静かに終了
   ending = true;
   endingPhase = 1;
   if (gameMode === "fps") {
@@ -929,7 +1030,7 @@ function updateEnding(dt) {
       `<div class="end-section-title">👆 クリック探索のきろく</div>` +
       `<div class="end-clicks">${clickRows}</div>`;
     // 結果画面の下からゲーム中UIが透けないよう隠す
-    for (const id of ["controls", "slap-counter", "toast-area", "bubble", "hoshi-bubble", "title-bar", "help-btn"]) {
+    for (const id of ["controls", "slap-counter", "toast-area", "bubble", "hoshi-bubble", "carrie-bubble", "fever-banner", "title-bar", "help-btn"]) {
       const el = document.getElementById(id);
       if (el) el.style.display = "none";
     }
@@ -1021,6 +1122,8 @@ window.__bgm = bgm;
 window.__ojisan = ojisan;
 window.__fps = fps;
 window.__forceEnd = () => { if (!ending) { points = TOTAL_POINTS; startEnding(); } };
+window.__feverStart = (p) => startFeverTime(p);
+window.__feverEnd = () => endFeverTime(false);
 window.__screenPos = (x, y, z) => {
   const v = new THREE.Vector3(x, y, z).project(camera);
   return [Math.round((v.x * 0.5 + 0.5) * innerWidth), Math.round((-v.y * 0.5 + 0.5) * innerHeight), +v.z.toFixed(3)];
@@ -1051,6 +1154,7 @@ renderer.setAnimationLoop(() => {
   animal.update(clock.elapsedTime, dt);
   hoshi.update(clock.elapsedTime, dt);
   updateBearGrowth(dt);
+  updateFever(dt);
   if (ending) {
     updateEnding(dt);
   } else if (fps.enabled) {

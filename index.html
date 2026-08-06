@@ -123,6 +123,19 @@
     content: ""; position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%);
     border: 8px solid transparent; border-top-color: #ffd9ea; border-bottom: none;
   }
+  #carrie-bubble.pinned { transform: translate(-50%, 0); }
+  #carrie-bubble.pinned::after { display: none; }
+  #carrie-bubble {
+    position: fixed; z-index: 6; max-width: 220px; pointer-events: none;
+    background: #2a2d33; border-radius: 4px; padding: 7px 12px; font-size: 13px;
+    color: #dfe3e8; letter-spacing: 1px; box-shadow: 0 4px 16px rgba(0,0,0,.45);
+    transform: translate(-50%, -100%); display: none; line-height: 1.5;
+    border: 1px solid #4a4f57;
+  }
+  #carrie-bubble::after {
+    content: ""; position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%);
+    border: 8px solid transparent; border-top-color: #2a2d33; border-bottom: none;
+  }
 
   .slap-pop {
     position: fixed; z-index: 7; pointer-events: none; font-weight: bold;
@@ -133,6 +146,26 @@
     0% { transform: translate(-50%,-50%) scale(.4) rotate(-8deg); opacity: 1; }
     60% { transform: translate(-50%,-90%) scale(1.3) rotate(6deg); opacity: 1; }
     100% { transform: translate(-50%,-130%) scale(1.1) rotate(6deg); opacity: 0; }
+  }
+
+  /* フィーバータイム */
+  #fever-banner {
+    position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 7;
+    display: none; pointer-events: none; text-align: center;
+    font-size: 26px; font-weight: bold; letter-spacing: 2px; color: #fff;
+    background: rgba(20,10,35,.75); border: 2px solid #ffd76e; border-radius: 16px;
+    padding: 8px 26px; text-shadow: 0 0 12px #ff2d95, 0 2px 4px #000;
+    animation: feverPulse .5s ease-in-out infinite alternate;
+  }
+  #fever-banner.show { display: block; }
+  #fever-banner .fever-sec { font-size: 18px; color: #ffd76e; }
+  @keyframes feverPulse {
+    from { transform: translateX(-50%) scale(1); box-shadow: 0 0 14px rgba(255,45,149,.6); }
+    to { transform: translateX(-50%) scale(1.06); box-shadow: 0 0 30px rgba(51,204,255,.8); }
+  }
+  #slap-counter.fever {
+    background: linear-gradient(90deg, rgba(255,45,149,.55), rgba(80,40,120,.55), rgba(51,204,255,.55));
+    color: #fff;
   }
 
   #stage-flash {
@@ -260,7 +293,9 @@
   </div>
   <div id="bubble"></div>
   <div id="hoshi-bubble"></div>
+  <div id="carrie-bubble"></div>
   <div id="stage-flash"></div>
+  <div id="fever-banner">🕺 FEVER TIME! ×2 <span class="fever-sec" id="fever-sec">15</span></div>
   <div id="controls">
     <div id="chat-row">
       <input id="chat-input" type="text" placeholder="おじさんに質問してみよう" maxlength="60">

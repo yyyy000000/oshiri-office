@@ -728,12 +728,11 @@ function buildShelf() {
   const backPanel = mesh(new THREE.BoxGeometry(0.04, 1.9, 1.7), darkWood, { roughness: 0.8 });
   backPanel.position.set(-2.93, 1.0, -0.75);
   g.add(backPanel);
+  // 横板はアイテムと被って見づらいため、一番下の1枚だけ残す(上段のアイテムは浮かせて陳列)
   const tierGeo = new THREE.BoxGeometry(0.35, 0.04, 1.7);
-  for (const y of TIER_Y) {
-    const tier = mesh(tierGeo.clone(), wood, { roughness: 0.7 });
-    tier.position.set(-2.75, y, -0.75);
-    g.add(tier);
-  }
+  const bottomTier = mesh(tierGeo, wood, { roughness: 0.7 });
+  bottomTier.position.set(-2.75, TIER_Y[0], -0.75);
+  g.add(bottomTier);
   const supGeo = new THREE.BoxGeometry(0.35, 1.9, 0.04);
   const supA = mesh(supGeo, darkWood, { roughness: 0.8 });
   supA.position.set(-2.75, 1.0, -1.58);

@@ -373,6 +373,24 @@ export function createFPSControls(camera, domElement) {
     camera.position.z = THREE.MathUtils.clamp(camera.position.z, -WALL_LIMIT, WALL_LIMIT);
     camera.position.y = EYE_HEIGHT;
 
+    // 中央デスクの衝突(すり抜け防止)。デスクAABBをプレイヤー半径ぶん拡張し、
+    // 侵入していたら食い込みが浅い軸方向へ押し出す
+    {
+      const minX = -1.0, maxX = 1.0, minZ = 0.05, maxZ = 1.45;
+      const px = camera.position.x, pz = camera.position.z;
+      if (px > minX && px < maxX && pz > minZ && pz < maxZ) {
+        const pushLeft = px - minX;
+        const pushRight = maxX - px;
+        const pushFront = pz - minZ;
+        const pushBack = maxZ - pz;
+        const m = Math.min(pushLeft, pushRight, pushFront, pushBack);
+        if (m === pushLeft) camera.position.x = minX;
+        else if (m === pushRight) camera.position.x = maxX;
+        else if (m === pushFront) camera.position.z = minZ;
+        else camera.position.z = maxZ;
+      }
+    }
+
     const euler = new THREE.Euler(pitch, yaw + Math.PI, 0, "YXZ");
     camera.quaternion.setFromEuler(euler);
   }

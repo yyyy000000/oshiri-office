@@ -818,6 +818,27 @@ export function createOffice(scene) {
     roofSnapshotDirectionalIntensity = directionalLight.intensity;
   }
 
+  // --- フィーバータイム: 天井から回転するカラースポット(ミラーボール風) ---
+  const feverLights = [];
+  {
+    const colors = [0xff3377, 0x33ccff, 0xffee44];
+    for (let i = 0; i < colors.length; i++) {
+      const sp = new THREE.SpotLight(colors[i], 25, 12, 0.5, 0.55, 1.2);
+      sp.position.set(0, 2.95, 0);
+      const target = new THREE.Object3D();
+      scene.add(target);
+      sp.target = target;
+      sp.visible = false;
+      scene.add(sp);
+      feverLights.push({ light: sp, target, phase: (i * Math.PI * 2) / colors.length });
+    }
+  }
+  let feverOn = false;
+  function setFever(on) {
+    feverOn = on;
+    for (const f of feverLights) f.light.visible = on;
+  }
+
   // --- Reaction system: quick feedback animations for clickable props ---
   function makeBounceState(meshes) {
     return {
@@ -928,6 +949,12 @@ export function createOffice(scene) {
     updateFan(t);
     updateMixers(dt); // 警備員(Soldier)等のGLBアニメ
     updatePlayer(t, dt);
+    if (feverOn) {
+      for (const f of feverLights) {
+        const a = t * 2.2 + f.phase;
+        f.target.position.set(Math.cos(a) * 2.4, 0.4, Math.sin(a) * 2.4);
+      }
+    }
     for (const key in bounceStates) updateBounce(bounceStates[key], t);
 
     if (progress < 0.5) return;
@@ -950,5 +977,5 @@ export function createOffice(scene) {
 
   setProgress(0);
 
-  return { setProgress, openRoof, update, clickables, react };
+  return { setProgress, openRoof, update, clickables, react, setFever };
 }

@@ -1019,17 +1019,77 @@ export function createOjisan(scene) {
   }
   function currentSpeed(pr) {
     if (pr < 0.02) return 0.5;
-    const base = THREE.MathUtils.lerp(1.3, 1.6, clamp01((pr - 0.02) / 0.98));
-    return base * (1 + endgameRamp(pr) * 0.9);
+    // 走りは一定速度を基本に(速度変化は控えめ)。終盤ランプも+40%まで
+    return 1.35 * (1 + endgameRamp(pr) * 0.4);
+  }
+
+  // 中央のデスクの当たり判定(すり抜け防止)。デスクは(0,0,0.75)に幅1.4×奥行0.7
+  const DESK_AABB = { minX: -0.85, maxX: 0.85, minZ: 0.2, maxZ: 1.3 };
+  function insideDesk(x, z) {
+    return x > DESK_AABB.minX && x < DESK_AABB.maxX && z > DESK_AABB.minZ && z < DESK_AABB.maxZ;
   }
 
   function pickWaypoint() {
-    walkTarget.set(randRange(WANDER_MIN_X, WANDER_MAX_X), randRange(WANDER_MIN_Z, WANDER_MAX_Z));
+    // デスク内部の目的地は選ばない
+    for (let i = 0; i < 20; i++) {
+      const x = randRange(WANDER_MIN_X, WANDER_MAX_X);
+      const z = randRange(WANDER_MIN_Z, WANDER_MAX_Z);
+      if (!insideDesk(x, z)) {
+        walkTarget.set(x, z);
+        return;
+      }
+    }
+    walkTarget.set(STAND_OFFSET.x, STAND_OFFSET.y);
   }
 
   function startJump() {
     jumpActive = true;
     jumpElapsed = 0;
+  }
+
+  // ---- フィーバータイム: 予測可能なパターン移動(5種) ----
+  // 1=水平円 2=垂直円(宙返りループ) 3=2mジャンプ連発 4=左右往復 5=前後往復
+  let feverPattern = 0;
+  let feverT = 0;
+  let feverY = 0;
+  function setFever(pattern) {
+    feverPattern = pattern || 0;
+    feverT = 0;
+    feverY = 0;
+  }
+  function applyFever(dt) {
+    feverT += dt;
+    const t = feverT;
+    feverY = 0;
+    if (feverPattern === 1) {
+      // 水平円軌道(デスクを避けて部屋の手前側)
+      const R = 1.3, w = (Math.PI * 2) / 3.5;
+      walkPos.set(Math.cos(w * t) * R, -0.9 + Math.sin(w * t) * R * 0.75);
+      facingYaw = Math.atan2(-Math.sin(w * t), Math.cos(w * t) * 0.75) + Math.PI / 2;
+    } else if (feverPattern === 2) {
+      // 垂直円軌道(x-y面で宙返りループ)
+      const R = 0.9, w = (Math.PI * 2) / 3.0;
+      walkPos.set(Math.sin(w * t) * R, -0.9);
+      feverY = R * (1 - Math.cos(w * t));
+      facingYaw = Math.cos(w * t) >= 0 ? Math.PI / 2 : -Math.PI / 2;
+    } else if (feverPattern === 3) {
+      // 2mジャンプ連発(その場)
+      const w = Math.PI / 0.7;
+      walkPos.set(0, -0.9);
+      feverY = Math.abs(Math.sin(w * t)) * 2.0;
+      facingYaw = 0;
+    } else if (feverPattern === 4) {
+      // 直線を左右往復
+      const w = (Math.PI * 2) / 2.8;
+      walkPos.set(Math.sin(w * t) * 1.8, -0.9);
+      facingYaw = Math.cos(w * t) >= 0 ? Math.PI / 2 : -Math.PI / 2;
+    } else if (feverPattern === 5) {
+      // 直線を前後往復
+      const w = (Math.PI * 2) / 2.8;
+      walkPos.set(0, -1.0 + Math.sin(w * t) * 1.1);
+      facingYaw = Math.cos(w * t) >= 0 ? 0 : Math.PI;
+    }
+    gaitPhase += dt * 11;
   }
 
   // ---- progress (slap-count driven) transformation state ----
@@ -1216,7 +1276,9 @@ export function createOjisan(scene) {
       }
     } else {
       standBlend = 1;
-      if (!staggering) {
+      if (feverPattern > 0) {
+        applyFever(dt);
+      } else if (!staggering) {
         const pr = progress;
         const speed = currentSpeed(pr);
         const running = isRunPhase(pr);
@@ -1241,13 +1303,21 @@ export function createOjisan(scene) {
           const dist = Math.hypot(dx, dz);
           if (dist < WAYPOINT_EPS) {
             locoState = "PAUSE";
-            pauseTimer = randRange(1, 2);
+            // 走りフェーズは立ち止まりを短くして一定ペースを保つ
+            pauseTimer = running ? 0.3 : randRange(1, 2);
           } else {
             const step = Math.min(speed * dt, dist);
-            walkPos.x += (dx / dist) * step;
-            walkPos.y += (dz / dist) * step;
-            facingYaw = Math.atan2(dx, dz);
-            gaitPhase += dt * (speed * 7 + (running ? 4 : 0));
+            const nx = walkPos.x + (dx / dist) * step;
+            const nz = walkPos.y + (dz / dist) * step;
+            if (insideDesk(nx, nz)) {
+              // デスクに突っ込む経路なら目的地を選び直す(すり抜け防止)。この歩は進まない
+              pickWaypoint();
+            } else {
+              walkPos.x = nx;
+              walkPos.y = nz;
+              facingYaw = Math.atan2(dx, dz);
+              gaitPhase += dt * (speed * 7 + (running ? 4 : 0));
+            }
           }
           if (jumpsEnabled(pr) && !jumpActive) {
             jumpCooldown -= dt;
@@ -1260,7 +1330,7 @@ export function createOjisan(scene) {
       }
       // while paused (or not yet wandering) slowly turn to present
       // the butt toward the camera-ish -z side, i.e. back to yaw 0
-      const targetYaw = locoState === "WALK" && !staggering ? facingYaw : 0;
+      const targetYaw = (feverPattern > 0 || (locoState === "WALK" && !staggering)) ? facingYaw : 0;
       facingYaw = lerpAngle(facingYaw, targetYaw, clamp01(dt * 4));
     }
 
@@ -1288,7 +1358,8 @@ export function createOjisan(scene) {
     const pelvisX = THREE.MathUtils.lerp(0, walkPos.x, standBlend) + shakeX;
     const pelvisZ = THREE.MathUtils.lerp(0, walkPos.y, standBlend) + slapJoltZ * staggerScale;
     const pelvisY = THREE.MathUtils.lerp(SIT_PELVIS_Y, STAND_PELVIS_Y, standBlend) +
-      jumpArc * JUMP_HEIGHT * (1 + endgameRamp(progress) * 1.2) * standBlend;
+      jumpArc * JUMP_HEIGHT * (1 + endgameRamp(progress) * 1.2) * standBlend +
+      feverY * standBlend;
     pelvis.position.set(pelvisX, pelvisY, pelvisZ);
     pelvis.rotation.z = shakeRotZ;
     pelvis.rotation.y = shakeRotY;
@@ -1397,6 +1468,10 @@ export function createOjisan(scene) {
     setCostume,
     getCostume,
     setProgress,
+    setFever,
+    get feverState() {
+      return { p: feverPattern, t: +feverT.toFixed(2), wx: +walkPos.x.toFixed(2), wz: +walkPos.y.toFixed(2), state: locoState };
+    },
     launch,
   };
 }
