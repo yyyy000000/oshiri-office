@@ -200,6 +200,9 @@ function buildGlbLong(url, { targetLen, axis, palette = "mono-red" } = {}) {
       const savedPos = outer.position.clone();
       const savedScale = outer.scale.clone();
       const savedQuat = outer.quaternion.clone();
+      // 親(棚の陳列ラッパー等)の位置・スケールが混入しないよう、測定中は切り離す
+      const savedParent = outer.parent;
+      if (savedParent) savedParent.remove(outer);
       outer.position.set(0, 0, 0);
       outer.scale.set(1, 1, 1);
       outer.quaternion.identity();
@@ -220,6 +223,7 @@ function buildGlbLong(url, { targetLen, axis, palette = "mono-red" } = {}) {
       outer.position.copy(savedPos);
       outer.scale.copy(savedScale);
       outer.quaternion.copy(savedQuat);
+      if (savedParent) savedParent.add(outer);
     },
   });
   inner.add(model);

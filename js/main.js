@@ -1270,6 +1270,8 @@ window.__forceEnd = () => { if (!ending) { points = TOTAL_POINTS; startEnding();
 window.__feverStart = (p) => startFeverTime(p);
 window.__feverEnd = () => endFeverTime(false);
 window.__endDest = null; // "cloud"|"moon"|"butt"|"star" で到着先を強制(デバッグ用)
+window.__camera = camera; // 検証用: カメラ直接操作
+window.__controls = controls;
 window.__screenPos = (x, y, z) => {
   const v = new THREE.Vector3(x, y, z).project(camera);
   return [Math.round((v.x * 0.5 + 0.5) * innerWidth), Math.round((-v.y * 0.5 + 0.5) * innerHeight), +v.z.toFixed(3)];

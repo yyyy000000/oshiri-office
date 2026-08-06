@@ -977,12 +977,13 @@ export function createOjisan(scene) {
   // p >= 0.55: wander speed becomes a run.
   // p >= 0.75: random jumps during pauses and mid-run.
   // ============================================================
-  const STAND_OFFSET = new THREE.Vector2(-0.35, -0.35); // forward-left of the stool, away from the desk
+  const STAND_OFFSET = new THREE.Vector2(-0.5, -0.6); // 机の手前・徘徊範囲内
   const STANDUP_DURATION = 1.0;
-  const WANDER_MIN_X = -2.2;
-  const WANDER_MAX_X = 2.2;
-  const WANDER_MIN_Z = -2.2;
-  const WANDER_MAX_Z = 0.2;
+  // 机(z=0.4〜)より手前の広いスペースのみ。壁からも1m以上離れる
+  const WANDER_MIN_X = -1.6;
+  const WANDER_MAX_X = 1.6;
+  const WANDER_MIN_Z = -1.9;
+  const WANDER_MAX_Z = -0.4;
   const JUMP_DURATION = 0.5;
   const JUMP_HEIGHT = 0.5;
   const WAYPOINT_EPS = 0.08;
@@ -1018,9 +1019,9 @@ export function createOjisan(scene) {
     return clamp01((pr - 0.1) / 0.9);
   }
   function currentSpeed(pr) {
-    if (pr < 0.02) return 0.45;
-    // 走りは常に一定(速度変化なし・難易度控えめ)
-    return 0.8;
+    if (pr < 0.02) return 0.4;
+    // 走りは常に一定(速度変化なし・ゆっくりめ)
+    return 0.6;
   }
 
   // 中央のデスクの当たり判定(すり抜け防止)。デスクは(0,0,0.75)に幅1.4×奥行0.7
@@ -1052,44 +1053,54 @@ export function createOjisan(scene) {
   let feverPattern = 0;
   let feverT = 0;
   let feverY = 0;
+  const feverFrom = new THREE.Vector2(); // 開始時の位置(テレポート防止のブレンド元)
   function setFever(pattern) {
     feverPattern = pattern || 0;
     feverT = 0;
     feverY = 0;
+    feverFrom.copy(walkPos);
   }
+  const _feverPos = new THREE.Vector2();
   function applyFever(dt) {
     feverT += dt;
     const t = feverT;
-    feverY = 0;
+    let fy = 0;
+    let wantYaw = facingYaw;
     if (feverPattern === 1) {
-      // 水平円軌道(小さめの円・デスクを避けて部屋の手前側)
-      const R = 0.6, w = (Math.PI * 2) / 3.5;
-      walkPos.set(Math.cos(w * t) * R, -0.9 + Math.sin(w * t) * R * 0.75);
-      facingYaw = Math.atan2(-Math.sin(w * t), Math.cos(w * t) * 0.75) + Math.PI / 2;
+      // 水平円軌道(ゆっくり・小さめ・机から離れた手前側)
+      const R = 0.5, w = (Math.PI * 2) / 5.5;
+      _feverPos.set(Math.cos(w * t) * R, -1.1 + Math.sin(w * t) * R * 0.75);
+      wantYaw = Math.atan2(-Math.sin(w * t), Math.cos(w * t) * 0.75) + Math.PI / 2;
     } else if (feverPattern === 2) {
-      // 垂直円軌道(x-y面で宙返りループ・小さめ)
-      const R = 0.45, w = (Math.PI * 2) / 3.0;
-      walkPos.set(Math.sin(w * t) * R, -0.9);
-      feverY = R * (1 - Math.cos(w * t));
-      facingYaw = Math.cos(w * t) >= 0 ? Math.PI / 2 : -Math.PI / 2;
+      // 垂直円軌道(宙返りループ・ゆっくり)
+      const R = 0.45, w = (Math.PI * 2) / 4.5;
+      _feverPos.set(Math.sin(w * t) * R, -1.1);
+      fy = R * (1 - Math.cos(w * t));
+      wantYaw = Math.cos(w * t) >= 0 ? Math.PI / 2 : -Math.PI / 2;
     } else if (feverPattern === 3) {
-      // ジャンプ連発(その場・高さ1m)
-      const w = Math.PI / 0.7;
-      walkPos.set(0, -0.9);
-      feverY = Math.abs(Math.sin(w * t)) * 1.0;
-      facingYaw = 0;
+      // ジャンプ連発(その場・高さ1m・ゆっくり)
+      const w = Math.PI / 1.0;
+      _feverPos.set(0, -1.1);
+      fy = Math.abs(Math.sin(w * t)) * 1.0;
+      wantYaw = 0;
     } else if (feverPattern === 4) {
-      // 直線を左右往復(短め)
-      const w = (Math.PI * 2) / 2.8;
-      walkPos.set(Math.sin(w * t) * 0.8, -0.9);
-      facingYaw = Math.cos(w * t) >= 0 ? Math.PI / 2 : -Math.PI / 2;
+      // 直線を左右往復(短め・ゆっくり)
+      const w = (Math.PI * 2) / 4.2;
+      _feverPos.set(Math.sin(w * t) * 0.6, -1.1);
+      wantYaw = Math.cos(w * t) >= 0 ? Math.PI / 2 : -Math.PI / 2;
     } else if (feverPattern === 5) {
-      // 直線を前後往復(短め)
-      const w = (Math.PI * 2) / 2.8;
-      walkPos.set(0, -1.2 + Math.sin(w * t) * 0.5);
-      facingYaw = Math.cos(w * t) >= 0 ? 0 : Math.PI;
+      // 直線を前後往復(短め・ゆっくり)
+      const w = (Math.PI * 2) / 4.2;
+      _feverPos.set(0, -1.3 + Math.sin(w * t) * 0.4);
+      wantYaw = Math.cos(w * t) >= 0 ? 0 : Math.PI;
     }
-    gaitPhase += dt * 11;
+    // 向きの瞬間反転を防いでなめらかに旋回
+    facingYaw = lerpAngle(facingYaw, wantYaw, Math.min(1, dt * 7));
+    // 開始1秒は現在地からパターンへなめらかに合流(瞬間移動防止)
+    const blend = Math.min(feverT / 1.0, 1);
+    walkPos.lerpVectors(feverFrom, _feverPos, blend);
+    feverY = fy * blend;
+    gaitPhase += dt * 9;
   }
 
   // ---- progress (slap-count driven) transformation state ----
@@ -1355,8 +1366,15 @@ export function createOjisan(scene) {
 
     // ---- apply pelvis (sit <-> stand/walk/run/jump) ----
     const staggerScale = 1 + standBlend * 2; // bigger stumble once standing
-    const pelvisX = THREE.MathUtils.lerp(0, walkPos.x, standBlend) + shakeX;
-    const pelvisZ = THREE.MathUtils.lerp(0, walkPos.y, standBlend) + slapJoltZ * staggerScale;
+    // 重要: group全体がfacingYawで回転するため、walkPos(ワールド座標)は逆回転して
+    // ローカルに変換してから適用する。そうしないと振り向くたびに体が原点周りに
+    // 振り回される(瞬間移動バグ)。シェイクやジョルトは体基準なのでそのまま加算
+    const wx = THREE.MathUtils.lerp(0, walkPos.x, standBlend);
+    const wz = THREE.MathUtils.lerp(0, walkPos.y, standBlend);
+    const cosFy = Math.cos(facingYaw);
+    const sinFy = Math.sin(facingYaw);
+    const pelvisX = wx * cosFy - wz * sinFy + shakeX;
+    const pelvisZ = wx * sinFy + wz * cosFy + slapJoltZ * staggerScale;
     const pelvisY = THREE.MathUtils.lerp(SIT_PELVIS_Y, STAND_PELVIS_Y, standBlend) +
       jumpArc * JUMP_HEIGHT * standBlend +
       feverY * standBlend;
