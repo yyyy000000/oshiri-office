@@ -102,6 +102,21 @@ const VOICE_SETS = {
   },
 };
 
+// エンディングの発射絶叫。衣装ごとに2種、歓喜系でランダム。
+const SCREAM_LINES = {
+  suit: ["ヒャッホーウ!飛ぶぞおおおお", "スーツ姿のまま、宇宙へ征くぞおおお!"],
+  nurse: ["先生、テイクオフしまーす!", "ナースコール、宇宙行きでーす!"],
+  boxrobo: ["ダンボールジン、ハッシャスルゾオオ!", "ロボット、コウフンノキワミ、ハッシンダ!"],
+  dino: ["ガオオオオ、飛ぶぞおおお!", "恐竜、大空へ羽ばたくぞおおお!"],
+  tuxedo: ["紳士、飛翔いたしますぞおおお!", "ボンド、テイクオフじゃあああ!"],
+  space: ["ヒューストン、リフトオフじゃあああ!", "宇宙服、ついに本気出すぞおおお!"],
+  penguin: ["ペンギン、初フライトぉぉ!", "ぺぎょおおお、飛ぶぞおおお!"],
+  magical: ["キラキラビーム、発射じゃあああ!", "魔法少女、変身完了、飛ぶぞおおお!"],
+  bear: ["クマさん、大空へダイブじゃあああ!", "ガオーッ、森を飛び出すぞおおお!"],
+  gold: ["黄金の男、天に還るぅぅ!", "ゴールドフィーバー、発射じゃあああ!"],
+  hoshi: ["星の力、全開じゃあああ!", "エフ、星になって輝くぜええええ!"],
+};
+
 let jaVoice = null;
 function loadVoices() {
   if (!("speechSynthesis" in window)) return;
@@ -132,9 +147,10 @@ export function maybeSlapVoice(costumeId, progress = 0) {
   return line;
 }
 
-// エンディングの叫び。叫んだセリフを返す。
+// エンディングの叫び。衣装別のラインからランダムに選び、叫んだセリフを返す。
 export function screamVoice(costumeId) {
-  const line = "ヒャッホーウ!飛ぶぞおおおお";
+  const lines = SCREAM_LINES[costumeId] || SCREAM_LINES.suit;
+  const line = lines[Math.floor(Math.random() * lines.length)];
   if (!("speechSynthesis" in window)) return line;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(line);

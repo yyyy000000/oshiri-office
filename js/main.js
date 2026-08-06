@@ -9,7 +9,8 @@ import { createFPSControls } from "./fpscontrols.js";
 import { createAnimal } from "./animal.js";
 import { createHoshi, HOSHI_LINES } from "./hoshi.js";
 import { maybeSlapVoice, screamVoice } from "./voices.js";
-import { getReply, getSlapLine, getStageLine, getEndingLine } from "./dialog.js";
+import { getReply, getSlapLine, getStageLine, getEndingLine, ENDING_TEXTS, getCostumeEndLine } from "./dialog.js";
+import { createEndingFx, PLATFORM_TOP_Y } from "./ending.js";
 
 const TOTAL_POINTS = 1000000;
 // ステージ演出の閾値: 序盤はアイテム出現(3,500/8,000/20,000/100,000)に同期
@@ -45,6 +46,7 @@ const animal = createAnimal(scene);
 const hoshi = createHoshi();
 hoshi.group.position.set(0.5, 0.745, 0.55); // デスクの天板の上
 scene.add(hoshi.group);
+const endFx = createEndingFx(scene);
 const bgm = createBGM();
 
 // 宇宙(エンディング用の星空)
@@ -380,6 +382,7 @@ let points = Math.min(parseInt(new URLSearchParams(location.search).get("pt") ||
 let slapCount = 0;
 let equipped = SLAP_ITEMS[0]; // 素手
 let ending = false;
+let onlyHandUsed = true; // 素手のみでクリアすると特別エンド
 
 function currentStage(n) {
   let s = 0;
@@ -664,6 +667,7 @@ const QUESTION_TOPICS = [
   "天気", "休み", "上司", "ゴルフ", "野球", "パチンコ", "カラオケ", "若い頃",
   "給料", "結婚", "ダイエット", "健康診断", "腰痛", "スマホ", "星", "宇宙",
   "ロケット", "夢", "好物", "タバコ", "ペット", "老後", "ダジャレ",
+  "アヒル", "バゲット", "ギター", "トロフィー", "フィーバー", "椅子",
 ];
 const QUESTION_HINT_TEMPLATES = [
   (t) => `おっさんに「${t}」について質問してみ?たぶん面白いぜ。`,
@@ -898,6 +902,7 @@ function handleGameClick(cssX, cssY) {
   if (hits.length === 0 || !inReach(hits[0])) return;
 
   slapCount++;
+  if (equipped.id !== "hand") onlyHandUsed = false;
   points = Math.min(points + equipped.points * (feverActive ? 2 : 1), TOTAL_POINTS);
   slapper.swing(equipped.id, hits[0].point, camera.position);
   ojisan.slap();
@@ -952,11 +957,27 @@ document.getElementById("restart-btn").addEventListener("click", () => {
 const startedAt = Date.now();
 let endingPhase = 0;
 let endingT = 0;
+// エンディング分岐: 到着先はコンプ率で決定(素手のみクリアは別エンド)、クマ/星は重ねがけ演出
+let endingDest = "moon"; // "cloud" | "moon" | "butt" | "star"
+let bearEscort = false;
+let starEscort = false;
+let arrivalT = 0;
+let bigStarBuilt = false;
+const DEST_LABELS = { cloud: "雲の上", moon: "月面", butt: "おしり星", star: "星になった" };
 
 function startEnding() {
   endFeverTime(true); // フィーバー中なら静かに終了
   ending = true;
   endingPhase = 1;
+  // 到着先の決定: コンプ率(アイテム12+衣装11+BGM6=29種)。素手のみクリアは星になる
+  const got = items.spawnedIds();
+  const rate = (got.items.length + got.costumes.length + availableTracks().length) /
+    (SLAP_ITEMS.length + COSTUMES.length + TRACKS.length);
+  endingDest = window.__endDest ||
+    (onlyHandUsed ? "star" : rate >= 1 ? "butt" : rate >= 0.5 ? "moon" : "cloud");
+  bearEscort = petCount >= 1000;
+  starEscort = (clicks.hoshi || 0) >= 1000;
+  endFx.begin(endingDest, { bearEscort, starEscort });
   if (gameMode === "fps") {
     localStorage.setItem("oshiri_god", "1"); // FPSモードクリアで神様モード解禁
     fps.disable(); // エンディングはシネマティックカメラに切替
@@ -964,20 +985,46 @@ function startEnding() {
   slapCountEl.textContent = TOTAL_POINTS.toLocaleString();
   slapBarFill.style.width = "100%";
   flashStage();
-  say(getEndingLine(), 6000);
+  say(getEndingLine(endingDest), 6000);
   controls.enabled = false;
   office.openRoof();
   setTimeout(() => {
     endingPhase = 2;
     playRocketSound();
     say(screamVoice(ojisan.getCostume()), 4000);
+    if (starEscort) sayHoshi("……ついてこいよ、f**kin'相棒。今日だけは離れねえ。", 5000);
     ojisan.launch();
   }, 2000);
 }
 
 function updateEnding(dt) {
   endingT += dt;
+  // 到着処理: 到着面(雲/月/おしり星)でy固定。素手エンドは昇り続けて星になる
+  if (endingPhase >= 2) {
+    if (endingDest !== "star" && ojisan.group.position.y >= PLATFORM_TOP_Y) {
+      ojisan.group.position.y = PLATFORM_TOP_Y;
+      arrivalT += dt;
+    } else if (endingDest === "star" && ojisan.group.position.y > 70) {
+      if (!bigStarBuilt) {
+        bigStarBuilt = true;
+        ojisan.group.visible = false; // おじさんは星になった
+        endFx.buildBigStar(ojisan.group.position.clone());
+      }
+      ojisan.group.position.y = 70.5;
+      arrivalT += dt;
+    }
+  }
   const y = ojisan.group.position.y;
+  // クマ護衛: 巨大クマがおじさんを抱えて一緒に飛ぶ
+  if (bearEscort && endingPhase >= 2 && y > 1) {
+    animal.group.position.set(
+      ojisan.group.position.x + 0.1,
+      y - 2.6,
+      ojisan.group.position.z + 0.9
+    );
+  }
+  // 星の仲間・おじさん星人・大星のアニメーション
+  endFx.update(clock.elapsedTime, dt, ojisan.group.position);
   const target = new THREE.Vector3(0, 0.9 + y, 0);
   controls.target.lerp(target, 0.08);
   const wantPos = new THREE.Vector3(2.0, y + 1.8, -2.4);
@@ -994,8 +1041,13 @@ function updateEnding(dt) {
   starField.visible = true;
   starField.material.opacity = spaceMix;
   starField.position.y = y * 0.5;
-  if (y > 55 && endingPhase === 2) {
+  const arrived = endingPhase === 2 && arrivalT > (endingDest === "star" ? 3 : 4);
+  if (arrived) {
     endingPhase = 3;
+    // 到着先別のエンディングテキスト+衣装別ひとこと
+    document.getElementById("ending-text").innerHTML =
+      (ENDING_TEXTS[endingDest] || ENDING_TEXTS.moon) +
+      `<br><span style="opacity:.75;font-size:13px">${getCostumeEndLine(ojisan.getCostume())}</span>`;
     bgm.playEnding(); // エンディング曲(Brooklyn Network)に切替
     const sec = Math.round((Date.now() - startedAt) / 1000);
     const got = items.spawnedIds();
@@ -1015,6 +1067,7 @@ function updateEnding(dt) {
       .join("");
     endingStats.innerHTML =
       `<div class="end-summary">` +
+      `<span>🚀 <b>${DEST_LABELS[endingDest]}</b></span>` +
       `<span>👋 <b>${slapCount.toLocaleString()}</b> 発</span>` +
       `<span>🏆 <b>${TOTAL_POINTS.toLocaleString()}</b> pt</span>` +
       `<span>⏱ <b>${Math.floor(sec / 60)}</b> 分 <b>${sec % 60}</b> 秒</span>` +
@@ -1124,6 +1177,7 @@ window.__fps = fps;
 window.__forceEnd = () => { if (!ending) { points = TOTAL_POINTS; startEnding(); } };
 window.__feverStart = (p) => startFeverTime(p);
 window.__feverEnd = () => endFeverTime(false);
+window.__endDest = null; // "cloud"|"moon"|"butt"|"star" で到着先を強制(デバッグ用)
 window.__screenPos = (x, y, z) => {
   const v = new THREE.Vector3(x, y, z).project(camera);
   return [Math.round((v.x * 0.5 + 0.5) * innerWidth), Math.round((-v.y * 0.5 + 0.5) * innerHeight), +v.z.toFixed(3)];
@@ -1153,7 +1207,7 @@ renderer.setAnimationLoop(() => {
   slapper.update(clock.elapsedTime, dt);
   animal.update(clock.elapsedTime, dt);
   hoshi.update(clock.elapsedTime, dt);
-  updateBearGrowth(dt);
+  if (!ending) updateBearGrowth(dt); // エンディング中はクマ護衛の位置制御を優先
   updateFever(dt);
   if (ending) {
     updateEnding(dt);
