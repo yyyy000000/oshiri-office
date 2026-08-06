@@ -1,21 +1,53 @@
-// Plain ES module, no imports. Pure WebAudio 4-track jukebox.
+// Plain ES module, no imports. Hybrid synth + streamed-file jukebox.
 //
-// Each track is defined data-driven in TRACK_DEFS: a baseBPM, whatever
-// pattern/chord data it needs, and a schedule(time, step, env) method that
-// the single lookahead scheduler calls once per sixteenth-note "step".
-// `step` is a monotonically increasing integer counter (reset whenever a
-// track starts or is switched) so every track can derive its own bar/beat
-// position from it at whatever subdivision it needs.
+// heya / gedatsu are still pure WebAudio synthesis: TRACK_DEFS + a single
+// lookahead scheduler that calls each track's schedule(time, step, env)
+// method once per sixteenth-note "step" (same mechanism as before).
+//
+// sekkai / android / alice / zoo are real audio files under assets/bgm/,
+// lazy-loaded on first select (fetch + decodeAudioData, cached per track so
+// each file is only ever fetched/decoded once) and played back as full,
+// untrimmed songs via AudioBufferSourceNode:
+//   - android / alice / zoo: a single file, source.loop = true.
+//   - sekkai: two files (sekkai1 then sekkai2) chained back-to-back with
+//     sample-accurate look-ahead scheduling (exact durations, scheduled
+//     ahead of time on the same interval tick that drives the synth
+//     scheduler) so the sekkai1->sekkai2->sekkai1... loop has no gap.
+//     onended is only ever used for bookkeeping/cleanup, never to trigger
+//     the next chunk - that would reintroduce the gap.
+//
+// fever.mp3 and ending.m4a are independent of the jukebox entirely (their
+// own gain nodes / source lifecycle) - see startFever/stopFever/playEnding.
+//
+// setIntensity(p) is kept as an API (main.js calls it continuously as
+// points accrue) but the old "tempo/gain ramps up with points" behavior
+// has been removed per spec. It now just remembers the value; heya/gedatsu
+// still read it from env for their existing per-note humanizing (extra
+// gedatsu bell hits at high intensity, slightly louder hats, etc.) since
+// that's arrangement thickening, not the deprecated tempo progression.
 
 export const TRACKS = [
-  { id: "heya", title: "部屋とくまとおしり" },
-  { id: "sekkai", title: "石灰の終わり" },
-  { id: "android", title: "ぴっちぴち・アンドロイド" },
-  { id: "gedatsu", title: "解脱" },
+  { id: "heya", title: "部屋とくまとおしり" }, // 合成
+  { id: "sekkai", title: "石灰の終わり" }, // ファイル(sekkai1→sekkai2連結ループ)
+  { id: "android", title: "ぴっちぴち・アンドロイド" }, // ファイル
+  { id: "gedatsu", title: "解脱" }, // 合成
+  { id: "alice", title: "Alice fell down" }, // ファイル(隠し曲)
+  { id: "zoo", title: "To the zoo" }, // ファイル(隠し曲)
 ];
 
+// File-based jukebox tracks. Paths are relative to index.html, same
+// convention as office.js's "assets/models/*.glb" / "assets/radiohip.jpg".
+const FILE_TRACKS = {
+  sekkai: { kind: "pair", urls: ["assets/bgm/sekkai1.mp3", "assets/bgm/sekkai2.mp3"] },
+  android: { kind: "single", url: "assets/bgm/android.mp3" },
+  alice: { kind: "single", url: "assets/bgm/alice.m4a" },
+  zoo: { kind: "single", url: "assets/bgm/zoo.m4a" },
+};
+const FEVER_URL = "assets/bgm/fever.mp3";
+const ENDING_URL = "assets/bgm/ending.m4a";
+
 // ---------------------------------------------------------------------
-// Small stateless synth helpers shared by every track.
+// Small stateless synth helpers shared by heya/gedatsu.
 // ---------------------------------------------------------------------
 
 // MIDI note number to Hz.
@@ -51,7 +83,7 @@ const playTone = (audioContext, dest, { type, freq, time, peak, attack = 0.005, 
   osc.stop(time + attack + release + 0.05);
 };
 
-// Filtered noise burst (hi-hats, kicks, swells, airy pads).
+// Filtered noise burst (hi-hats, swells, airy pads).
 const playNoise = (audioContext, buffer, dest, { time, filterType = "highpass", filterFreq = 4000, q = 1, peak = 0.05, attack = 0.001, release = 0.05 }) => {
   const source = audioContext.createBufferSource();
   source.buffer = buffer;
@@ -68,25 +100,6 @@ const playNoise = (audioContext, buffer, dest, { time, filterType = "highpass", 
   env.connect(dest);
   source.start(time);
   source.stop(time + attack + release + 0.05);
-};
-
-// Lowpassed noise "thump" kick for four-on-the-floor techno.
-const playKick = (audioContext, buffer, dest, { time, peak = 0.18 }) => {
-  const source = audioContext.createBufferSource();
-  source.buffer = buffer;
-  const filter = audioContext.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.setValueAtTime(320, time);
-  filter.frequency.exponentialRampToValueAtTime(45, time + 0.09);
-  filter.Q.value = 1;
-  const env = audioContext.createGain();
-  env.gain.setValueAtTime(Math.max(peak, 0.0002), time);
-  env.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
-  source.connect(filter);
-  filter.connect(env);
-  env.connect(dest);
-  source.start(time);
-  source.stop(time + 0.15);
 };
 
 // Temple-bell tone: fundamental + inharmonic partials, long decay.
@@ -127,32 +140,17 @@ const playDrone = (audioContext, dest, { time, freqs, dur, peak = 0.05 }) => {
   });
 };
 
-// Pitch-bending "wow" blip (android's robotic flourish).
-const playWowBlip = (audioContext, dest, { time, startFreq, endFreq, dur, peak = 0.06 }) => {
-  const osc = audioContext.createOscillator();
-  const env = audioContext.createGain();
-  osc.type = "square";
-  osc.frequency.setValueAtTime(startFreq, time);
-  osc.frequency.exponentialRampToValueAtTime(endFreq, time + dur);
-  env.gain.setValueAtTime(0.0001, time);
-  env.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), time + dur * 0.2);
-  env.gain.exponentialRampToValueAtTime(0.0001, time + dur);
-  osc.connect(env);
-  env.connect(dest);
-  osc.start(time);
-  osc.stop(time + dur + 0.05);
-};
-
 // ---------------------------------------------------------------------
-// Track definitions. All step indices are in sixteenth notes; 4 steps
-// per beat, 16 steps per 4/4 bar.
+// Synth track definitions (heya, gedatsu). All step indices are in
+// sixteenth notes; 4 steps per beat, 16 steps per 4/4 bar.
+// sekkai/android used to be synth here too; their synth definitions were
+// removed now that they're real audio files (see FILE_TRACKS above).
 // ---------------------------------------------------------------------
 
 const TRACK_DEFS = {
   // --- 部屋とくまとおしり: the original cheerful office chiptune loop ---
   heya: {
     baseBPM: 84,
-    tempoCap: 2.0,
     chordRoots: [60, 65, 62, 67], // C, F, Dm, G
     melodyPattern: [
       [64, null, 66, null, 68, null, 69, null],
@@ -214,179 +212,9 @@ const TRACK_DEFS = {
     },
   },
 
-  // --- 石灰の終わり: 疾走するガレージロック(オリジナルリフ) ---
-  sekkai: {
-    baseBPM: 155,
-    tempoCap: 1.6,
-    // Eマイナーのパワーコード進行(8小節、ルートのMIDIノート)
-    riffRoots: [40, 40, 43, 45, 40, 40, 48, 47], // E E G A | E E C B
-    // 2小節サイクルの合いの手フレーズ(8分音符×16、ペンタトニック)
-    hookNotes: [
-      null, null, null, null, 64, 67, 64, null,
-      62, null, 64, null, 67, 64, 62, 59,
-    ],
-    schedule(time, step, env) {
-      const { audioContext, masterGain, noiseBuffer, intensity, stepLen } = env;
-      const eighthLen = stepLen * 2;
-
-      if (step % 2 !== 0) return;
-      const eighthIndex = step / 2;
-      const inBar = eighthIndex % 8;
-      const barInLoop = Math.floor(eighthIndex / 8) % 8;
-
-      // ハット(全8分)+ 開放気味のアクセント
-      playNoise(audioContext, noiseBuffer, masterGain, {
-        time,
-        filterType: "highpass",
-        filterFreq: 9000,
-        peak: (inBar % 2 === 0 ? 0.055 : 0.035) + intensity * 0.02,
-        release: inBar === 7 ? 0.12 : 0.04,
-      });
-      // キック(1・3拍+3拍裏で前のめりに)
-      if (inBar === 0 || inBar === 4 || inBar === 5) {
-        playTone(audioContext, masterGain, {
-          type: "sine", freq: 52, time,
-          peak: 0.17, attack: 0.002, release: 0.1,
-        });
-        playNoise(audioContext, noiseBuffer, masterGain, {
-          time, filterType: "lowpass", filterFreq: 140,
-          peak: 0.1, release: 0.07,
-        });
-      }
-      // スネア(2・4拍)
-      if (inBar === 2 || inBar === 6) {
-        playNoise(audioContext, noiseBuffer, masterGain, {
-          time, filterType: "bandpass", filterFreq: 1900, q: 0.9,
-          peak: 0.13, release: 0.13,
-        });
-      }
-      // パワーコードの刻み(ルート+5度のノコギリ波、小節頭はアクセント)
-      const root = this.riffRoots[barInLoop];
-      const accent = inBar === 0;
-      for (const semi of [0, 7]) {
-        playTone(audioContext, masterGain, {
-          type: "sawtooth",
-          freq: noteToFreq(root + semi),
-          time,
-          peak: accent ? 0.08 : 0.055,
-          attack: 0.002,
-          release: accent ? eighthLen * 0.95 : eighthLen * 0.45,
-        });
-      }
-      // 合いの手リフ(2小節サイクル)
-      const hook = this.hookNotes[eighthIndex % 16];
-      if (hook !== null) {
-        playTone(audioContext, masterGain, {
-          type: "square",
-          freq: noteToFreq(hook + 12),
-          time,
-          peak: 0.06 + intensity * 0.02,
-          attack: 0.002,
-          release: eighthLen * 0.7,
-        });
-      }
-    },
-  },
-
-  // --- ぴっちぴち・アンドロイド: hyper techno-pop ---
-  android: {
-    baseBPM: 132,
-    tempoCap: 2.0,
-    // Em - C - D - B7(ish), 4 arpeggio tones per chord
-    chordArp: [
-      [64, 67, 71, 76], // Em: E4 G4 B4 E5
-      [60, 64, 67, 72], // C:  C4 E4 G4 C5
-      [62, 66, 69, 74], // D:  D4 F#4 A4 D5
-      [59, 63, 66, 69], // B7: B3 D#4 F#4 A4
-    ],
-    leadPattern: [
-      [76, null, 79, null, 76, null, 74, null],
-      [72, null, 76, null, 79, null, 76, null],
-      [74, null, 78, null, 81, null, 78, null],
-      [71, null, 75, null, 78, null, null, 83],
-    ],
-    schedule(time, step, env) {
-      const { audioContext, masterGain, noiseBuffer, intensity, stepLen } = env;
-
-      // driving 16th-note square arpeggio, chord changes every bar
-      const barIndex = Math.floor(step / 16) % 4;
-      const stepInBar = step % 16;
-      const arpNote = this.chordArp[barIndex][stepInBar % 4];
-      playTone(audioContext, masterGain, {
-        type: "square",
-        freq: noteToFreq(arpNote),
-        time,
-        peak: 0.05,
-        attack: 0.002,
-        release: stepLen * 0.55,
-      });
-
-      // four-on-the-floor lowpassed noise kick
-      if (step % 4 === 0) {
-        playKick(audioContext, noiseBuffer, masterGain, {
-          time,
-          peak: 0.16 + intensity * 0.03,
-        });
-      }
-
-      // bright hats on the eighth-note offbeat
-      if (step % 4 === 2) {
-        playNoise(audioContext, noiseBuffer, masterGain, {
-          time,
-          filterType: "highpass",
-          filterFreq: 9500,
-          peak: 0.045 + intensity * 0.015,
-          release: 0.04,
-        });
-      }
-
-      // robotic staccato square lead, eighth notes over a 4-bar phrase
-      if (step % 2 === 0) {
-        const eighthIndex = step / 2;
-        const barInLoop = Math.floor(eighthIndex / 8) % 4;
-        const eighthInBar = eighthIndex % 8;
-        const note = this.leadPattern[barInLoop][eighthInBar];
-        if (note !== null) {
-          const eighthLen = stepLen * 2;
-          playTone(audioContext, masterGain, {
-            type: "square",
-            freq: noteToFreq(note),
-            time,
-            peak: 0.09,
-            attack: 0.002,
-            release: eighthLen * 0.4,
-          });
-          // occasional octave-jump flourish
-          if (barInLoop === 1 && eighthInBar === 4) {
-            playTone(audioContext, masterGain, {
-              type: "square",
-              freq: noteToFreq(note - 12),
-              time,
-              peak: 0.06,
-              attack: 0.002,
-              release: eighthLen * 0.4,
-            });
-          }
-        }
-      }
-
-      // pitch-bend "wow" blip every 4 bars
-      if (step % 64 === 0) {
-        playWowBlip(audioContext, masterGain, {
-          time,
-          startFreq: noteToFreq(84),
-          endFreq: noteToFreq(96),
-          dur: stepLen * 3,
-          peak: 0.06,
-        });
-      }
-    },
-  },
-
   // --- 解脱: zen ambient ---
   gedatsu: {
     baseBPM: 45,
-    tempoCap: 1.3, // intensity should not rush this track
     droneFreqs: [noteToFreq(33), noteToFreq(40)], // A1, E2
     bellFreq: noteToFreq(76), // E5
     schedule(time, step, env) {
@@ -436,86 +264,234 @@ const TRACK_DEFS = {
 };
 
 // ---------------------------------------------------------------------
-// Jukebox: single lookahead scheduler shared by all tracks.
+// Jukebox: single lookahead scheduler shared by synth tracks and the
+// sekkai file-pair chain. Single-file tracks (android/alice/zoo) just use
+// AudioBufferSourceNode.loop and need no per-tick attention.
 // ---------------------------------------------------------------------
+
+const MASTER_GAIN_BASE = 0.15; // matches the old synth-only default loudness
+const FILE_GAIN = 0.8; // per-file-track balance gain, so files don't sit far from synth loudness
+const FILE_SCHEDULE_AHEAD = 0.3; // seconds; how far ahead the sekkai pair-chain schedules its next chunk
 
 export function createBGM() {
   let audioContext = null;
   let isPlaying = false;
   let schedulerID = null;
   let nextEventTime = 0;
-  let intensity = 0;
+  let intensity = 0; // stored only; no longer drives tempo/gain (see file header)
   let currentTrackId = TRACKS[0].id; // "heya"
   let stepCounter = 0;
 
-  const scheduleAheadTime = 0.1; // 100ms lookahead
+  const scheduleAheadTime = 0.1; // 100ms lookahead (synth notes)
   const lookAhead = 25; // 25ms scheduler interval
 
+  // Gain graph: masterGain is the single final output (future volume
+  // control). jukeboxGain carries the currently-selected jukebox track
+  // (synth writes to it directly; file jukebox tracks go through fileGain
+  // first for balance) and can be ducked to 0 during fever without
+  // touching fever/ending, which have their own gain nodes straight to
+  // masterGain.
   let masterGain = null;
+  let jukeboxGain = null;
+  let fileGain = null;
+  let feverGain = null;
+  let endingGain = null;
   let noiseBuffer = null;
 
-  const getTempoMultiplier = () => {
-    const cap = TRACK_DEFS[currentTrackId].tempoCap ?? 2.0;
-    return 1.0 + intensity * (cap - 1.0);
+  // -- file loading: fetch+decode once per URL, cached ------------------
+  const bufferCache = new Map(); // url -> Promise<AudioBuffer>
+  const trackAudioCache = new Map(); // trackId -> Promise<{kind, ...buffers}>
+
+  const loadAudioBuffer = (url) => {
+    if (!bufferCache.has(url)) {
+      bufferCache.set(
+        url,
+        fetch(url)
+          .then((res) => res.arrayBuffer())
+          .then((data) => audioContext.decodeAudioData(data))
+          .catch((err) => {
+            console.warn(`[bgm] failed to load ${url}`, err);
+            bufferCache.delete(url);
+            throw err;
+          })
+      );
+    }
+    return bufferCache.get(url);
   };
 
-  // step length = one sixteenth note at the track's current effective tempo
+  const loadTrackAudio = (id) => {
+    if (!trackAudioCache.has(id)) {
+      const def = FILE_TRACKS[id];
+      const promise =
+        def.kind === "single"
+          ? loadAudioBuffer(def.url).then((buf) => ({ kind: "single", buf }))
+          : Promise.all([loadAudioBuffer(def.urls[0]), loadAudioBuffer(def.urls[1])]).then(
+              ([bufA, bufB]) => ({ kind: "pair", bufA, bufB })
+            );
+      trackAudioCache.set(id, promise);
+    }
+    return trackAudioCache.get(id);
+  };
+
+  // -- jukebox file-track playback state --------------------------------
+  let singleFileSource = null; // current android/alice/zoo source
+  let pairState = null; // { bufA, bufB, nextStartTime, nextIsA, sources: [] } for sekkai
+  let fileLoadToken = 0; // guards against a stale load resolving after another switch
+
+  const stopFileSources = () => {
+    fileLoadToken++;
+    if (singleFileSource) {
+      try { singleFileSource.stop(); } catch { /* already stopped */ }
+      try { singleFileSource.disconnect(); } catch { /* already disconnected */ }
+      singleFileSource = null;
+    }
+    if (pairState) {
+      pairState.sources.forEach((s) => {
+        try { s.stop(); } catch { /* already stopped */ }
+        try { s.disconnect(); } catch { /* already disconnected */ }
+      });
+      pairState = null;
+    }
+  };
+
+  // Schedule as many sekkai1/sekkai2 chunks as fit within the lookahead
+  // window, using exact buffer durations (never onended) so the loop is
+  // sample-accurate and gapless.
+  const pumpPairSchedule = () => {
+    if (!pairState || !audioContext) return;
+    const endTime = audioContext.currentTime + FILE_SCHEDULE_AHEAD;
+    while (pairState.nextStartTime < endTime) {
+      const buf = pairState.nextIsA ? pairState.bufA : pairState.bufB;
+      const src = audioContext.createBufferSource();
+      src.buffer = buf;
+      src.connect(fileGain);
+      src.start(pairState.nextStartTime);
+      pairState.sources.push(src);
+      src.onended = () => {
+        // bookkeeping only - never used to trigger the next chunk
+        if (!pairState) return;
+        const i = pairState.sources.indexOf(src);
+        if (i > -1) pairState.sources.splice(i, 1);
+      };
+      pairState.nextStartTime += buf.duration;
+      pairState.nextIsA = !pairState.nextIsA;
+    }
+  };
+
+  const beginFileTrack = (id) => {
+    const loadToken = ++fileLoadToken;
+    loadTrackAudio(id)
+      .then((audio) => {
+        if (loadToken !== fileLoadToken || currentTrackId !== id || !isPlaying) return; // stale
+        const when = audioContext.currentTime;
+        if (audio.kind === "single") {
+          const src = audioContext.createBufferSource();
+          src.buffer = audio.buf;
+          src.loop = true;
+          src.connect(fileGain);
+          src.start(when);
+          singleFileSource = src;
+        } else {
+          pairState = { bufA: audio.bufA, bufB: audio.bufB, nextStartTime: when, nextIsA: true, sources: [] };
+          pumpPairSchedule();
+        }
+      })
+      .catch(() => {}); // already warned in loadAudioBuffer
+  };
+
+  const activateCurrentTrack = () => {
+    stopFileSources();
+    if (FILE_TRACKS[currentTrackId]) {
+      beginFileTrack(currentTrackId);
+    }
+    // synth tracks need nothing extra here; the scheduler tick drives them
+    // from stepCounter/nextEventTime, both already reset by the caller.
+  };
+
+  // step length = one sixteenth note at the track's fixed tempo (no more
+  // intensity-driven speed-up; see file header)
   const getStepLength = () => {
     const bpm = TRACK_DEFS[currentTrackId].baseBPM;
-    const beatLen = 60 / bpm / getTempoMultiplier();
-    return beatLen / 4;
+    return 60 / bpm / 4;
   };
 
-  // Main scheduler: runs every ~25ms, schedules events 100ms ahead.
+  // Main scheduler: runs every ~25ms. Drives synth note scheduling for
+  // heya/gedatsu, and the sekkai pair-chain look-ahead. android/alice/zoo
+  // are plain loop=true sources and need no per-tick work.
   const scheduler = () => {
     if (!isPlaying || !audioContext) return;
 
-    const endTime = audioContext.currentTime + scheduleAheadTime;
-    const stepLen = getStepLength();
-    const def = TRACK_DEFS[currentTrackId];
+    if (pairState) {
+      pumpPairSchedule();
+    }
 
-    while (nextEventTime < endTime) {
-      def.schedule(nextEventTime, stepCounter, {
-        audioContext,
-        masterGain,
-        noiseBuffer,
-        intensity,
-        stepLen,
-      });
-      stepCounter++;
-      nextEventTime += stepLen;
+    const def = TRACK_DEFS[currentTrackId];
+    if (def) {
+      const endTime = audioContext.currentTime + scheduleAheadTime;
+      const stepLen = getStepLength();
+      while (nextEventTime < endTime) {
+        def.schedule(nextEventTime, stepCounter, {
+          audioContext,
+          masterGain: jukeboxGain,
+          noiseBuffer,
+          intensity,
+          stepLen,
+        });
+        stepCounter++;
+        nextEventTime += stepLen;
+      }
+    }
+  };
+
+  const ensureAudioGraph = () => {
+    if (audioContext === null) {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioContext.state === "suspended") {
+      audioContext.resume();
+    }
+    if (masterGain === null) {
+      masterGain = audioContext.createGain();
+      masterGain.gain.value = MASTER_GAIN_BASE;
+      masterGain.connect(audioContext.destination);
+    }
+    if (jukeboxGain === null) {
+      jukeboxGain = audioContext.createGain();
+      jukeboxGain.gain.value = 1;
+      jukeboxGain.connect(masterGain);
+    }
+    if (fileGain === null) {
+      fileGain = audioContext.createGain();
+      fileGain.gain.value = FILE_GAIN;
+      fileGain.connect(jukeboxGain);
+    }
+    if (feverGain === null) {
+      feverGain = audioContext.createGain();
+      feverGain.gain.value = FILE_GAIN;
+      feverGain.connect(masterGain);
+    }
+    if (endingGain === null) {
+      endingGain = audioContext.createGain();
+      endingGain.gain.value = FILE_GAIN;
+      endingGain.connect(masterGain);
+    }
+    if (noiseBuffer === null) {
+      noiseBuffer = makeNoiseBuffer(audioContext);
     }
   };
 
   const start = () => {
-    // Create or get audio context (must happen inside a user gesture)
-    if (audioContext === null) {
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    }
+    // Create/resume the audio graph (must happen inside a user gesture the
+    // first time). Safe to call every tap: existing playback is untouched.
+    ensureAudioGraph();
 
-    // Resume if suspended (after user gesture)
-    if (audioContext.state === "suspended") {
-      audioContext.resume();
-    }
-
-    // Create master gain once
-    if (masterGain === null) {
-      masterGain = audioContext.createGain();
-      masterGain.gain.value = 0.15; // moderate volume, sits under sound effects
-      masterGain.connect(audioContext.destination);
-    }
-
-    // Create shared noise buffer once
-    if (noiseBuffer === null) {
-      noiseBuffer = makeNoiseBuffer(audioContext);
-    }
-
-    // Already playing, avoid double-start
-    if (isPlaying) return;
+    if (endingPlaying) return; // ending is terminal; never resurrect the jukebox under it
+    if (isPlaying) return; // already playing, avoid double-start
 
     isPlaying = true;
     stepCounter = 0;
     nextEventTime = audioContext.currentTime;
+    activateCurrentTrack();
     schedulerID = setInterval(scheduler, lookAhead);
   };
 
@@ -525,33 +501,134 @@ export function createBGM() {
       clearInterval(schedulerID);
       schedulerID = null;
     }
-  };
-
-  const setIntensity = (p) => {
-    intensity = Math.max(0, Math.min(1, p));
-    // Subtle gain increase: 0.15 to ~0.18 at p=1, on top of tempo scaling
-    // that each track already reads per-note via getStepLength/intensity.
-    if (masterGain) {
-      masterGain.gain.value = 0.15 + intensity * 0.03;
+    stopFileSources();
+    if (feverPlaying) {
+      feverPlaying = false;
+      if (feverSource) {
+        try { feverSource.stop(); } catch { /* already stopped */ }
+        try { feverSource.disconnect(); } catch { /* already disconnected */ }
+        feverSource = null;
+      }
+    }
+    if (endingPlaying) {
+      endingPlaying = false;
+      if (endingSource) {
+        try { endingSource.stop(); } catch { /* already stopped */ }
+        try { endingSource.disconnect(); } catch { /* already disconnected */ }
+        endingSource = null;
+      }
     }
   };
 
+  const setIntensity = (p) => {
+    // Kept as an API (main.js calls it continuously) but no longer drives
+    // tempo or gain progression - see file header. Only stored, so
+    // heya/gedatsu's own per-note humanizing still has a value to read.
+    intensity = Math.max(0, Math.min(1, p));
+  };
+
   const setTrack = (id) => {
-    if (!TRACK_DEFS[id] || id === currentTrackId) return;
+    if ((!TRACK_DEFS[id] && !FILE_TRACKS[id]) || id === currentTrackId) return;
 
     currentTrackId = id;
     stepCounter = 0; // reset pattern position for the new track
 
-    if (isPlaying && audioContext && masterGain) {
+    if (isPlaying && audioContext && jukeboxGain) {
       const now = audioContext.currentTime;
-      const targetGain = 0.15 + intensity * 0.03;
-      // brief fade to mask the switch, then continue scheduling cleanly
-      masterGain.gain.cancelScheduledValues(now);
-      masterGain.gain.setValueAtTime(masterGain.gain.value, now);
-      masterGain.gain.linearRampToValueAtTime(0.0001, now + 0.05);
-      masterGain.gain.linearRampToValueAtTime(targetGain, now + 0.15);
+      // brief fade on the jukebox bus to mask the switch, covers both
+      // synth->synth, synth->file and file->file transitions the same way
+      jukeboxGain.gain.cancelScheduledValues(now);
+      jukeboxGain.gain.setValueAtTime(jukeboxGain.gain.value, now);
+      jukeboxGain.gain.linearRampToValueAtTime(0.0001, now + 0.05);
+      jukeboxGain.gain.linearRampToValueAtTime(1, now + 0.15);
       nextEventTime = now + 0.05;
+      activateCurrentTrack();
     }
+  };
+
+  // -- fever.mp3: independent of the jukebox, resumes from last position --
+  let feverSource = null;
+  let feverPlaying = false;
+  let feverPosition = 0; // seconds; where to resume next time
+  let feverBufferDuration = 0;
+  let feverAnchorCtxTime = 0;
+  let feverAnchorPosition = 0;
+
+  const startFever = () => {
+    ensureAudioGraph();
+    const now = audioContext.currentTime;
+    // duck the jukebox bus (pause "or volume 0" per spec) rather than
+    // tearing down its sources, so resuming afterwards is instant/gapless
+    jukeboxGain.gain.cancelScheduledValues(now);
+    jukeboxGain.gain.setValueAtTime(0, now);
+
+    if (feverPlaying) return; // already running
+    feverPlaying = true;
+
+    loadAudioBuffer(FEVER_URL)
+      .then((buf) => {
+        if (!feverPlaying) return; // stopFever() already called before load resolved
+        feverBufferDuration = buf.duration;
+        if (feverPosition >= buf.duration) feverPosition = 0;
+        const src = audioContext.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+        src.connect(feverGain);
+        const startAt = audioContext.currentTime;
+        src.start(startAt, feverPosition);
+        feverSource = src;
+        feverAnchorCtxTime = startAt;
+        feverAnchorPosition = feverPosition;
+      })
+      .catch(() => {});
+  };
+
+  const stopFever = () => {
+    if (!feverPlaying) return;
+    feverPlaying = false;
+    if (feverSource) {
+      const elapsed = audioContext.currentTime - feverAnchorCtxTime;
+      let pos = feverAnchorPosition + elapsed;
+      if (feverBufferDuration > 0 && pos >= feverBufferDuration) {
+        pos = pos % feverBufferDuration;
+      }
+      feverPosition = pos;
+      try { feverSource.stop(); } catch { /* already stopped */ }
+      try { feverSource.disconnect(); } catch { /* already disconnected */ }
+      feverSource = null;
+    }
+    if (jukeboxGain && audioContext) {
+      const now = audioContext.currentTime;
+      jukeboxGain.gain.cancelScheduledValues(now);
+      jukeboxGain.gain.setValueAtTime(1, now);
+    }
+  };
+
+  // -- ending.m4a: terminal, stops the jukebox entirely --------------------
+  let endingSource = null;
+  let endingPlaying = false;
+
+  const playEnding = () => {
+    ensureAudioGraph();
+    isPlaying = false;
+    if (schedulerID) {
+      clearInterval(schedulerID);
+      schedulerID = null;
+    }
+    stopFileSources();
+    endingPlaying = true;
+
+    loadAudioBuffer(ENDING_URL)
+      .then((buf) => {
+        if (!endingPlaying) return;
+        const src = audioContext.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+        src.connect(endingGain);
+        src.start(audioContext.currentTime);
+        endingSource = src;
+      })
+      .catch(() => {});
   };
 
   return {
@@ -559,6 +636,9 @@ export function createBGM() {
     stop,
     setIntensity,
     setTrack,
+    startFever,
+    stopFever,
+    playEnding,
     get playing() {
       return isPlaying;
     },

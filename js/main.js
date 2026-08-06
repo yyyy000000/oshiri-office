@@ -522,8 +522,15 @@ const CLICK_UNLOCKS = {
             line: "き、金庫の中身はアヒルじゃったんか…!ワシも知らんかったわい!" },
   musicposter: { count: 30, kind: "bgm", id: "android",    name: "ぴっちぴち・アンドロイド",
             line: "おっ、このアーティストの曲が聴きたくなってきたのう。" },
-  records:     { count: 80, kind: "bgm", id: "gedatsu",    name: "解脱",
-            line: "このレコード…なんだか心が無になりそうじゃ…。" },
+  // レコードの山は3段階解禁(配列は多段階解禁として扱われる)
+  records: [
+    { count: 80,  kind: "bgm", id: "gedatsu", name: "解脱",
+      line: "このレコード…なんだか心が無になりそうじゃ…。" },
+    { count: 200, kind: "bgm", id: "alice",   name: "Alice fell down",
+      line: "ほう、不思議な曲が出てきたのう。誰の落とし物じゃ?" },
+    { count: 400, kind: "bgm", id: "zoo",     name: "To the zoo",
+      line: "動物園の曲…?このレコードの山、どこまで深いんじゃ…。" },
+  ],
 };
 // クリック回数を記録する全オブジェクト(ハズレも含む — 宝探し用)
 const CLICK_NAMES = {
@@ -542,6 +549,8 @@ function availableTracks() {
   const list = ["heya", "sekkai"];
   if (dropped.has("bgm:android")) list.push("android");
   if (dropped.has("bgm:gedatsu")) list.push("gedatsu");
+  if (dropped.has("bgm:alice")) list.push("alice");
+  if (dropped.has("bgm:zoo")) list.push("zoo");
   return list;
 }
 function cycleTrack() {
@@ -564,22 +573,24 @@ function tickSound() {
   thump(ac, t, { from: 320, to: 180, dur: 0.05, gain: 0.2 });
 }
 function checkClickUnlocks(announce) {
-  for (const [cid, cfg] of Object.entries(CLICK_UNLOCKS)) {
-    const key = (cfg.kind === "item" ? "item:" : cfg.kind === "costume" ? "cos:" : "bgm:") + cfg.id;
-    if ((clicks[cid] || 0) >= cfg.count && !dropped.has(key)) {
-      dropped.add(key);
-      if (cfg.kind === "bgm") {
-        if (announce) {
-          playDropSound();
-          toast(`🎵 新しいBGM『${cfg.name}』を獲得!レコードプレイヤーで切替できます`);
-          say(cfg.line, 3800);
-        }
-      } else {
-        items.spawn(cfg.kind, cfg.id);
-        if (announce) {
-          playDropSound();
-          toast(`${cfg.kind === "item" ? "🎁" : "👗"} 隠し${cfg.kind === "item" ? "アイテム" : "衣装"}『${cfg.name}』が出現!`);
-          say(cfg.line, 3800);
+  for (const [cid, cfgOrList] of Object.entries(CLICK_UNLOCKS)) {
+    for (const cfg of [].concat(cfgOrList)) {
+      const key = (cfg.kind === "item" ? "item:" : cfg.kind === "costume" ? "cos:" : "bgm:") + cfg.id;
+      if ((clicks[cid] || 0) >= cfg.count && !dropped.has(key)) {
+        dropped.add(key);
+        if (cfg.kind === "bgm") {
+          if (announce) {
+            playDropSound();
+            toast(`🎵 新しいBGM『${cfg.name}』を獲得!レコードプレイヤーで切替できます`);
+            say(cfg.line, 3800);
+          }
+        } else {
+          items.spawn(cfg.kind, cfg.id);
+          if (announce) {
+            playDropSound();
+            toast(`${cfg.kind === "item" ? "🎁" : "👗"} 隠し${cfg.kind === "item" ? "アイテム" : "衣装"}『${cfg.name}』が出現!`);
+            say(cfg.line, 3800);
+          }
         }
       }
     }
@@ -642,9 +653,12 @@ const SAY_HINT_TEMPLATES = [
 ];
 function lockedHintPool() {
   const pool = [];
-  for (const [cid, cfg] of Object.entries(CLICK_UNLOCKS)) {
-    const key = (cfg.kind === "item" ? "item:" : cfg.kind === "costume" ? "cos:" : "bgm:") + cfg.id;
-    if (!dropped.has(key)) pool.push(HINT_LINES[cid]);
+  for (const [cid, cfgOrList] of Object.entries(CLICK_UNLOCKS)) {
+    const anyLocked = [].concat(cfgOrList).some((cfg) => {
+      const key = (cfg.kind === "item" ? "item:" : cfg.kind === "costume" ? "cos:" : "bgm:") + cfg.id;
+      return !dropped.has(key);
+    });
+    if (anyLocked && HINT_LINES[cid]) pool.push(HINT_LINES[cid]);
   }
   if (!dropped.has("cos:bear")) pool.push(HINT_LINES.pet100);
   else if (!dropped.has("cos:gold")) pool.push(HINT_LINES.pet1000);
@@ -881,7 +895,7 @@ function updateEnding(dt) {
   starField.position.y = y * 0.5;
   if (y > 55 && endingPhase === 2) {
     endingPhase = 3;
-    bgm.stop();
+    bgm.playEnding(); // エンディング曲(Brooklyn Network)に切替
     const sec = Math.round((Date.now() - startedAt) / 1000);
     const got = items.spawnedIds();
     const bgmGot = availableTracks();
