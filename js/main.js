@@ -13,6 +13,7 @@ import { getReply, getSlapLine, getStageLine, getEndingLine, ENDING_TEXTS, getCo
 import { renderCard, SAMPLE_CARDS } from "./cards.js";
 import { createHellShop } from "./hellshop.js";
 import * as collection from "./collection.js";
+import { createCardBattle } from "./cardbattle.js";
 import { createEndingFx, PLATFORM_TOP_Y } from "./ending.js";
 
 const TOTAL_POINTS = 1000000;
@@ -455,15 +456,16 @@ applyProgress();
 checkUnlocks(false);
 
 // HELL 9000のショップ。ポイントを消費してカードパックを買う
+const cardBattle = createCardBattle({
+  toast: (t) => toast(t),
+  onFinish: () => { hellShop.show(); }, // 対戦が終わったらショップに戻る
+});
 const hellShop = createHellShop({
   getPoints: () => points,
   spendPoints: (n) => { points = Math.max(0, points - n); applyProgress(); },
   toast: (t) => toast(t),
   playSfx: () => playDropSound(),
-  onStartBattle: (opponentKey) => {
-    // 対戦画面は cardbattle.js 側で実装(エンジン完成後に接続)
-    toast(`⚔️ ${opponentKey} との対戦は準備中です`);
-  },
+  onStartBattle: (opponentKey) => cardBattle.start(opponentKey),
 });
 
 function flashStage() {
@@ -1366,6 +1368,7 @@ window.__endDest = null; // "cloud"|"moon"|"butt"|"star" で到着先を強制(�
 window.__camera = camera; // 検証用: カメラ直接操作
 window.__hell = hellShop;  // 検証用: HELL 9000のショップを直接開く
 window.__cards = collection; // 検証用: 所持カード・パック排出
+window.__battle = cardBattle; // 検証用: 対戦画面を直接開く
 // カード枠の確認用: __cardPreview() で見本カードを画面に並べる
 window.__cardPreview = () => {
   const old = document.getElementById("card-preview");

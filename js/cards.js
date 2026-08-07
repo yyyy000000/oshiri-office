@@ -9,6 +9,9 @@ export const ATTR = {
 
 // サイコロの目はCSSで描く(⚀⚁…のUnicodeは環境によって豆腐になるため)
 
+// イラスト未生成のカードID。一度404を踏んだら以降はimgを作らない
+const missingArt = new Set();
+
 // 枠の確認用サンプル(本実装では carddata.js から読む)
 export const SAMPLE_CARDS = {
   ojisan: {
@@ -67,10 +70,20 @@ export function renderCard(def, id, opts = {}) {
 
   const art = document.createElement("div");
   art.className = "pcard-art" + (def.kind === "event" ? " pcard-art-tall" : "");
-  // イラストが未生成のあいだはプレースホルダを出す(枠の確認ができるように)
-  art.innerHTML =
-    `<img alt="" src="assets/cards/${id}.jpg" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` +
-    `<div class="pcard-art-ph" style="display:none">ILLUST<br><small>${id}</small></div>`;
+  // イラストが未生成のあいだはプレースホルダを出す。
+  // 一度404だったIDは覚えておき、以降はimgを作らない(再描画のたびに404が飛ぶのを防ぐ)
+  const ph = `<div class="pcard-art-ph"${missingArt.has(id) ? "" : ' style="display:none"'}>ILLUST<br><small>${id}</small></div>`;
+  if (missingArt.has(id)) {
+    art.innerHTML = ph;
+  } else {
+    art.innerHTML = `<img alt="" src="assets/cards/${id}.jpg">` + ph;
+    const img = art.firstElementChild;
+    img.addEventListener("error", () => {
+      missingArt.add(id);
+      img.style.display = "none";
+      img.nextElementSibling.style.display = "flex";
+    });
+  }
   el.appendChild(art);
 
   const type = document.createElement("div");
