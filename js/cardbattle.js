@@ -298,10 +298,11 @@ export function createCardBattle(deps) {
         ? `<b>${nameOf(id)}</b> で振りますか?(中身は上に表示中)`
         : `<b>${nameOf(id)}</b> を対象にしますか?`);
       act("これで決定", () => { const u = pendingPick; pendingPick = null; answer(u); });
-      act("選び直す", () => { pendingPick = null; render(); }, "ghost");
+      act("選び直す", () => { pendingPick = null; closeStage(); render(); }, "ghost");
       return;
     }
-    if (q && (q.kind === "playMonster" || q.kind === "rollOrder") && pendingPick == null && !busy) closeStage();
+    // 何も選びかけていない選択待ちでは、せり出したカードを片付ける
+    if (q && q.kind !== "roll" && q.kind !== "useEvent" && pendingPick == null && !busy) closeStage();
     if (pendingPlay != null) {
       msg("場が埋まっています。<b>どのモンスターと交換しますか?</b>(戻したモンスターはHPが減ったまま手札に戻ります)");
       act("やめる", () => { pendingPlay = null; render(); }, "ghost");
@@ -484,8 +485,9 @@ export function createCardBattle(deps) {
     els.dice.className = "bt-dice landed pip-" + face;
     sfx("land");
     stageHighlight(face, "lock"); // カード内の該当テキストだけを強調する
-    await wait(DUR.diceHold + 400);
-    closeStage();
+    // ここでは閉じない。続く roll イベントの再生が同じステージを使い回す
+    // (閉じるとカードがもう一度せり出して二度手間になる)
+    await wait(DUR.diceHold);
     setBusy(false);
     run();
   }
@@ -574,20 +576,24 @@ export function createCardBattle(deps) {
         return;
       }
 
-      case "roll":
-        // どのモンスターが振るのかを先に見せてから、カードごと中央にせり出させる
+      case "roll": {
+        // 自分で振った直後は、すでに同じカードがせり出しているので出し直さない
+        const already = stageKey === "roll" + ev.uid;
         actingUid = ev.uid;
-        render();
-        await wait(500);
-        openStage(ev.id, cardEl(ev.uid), "roll" + ev.uid);
-        if (ev.side === "foe") await spinDice(ev.face);
-        else { els.dice.className = "bt-dice landed pip-" + ev.face; }
-        stageHighlight(ev.face, "lock");
+        if (!already) {
+          render();
+          await wait(500); // 誰が振るのかを見せる間
+          openStage(ev.id, cardEl(ev.uid), "roll" + ev.uid);
+          if (ev.side === "foe") await spinDice(ev.face);
+          else els.dice.className = "bt-dice landed pip-" + ev.face;
+          stageHighlight(ev.face, "lock");
+        }
         banner(`🎲 <b>${ev.face}</b> — ${nameOf(ev.id)}`, ev.text);
         pushLog(`${nameOf(ev.id)}→${ev.face} ${ev.text}`);
-        await wait(DUR.roll);
+        await wait(already ? 700 : DUR.roll); // 既に見せた分は短くする
         closeStage();
         return;
+      }
 
       case "chooseFace":
         actingUid = ev.uid;
