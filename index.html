@@ -265,6 +265,207 @@
     pointer-events: none; display: none;
   }
   #aim-dot.show { display: block; }
+  /* ===== カード(おしりバトルダイス) =====
+     枠・文字・アイコンは全てDOM。イラストだけ assets/cards/<id>.jpg を差し込む。 */
+  .pcard {
+    --frame: #c9a227; --deep: #2a1c10;
+    width: 340px; height: 502px; flex: none;
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 8px; border-radius: 14px;
+    background: linear-gradient(160deg, var(--frame), var(--deep) 62%);
+    box-shadow: 0 6px 22px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.18);
+    font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+    color: #f4ead6; user-select: none;
+  }
+  .pcard-power  { --frame: #d1452f; --deep: #3a1108; }
+  .pcard-mecha  { --frame: #3f86c4; --deep: #0d2338; }
+  .pcard-occult { --frame: #8b57c9; --deep: #241038; }
+  .pcard-event  { --frame: #b9873f; --deep: #2c1c0c; }
+  .pcard-rare {
+    box-shadow: 0 6px 26px rgba(0,0,0,.6), inset 0 0 0 2px #ffdf7a,
+                0 0 18px rgba(255,214,110,.45);
+  }
+  .pcard-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    padding: 4px 9px; border-radius: 7px;
+    background: linear-gradient(180deg, rgba(0,0,0,.5), rgba(0,0,0,.25));
+    border: 1px solid rgba(255,255,255,.22);
+  }
+  .pcard-name { font-size: 16px; font-weight: bold; letter-spacing: .5px; line-height: 1.2; }
+  .pcard-attr { font-size: 15px; flex: none; }
+  .pcard-art {
+    position: relative; height: 243px; border-radius: 6px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,.25); background: #14100c;
+  }
+  .pcard-art-tall { height: 300px; }
+  .pcard-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pcard-art-ph {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px;
+    color: rgba(255,255,255,.32); font-size: 15px; letter-spacing: 3px;
+    background: repeating-linear-gradient(45deg, #1b1510 0 10px, #221a13 10px 20px);
+  }
+  .pcard-art-ph small { font-size: 10px; letter-spacing: 1px; }
+  .pcard-type {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 2px 9px; border-radius: 5px; font-size: 11px;
+    background: rgba(0,0,0,.42); border: 1px solid rgba(255,255,255,.16);
+  }
+  .pcard-hp { font-weight: bold; color: #ffd76e; font-size: 13px; }
+  .pcard-body {
+    flex: 1; min-height: 0; padding: 6px 8px; border-radius: 6px;
+    background: linear-gradient(180deg, #f6efdd, #e6dcc2);
+    border: 1px solid rgba(0,0,0,.35); color: #2b2418; overflow: hidden;
+  }
+  .pcard-face {
+    display: flex; align-items: flex-start; gap: 6px;
+    font-size: 10.5px; line-height: 1.3; padding: 2.5px 0;
+  }
+  .pcard-face + .pcard-face { border-top: 1px solid rgba(0,0,0,.12); }
+  /* サイコロの目はフォント依存(⚀⚁…は環境で豆腐になる)なのでCSSで描く */
+  .pcard-pip {
+    flex: none; width: 16px; height: 16px; margin-top: 1px; border-radius: 3px;
+    background-color: #fdfaf2; border: 1px solid #6b3f1d;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.6);
+    background-repeat: no-repeat;
+  }
+  /* 各レイヤーはボックス全面なのでbackground-positionでは動かせない。
+     ドットの位置はグラデーション内の at X% Y% で指定する。 */
+  .pcard-pip { --d: #5a3315; }
+  .pip-1 { background-image:
+    radial-gradient(circle 1.8px at 50% 50%, var(--d) 98%, transparent 100%); }
+  .pip-2 { background-image:
+    radial-gradient(circle 1.8px at 27% 27%, var(--d) 98%, transparent 100%),
+    radial-gradient(circle 1.8px at 73% 73%, var(--d) 98%, transparent 100%); }
+  .pip-3 { background-image:
+    radial-gradient(circle 1.8px at 24% 24%, var(--d) 98%, transparent 100%),
+    radial-gradient(circle 1.8px at 50% 50%, var(--d) 98%, transparent 100%),
+    radial-gradient(circle 1.8px at 76% 76%, var(--d) 98%, transparent 100%); }
+  .pip-4 { background-image:
+    radial-gradient(circle 1.8px at 28% 28%, var(--d) 98%, transparent 100%),
+    radial-gradient(circle 1.8px at 72% 28%, var(--d) 98%, transparent 100%),
+    radial-gradient(circle 1.8px at 28% 72%, var(--d) 98%, transparent 100%),
+    radial-gradient(circle 1.8px at 72% 72%, var(--d) 98%, transparent 100%); }
+  .pip-5 { background-image:
+    radial-gradient(circle 1.8px at 26% 26%, var(--d) 98%, transparent 100%),
+    radial-gradient(circle 1.8px at 74% 26%, var(--d) 98%, transparent 100%),
+    radial-gradient(circle 1.8px at 50% 50%, var(--d) 98%, transparent 100%),
+    radial-gradient(circle 1.8px at 26% 74%, var(--d) 98%, transparent 100%),
+    radial-gradient(circle 1.8px at 74% 74%, var(--d) 98%, transparent 100%); }
+  .pip-6 { background-image:
+    radial-gradient(circle 1.8px at 28% 22%, var(--d) 98%, transparent 100%),
+    radial-gradient(circle 1.8px at 28% 50%, var(--d) 98%, transparent 100%),
+    radial-gradient(circle 1.8px at 28% 78%, var(--d) 98%, transparent 100%),
+    radial-gradient(circle 1.8px at 72% 22%, var(--d) 98%, transparent 100%),
+    radial-gradient(circle 1.8px at 72% 50%, var(--d) 98%, transparent 100%),
+    radial-gradient(circle 1.8px at 72% 78%, var(--d) 98%, transparent 100%); }
+  .pcard-text { font-size: 13px; line-height: 1.6; padding: 4px 2px; }
+  .pcard-flavor {
+    margin-top: 8px; padding-top: 7px; border-top: 1px solid rgba(0,0,0,.18);
+    font-size: 10.5px; font-style: italic; color: #6a5c45; line-height: 1.5;
+  }
+  .pcard-mini { width: 112px; height: 155px; padding: 4px; gap: 2px; }
+  .pcard-mini .pcard-name { font-size: 9px; }
+  .pcard-mini .pcard-art { height: 80px; }
+  .pcard-mini .pcard-type, .pcard-mini .pcard-body { display: none; }
+
+  /* ===== HELL 9000 のショップ/デッキ構築/対戦メニュー ===== */
+  #hell-overlay {
+    position: fixed; inset: 0; z-index: 26; display: none;
+    align-items: center; justify-content: center; padding: 16px;
+    background: rgba(4,8,14,.9);
+  }
+  #hell-overlay.show { display: flex; }
+  #hell-panel {
+    width: min(920px, 100%); max-height: 92vh; display: flex; flex-direction: column;
+    border-radius: 14px; overflow: hidden; color: #dff1ff;
+    background: linear-gradient(180deg, #12202e, #0a131c);
+    border: 1px solid rgba(120,200,255,.35);
+    box-shadow: 0 12px 50px rgba(0,0,0,.7), inset 0 0 0 1px rgba(255,255,255,.06);
+  }
+  #hell-head {
+    display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+    background: linear-gradient(90deg, rgba(40,90,130,.55), rgba(20,40,60,.35));
+    border-bottom: 1px solid rgba(120,200,255,.28);
+  }
+  #hell-title { font-size: 18px; font-weight: bold; letter-spacing: 3px; color: #7fe3ff; }
+  #hell-sub { font-size: 11px; opacity: .65; }
+  #hell-points { margin-left: auto; font-size: 14px; font-weight: bold; color: #ffd76e; }
+  #hell-close {
+    width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(255,255,255,.25);
+    background: rgba(255,255,255,.08); color: #fff; font-size: 17px; cursor: pointer;
+    font-family: inherit;
+  }
+  #hell-body { padding: 18px 16px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .hell-line { font-size: 13px; line-height: 1.7; opacity: .85; margin-bottom: 14px; }
+  .hell-menu { display: flex; flex-direction: column; gap: 10px; }
+  .hell-btn {
+    display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+    padding: 14px 16px; border-radius: 10px; cursor: pointer; font-family: inherit;
+    color: #dff1ff; font-size: 15px; font-weight: bold;
+    background: linear-gradient(90deg, rgba(60,130,180,.32), rgba(30,60,90,.22));
+    border: 1px solid rgba(120,200,255,.3);
+  }
+  .hell-btn:hover { background: linear-gradient(90deg, rgba(80,170,230,.42), rgba(40,80,120,.3)); }
+  .hell-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .hell-btn small { display: block; font-size: 11px; font-weight: normal; opacity: .7; margin-top: 3px; }
+  .hell-btn .hell-cost { margin-left: auto; color: #ffd76e; font-size: 14px; white-space: nowrap; }
+  .hell-btn .hell-cost.short { color: #ff8b8b; }
+  .hell-packs { display: flex; flex-direction: column; gap: 12px; }
+  .hell-back {
+    margin-top: 16px; padding: 9px 18px; border-radius: 8px; cursor: pointer;
+    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.22);
+    color: #fff; font-family: inherit; font-size: 13px;
+  }
+  /* パック開封 */
+  .hell-open { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; }
+  .hell-open .pcard {
+    animation: cardIn .45s cubic-bezier(.2,1.3,.4,1) backwards;
+    transform-origin: 50% 100%;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(26px) rotate(-6deg) scale(.85); }
+    to { opacity: 1; transform: none; }
+  }
+  /* NEWバッジはカード名に被らないよう、アート枠の左上に載せる */
+  .hell-new {
+    position: absolute; top: 46px; left: 16px; z-index: 2; padding: 2px 7px; border-radius: 5px;
+    background: #ff2d55; color: #fff; font-size: 10px; font-weight: bold; letter-spacing: 1px;
+    font-family: "Hiragino Sans", sans-serif; box-shadow: 0 2px 6px rgba(0,0,0,.5);
+  }
+  /* スターターのように大量に出るときは、枠ではなく一覧で見せる */
+  .hell-list { display: flex; flex-wrap: wrap; gap: 7px; }
+  .hell-list-item {
+    display: flex; align-items: center; gap: 7px; width: calc(50% - 4px);
+    padding: 7px 10px; border-radius: 7px; font-size: 12px;
+    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14);
+  }
+  .hell-list-item .q { margin-left: auto; color: #ffd76e; font-weight: bold; }
+  .hell-list-item .a { flex: none; width: 16px; text-align: center; }
+  @media (max-width: 760px) { .hell-list-item { width: 100%; } }
+  .hell-cardwrap { position: relative; }
+  /* デッキ構築 */
+  .hell-deckbar {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 10px 12px; border-radius: 8px; margin-bottom: 12px;
+    background: rgba(0,0,0,.3); border: 1px solid rgba(120,200,255,.22); font-size: 13px;
+  }
+  .hell-deckbar .ok { color: #7dffab; }
+  .hell-deckbar .ng { color: #ff8b8b; }
+  .hell-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .hell-slot {
+    width: 132px; padding: 7px 8px; border-radius: 8px; cursor: pointer;
+    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.16);
+    font-size: 11px; line-height: 1.35;
+  }
+  .hell-slot.in { border-color: #7fe3ff; background: rgba(80,170,230,.22); }
+  .hell-slot .n { float: right; font-weight: bold; color: #ffd76e; }
+  .hell-slot .k { display: block; font-size: 9.5px; opacity: .6; margin-top: 2px; }
+  @media (max-width: 760px) {
+    #hell-body { padding: 14px 12px; }
+    .hell-slot { width: calc(50% - 4px); }
+  }
+
   #help-overlay, #settings-overlay, #zukan-overlay {
     position: fixed; inset: 0; z-index: 25; display: none;
     align-items: center; justify-content: center; padding: 20px;
@@ -391,6 +592,19 @@
       <div class="set-row touch-only"><label>スティック感度</label><input type="range" id="set-stick" min="50" max="200" step="10"><span class="set-val" id="set-stick-val"></span></div>
       <div class="set-row"><label>移動速度</label><input type="range" id="set-move" min="50" max="150" step="10"><span class="set-val" id="set-move-val"></span></div>
       <button class="modal-close" id="settings-close">とじる</button>
+    </div>
+  </div>
+  <div id="hell-overlay">
+    <div id="hell-panel">
+      <div id="hell-head">
+        <div>
+          <div id="hell-title">HELL 9000</div>
+          <div id="hell-sub">カードパック自動販売機</div>
+        </div>
+        <span id="hell-points">0 pt</span>
+        <button id="hell-close" title="閉じる">×</button>
+      </div>
+      <div id="hell-body"></div>
     </div>
   </div>
   <div id="zukan-overlay">

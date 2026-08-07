@@ -459,6 +459,19 @@ export function createOffice(scene) {
     dart(2.9, 1.65, -1.53);
   }
 
+  // ⑨b HELL 9000 [CLICKABLE: hell] — カードパックを売るガチャロボ
+  // (GLB: Polygonal Mind "Mr Zurb Zurb" / CC0)。ダーツの的の真下、右壁ぎわに置く。
+  // おじさんの徘徊域(x≤1.6)とクマ(2.2, 0.8)のどちらからも離れた空き地。
+  const hellGroup = glbProp("assets/models/hell9000.glb", {
+    targetHeight: 1.5,
+    palette: "keep",
+    onReady: (g) => tagClickable(g, "hell"),
+  });
+  hellGroup.position.set(2.45, 0, -1.5);
+  // rotationY=0 がそのまま -x(部屋の中心)向き。T字に広げた腕は壁と平行なz方向に伸びる
+  // ので、90度回すと腕が壁を突き抜ける。ここは回さないのが正解。
+  scene.add(hellGroup);
+
   // ⑩ Security guard [CLICKABLE: muscle] (GLB: Quaternius Soldier)
   // 旧マッチョの腕振りアニメは廃止。Idleクリップがあれば再生し、リアクションは共通バウンス
   const guardGroup = new THREE.Group();
@@ -916,6 +929,7 @@ export function createOffice(scene) {
     fan: makeBounceState([fanGroup]),
     umbrella: makeBounceState([umbrellaGroup]),
     dartboard: makeBounceState([dartboardGroup]),
+    hell: makeBounceState([hellGroup]),
     plant: makeBounceState([plantGroup]),
     muscle: makeBounceState([guardGroup]),
     player: makeBounceState([playerGroupRef]),

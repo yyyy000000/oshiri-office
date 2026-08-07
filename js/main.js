@@ -10,6 +10,9 @@ import { createAnimal } from "./animal.js";
 import { createHoshi, HOSHI_LINES } from "./hoshi.js";
 import { maybeSlapVoice, screamVoice, setVoicesEnabled } from "./voices.js";
 import { getReply, getSlapLine, getStageLine, getEndingLine, ENDING_TEXTS, getCostumeEndLine } from "./dialog.js";
+import { renderCard, SAMPLE_CARDS } from "./cards.js";
+import { createHellShop } from "./hellshop.js";
+import * as collection from "./collection.js";
 import { createEndingFx, PLATFORM_TOP_Y } from "./ending.js";
 
 const TOTAL_POINTS = 1000000;
@@ -451,6 +454,18 @@ function applyProgress() {
 applyProgress();
 checkUnlocks(false);
 
+// HELL 9000のショップ。ポイントを消費してカードパックを買う
+const hellShop = createHellShop({
+  getPoints: () => points,
+  spendPoints: (n) => { points = Math.max(0, points - n); applyProgress(); },
+  toast: (t) => toast(t),
+  playSfx: () => playDropSound(),
+  onStartBattle: (opponentKey) => {
+    // 対戦画面は cardbattle.js 側で実装(エンジン完成後に接続)
+    toast(`⚔️ ${opponentKey} との対戦は準備中です`);
+  },
+});
+
 function flashStage() {
   stageFlash.classList.add("on");
   setTimeout(() => stageFlash.classList.remove("on"), 80);
@@ -569,6 +584,7 @@ const CLICK_NAMES = {
   player: "レコードプレイヤー", records: "レコードの山", musicposter: "音楽ポスター",
   copier: "コピー機", cooler: "ウォーターサーバー", safe: "金庫",
   fan: "扇風機", umbrella: "傘", dartboard: "ダーツボード", plant: "観葉植物",
+  hell: "HELL 9000",
   hoshi: "星",
 };
 // BGM管理
@@ -650,6 +666,11 @@ function onObjectClick(clickId) {
   if (clickId === "player") {
     // レコードプレイヤーはBGM切替(獲得済みの曲を順番に)
     cycleTrack();
+    return;
+  }
+  if (clickId === "hell") {
+    // HELL 9000: カードパックの購入・デッキ構築・対戦のメニュー
+    hellShop.show();
     return;
   }
   tickSound();
@@ -1343,6 +1364,21 @@ window.__feverStart = (p) => startFeverTime(p);
 window.__feverEnd = () => endFeverTime(false);
 window.__endDest = null; // "cloud"|"moon"|"butt"|"star" で到着先を強制(デバッグ用)
 window.__camera = camera; // 検証用: カメラ直接操作
+window.__hell = hellShop;  // 検証用: HELL 9000のショップを直接開く
+window.__cards = collection; // 検証用: 所持カード・パック排出
+// カード枠の確認用: __cardPreview() で見本カードを画面に並べる
+window.__cardPreview = () => {
+  const old = document.getElementById("card-preview");
+  if (old) { old.remove(); return; }
+  const wrap = document.createElement("div");
+  wrap.id = "card-preview";
+  wrap.style.cssText =
+    "position:fixed;inset:0;z-index:40;display:flex;gap:22px;align-items:center;" +
+    "justify-content:center;background:rgba(8,6,14,.92);padding:20px;flex-wrap:wrap";
+  for (const [id, def] of Object.entries(SAMPLE_CARDS)) wrap.appendChild(renderCard(def, id));
+  wrap.addEventListener("click", () => wrap.remove());
+  document.body.appendChild(wrap);
+};
 window.__controls = controls;
 window.__screenPos = (x, y, z) => {
   const v = new THREE.Vector3(x, y, z).project(camera);
