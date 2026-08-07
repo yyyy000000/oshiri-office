@@ -33,6 +33,7 @@ export function createCardBattle(deps) {
     turn: $("bt-turn"), foeField: $("bt-foe-field"), youField: $("bt-you-field"),
     hand: $("bt-hand"), foeHand: $("bt-foe-hand"), log: $("bt-log"), dice: $("bt-dice"),
     youTrash: $("bt-you-trash"), foeTrash: $("bt-foe-trash"),
+    youDeck: $("bt-you-deck"), foeDeck: $("bt-foe-deck"),
     prompt: $("bt-prompt"), banner: $("bt-banner"), turnBanner: $("bt-turnbanner"),
   };
   $("bt-quit").addEventListener("click", () => { if (battle) finish(null); });
@@ -211,6 +212,8 @@ export function createCardBattle(deps) {
       el2.querySelector(".n").textContent = n;
       el2.classList.toggle("empty", n === 0);
     }
+    els.youDeck.querySelector(".n").textContent = s.you.deckCount;
+    els.foeDeck.querySelector(".n").textContent = s.foe.deckCount;
     renderField(els.foeField, s.foe.field, "foe");
     renderField(els.youField, s.you.field, "you");
     markPickable(s);
@@ -662,16 +665,25 @@ export function createCardBattle(deps) {
         await wait(DUR.recover);
         return;
 
-      case "draw":
+      case "draw": {
         sfx("draw");
+        const ms = flyFromDeck(ev.side, ev.n);
         pushLog(`${who}が${ev.n}枚引いた`);
-        await wait(DUR.draw);
+        await wait(Math.max(DUR.draw, ms));
+        render();
         return;
+      }
 
-      case "mulligan":
-        banner("🔄 引き直し", "モンスターが1枚も無かった");
-        await wait(DUR.mulligan);
+      case "mulligan": {
+        // 対戦開始: 双方に5枚ずつ配る
+        banner("カードを配ります", "お互い5枚");
+        sfx("draw");
+        const a = flyFromDeck("foe", 5);
+        const b = flyFromDeck("you", 5);
+        await wait(Math.max(a, b) + 250);
+        render();
         return;
+      }
 
       case "trash": {
         // 場から消えるカードをトラッシュへ飛ばす
@@ -757,6 +769,35 @@ export function createCardBattle(deps) {
     close.addEventListener("click", () => box.remove());
     box.appendChild(close);
     overlay.appendChild(box);
+  }
+
+  /**
+   * 山札から手札へカードが飛ぶ演出。@returns 全部飛び終わるまでの時間(ms)
+   */
+  function flyFromDeck(side, n) {
+    const deck = side === "you" ? els.youDeck : els.foeDeck;
+    const target = side === "you" ? els.hand : els.foeHand;
+    const dr = deck.getBoundingClientRect();
+    const tr = target.getBoundingClientRect();
+    deck.classList.add("draw");
+    setTimeout(() => deck.classList.remove("draw"), 420);
+    const step = 130;
+    for (let i = 0; i < n; i++) {
+      setTimeout(() => {
+        const g = el(`<div class="bt-fly-back"></div>`);
+        g.style.left = dr.left + dr.width / 2 - 20 + "px";
+        g.style.top = dr.top + dr.height / 2 - 27 + "px";
+        document.body.appendChild(g);
+        const dx = tr.left + tr.width * (0.25 + Math.random() * 0.5) - (dr.left + dr.width / 2);
+        const dy = tr.top + tr.height / 2 - (dr.top + dr.height / 2);
+        requestAnimationFrame(() => {
+          g.style.transform = `translate(${dx}px, ${dy}px) rotate(${Math.round(Math.random() * 24 - 12)}deg)`;
+          g.style.opacity = "0.2";
+        });
+        setTimeout(() => g.remove(), 440);
+      }, i * step);
+    }
+    return (n - 1) * step + 460;
   }
 
   /** カードがトラッシュへ飛んでいく残像を出す */
