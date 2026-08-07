@@ -678,8 +678,8 @@ export function createCardBattle(deps) {
         // 対戦開始: 双方に5枚ずつ配る
         banner("カードを配ります", "お互い5枚");
         sfx("draw");
-        const a = flyFromDeck("foe", 5);
-        const b = flyFromDeck("you", 5);
+        const a = flyFromDeck("foe", 5, 0);
+        const b = flyFromDeck("you", 5, 130); // 交互に配って1枚ずつ見えるように
         await wait(Math.max(a, b) + 250);
         render();
         return;
@@ -772,32 +772,45 @@ export function createCardBattle(deps) {
   }
 
   /**
-   * 山札から手札へカードが飛ぶ演出。@returns 全部飛び終わるまでの時間(ms)
+   * 山札の一番上からカードが1枚ずつスライドして抜け、手札へ滑り込む演出。
+   * @returns 全部終わるまでの時間(ms)
    */
-  function flyFromDeck(side, n) {
+  function flyFromDeck(side, n, offset = 0) {
     const deck = side === "you" ? els.youDeck : els.foeDeck;
     const target = side === "you" ? els.hand : els.foeHand;
     const dr = deck.getBoundingClientRect();
     const tr = target.getBoundingClientRect();
-    deck.classList.add("draw");
-    setTimeout(() => deck.classList.remove("draw"), 420);
-    const step = 130;
+    const step = 260;   // 1枚ずつ順に配る間隔
+    const slide = 190;  // 束から抜き出すまで
+    const move = 340;   // 手札へ滑り込むまで
     for (let i = 0; i < n; i++) {
       setTimeout(() => {
-        const g = el(`<div class="bt-fly-back"></div>`);
-        g.style.left = dr.left + dr.width / 2 - 20 + "px";
-        g.style.top = dr.top + dr.height / 2 - 27 + "px";
+        deck.classList.add("draw");
+        setTimeout(() => deck.classList.remove("draw"), 300);
+        const g = el(`<div class="bt-slide"></div>`);
+        g.style.left = dr.left + "px";
+        g.style.top = dr.top + "px";
+        g.style.width = dr.width + "px";
+        g.style.height = dr.height + "px";
         document.body.appendChild(g);
-        const dx = tr.left + tr.width * (0.25 + Math.random() * 0.5) - (dr.left + dr.width / 2);
-        const dy = tr.top + tr.height / 2 - (dr.top + dr.height / 2);
+        // ① 束の一番上から手札の方向へスッと抜き出す
+        const outDx = (side === "you" ? -1 : 1) * dr.width * 0.6;
         requestAnimationFrame(() => {
-          g.style.transform = `translate(${dx}px, ${dy}px) rotate(${Math.round(Math.random() * 24 - 12)}deg)`;
-          g.style.opacity = "0.2";
+          g.style.transition = `transform ${slide}ms ease-out`;
+          g.style.transform = `translate(${outDx}px, -5px)`;
         });
-        setTimeout(() => g.remove(), 440);
-      }, i * step);
+        // ② そのまま手札へ滑り込む
+        setTimeout(() => {
+          const dx = tr.left + tr.width * (side === "you" ? 0.66 : 0.5) - dr.left;
+          const dy = tr.top + tr.height * 0.5 - (dr.top + dr.height * 0.5);
+          g.style.transition = `transform ${move}ms cubic-bezier(.4,0,.3,1), opacity ${move}ms ease-in`;
+          g.style.transform = `translate(${dx}px, ${dy}px) scale(.82)`;
+          g.style.opacity = "0.2";
+          setTimeout(() => g.remove(), move + 30);
+        }, slide);
+      }, offset + i * step);
     }
-    return (n - 1) * step + 460;
+    return offset + (n - 1) * step + slide + move + 60;
   }
 
   /** カードがトラッシュへ飛んでいく残像を出す */
