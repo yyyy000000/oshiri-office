@@ -1098,6 +1098,7 @@ function updateEnding(dt) {
       (ENDING_TEXTS[endingDest] || ENDING_TEXTS.moon) +
       `<br><span style="opacity:.75;font-size:13px">${getCostumeEndLine(ojisan.getCostume())}</span>`;
     bgm.playEnding(); // エンディング曲(Brooklyn Network)に切替
+    if (starEscort) endFx.showStarFriends(); // 星の仲間たちはこのタイミングで登場
     const sec = Math.round((Date.now() - startedAt) / 1000);
     const got = items.spawnedIds();
     const bgmGot = availableTracks();

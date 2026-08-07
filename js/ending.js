@@ -188,7 +188,7 @@ export function createEndingFx(scene) {
     buildClouds();
     if (dest !== "star") buildDest(dest);
     if (dest === "butt") buildAliens();
-    if (opts.starEscort) buildStarClones();
+    // 星の仲間たちは到着後(結果画面・エンディング曲のタイミング)にshowStarFriends()で登場
   }
 
   // 毎フレーム: 護衛の追従・星人と星のアニメ
@@ -213,5 +213,11 @@ export function createEndingFx(scene) {
     }
   }
 
-  return { begin, update, buildBigStar, get hasAliens() { return aliens.length > 0; } };
+  return {
+    begin,
+    update,
+    buildBigStar,
+    showStarFriends: buildStarClones,
+    get hasAliens() { return aliens.length > 0; },
+  };
 }
