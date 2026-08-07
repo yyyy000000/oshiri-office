@@ -233,6 +233,62 @@ function ding(ac, t, freq, dur = 0.5, gain = 0.25) {
   osc.start(t);
   osc.stop(t + dur);
 }
+// カードゲームの演出用の効果音(すべてWebAudio合成)
+const CARD_SFX = {
+  dice(ac, t) { // サイコロが転がる
+    for (let i = 0; i < 5; i++)
+      noiseBurst(ac, t + i * 0.055, { freq: 2400 + Math.random() * 900, dur: 0.045, gain: 0.35, q: 1.6 });
+  },
+  land(ac, t) { // 出目が決まる
+    thump(ac, t, { from: 420, to: 130, dur: 0.13, gain: 0.5 });
+    noiseBurst(ac, t, { freq: 1800, dur: 0.06, gain: 0.5 });
+    ding(ac, t + 0.04, 1320, 0.26, 0.16);
+  },
+  hit(ac, t) { // 被弾
+    noiseBurst(ac, t, { freq: 700, dur: 0.16, gain: 1, q: 0.6 });
+    thump(ac, t, { from: 260, to: 55, dur: 0.2, gain: 0.7 });
+  },
+  heal(ac, t) { // 回復
+    ding(ac, t, 880, 0.3, 0.16);
+    ding(ac, t + 0.07, 1175, 0.34, 0.14);
+    ding(ac, t + 0.14, 1568, 0.42, 0.12);
+  },
+  ko(ac, t) { // 撃破
+    thump(ac, t, { from: 200, to: 34, dur: 0.5, gain: 0.85 });
+    noiseBurst(ac, t, { freq: 420, dur: 0.4, gain: 0.8, q: 0.4 });
+  },
+  draw(ac, t) { // ドロー(紙をこする音)
+    noiseBurst(ac, t, { freq: 3600, dur: 0.09, gain: 0.35, type: "highpass" });
+  },
+  event(ac, t) { // イベントカード発動
+    noiseBurst(ac, t, { freq: 2200, dur: 0.18, gain: 0.5, type: "highpass" });
+    ding(ac, t + 0.05, 1046, 0.4, 0.15);
+    ding(ac, t + 0.12, 1568, 0.5, 0.12);
+  },
+  play(ac, t) { // カードを場に出す
+    noiseBurst(ac, t, { freq: 1500, dur: 0.07, gain: 0.4 });
+    thump(ac, t, { from: 300, to: 120, dur: 0.09, gain: 0.3 });
+  },
+  turn(ac, t) { // ターン開始
+    ding(ac, t, 660, 0.3, 0.14);
+    ding(ac, t + 0.1, 990, 0.4, 0.12);
+  },
+  win(ac, t) {
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((f, i) => ding(ac, t + i * 0.11, f, 0.6, 0.2));
+  },
+  lose(ac, t) {
+    const notes = [440, 392, 330, 262];
+    notes.forEach((f, i) => ding(ac, t + i * 0.14, f, 0.7, 0.18));
+  },
+};
+function playCardSfx(name) {
+  const fn = CARD_SFX[name];
+  if (!fn) return;
+  const ac = ctx();
+  fn(ac, ac.currentTime);
+}
+
 // アイテムごとの叩き音
 const ITEM_SOUNDS = {
   hand(ac, t) { noiseBurst(ac, t, { freq: 900, dur: 0.12 }); thump(ac, t, {}); },
@@ -458,7 +514,9 @@ checkUnlocks(false);
 // HELL 9000のショップ。ポイントを消費してカードパックを買う
 const cardBattle = createCardBattle({
   toast: (t) => toast(t),
-  onFinish: () => { hellShop.show(); }, // 対戦が終わったらショップに戻る
+  sfx: (name) => playCardSfx(name),
+  onBattleStart: () => { endFeverTime(true); bgm.startBattle(); },
+  onFinish: () => { bgm.stopBattle(); hellShop.show(); }, // 対戦が終わったらショップに戻る
 });
 const hellShop = createHellShop({
   getPoints: () => points,
@@ -860,6 +918,8 @@ function endFeverTime(silent) {
 }
 function updateFever(dt) {
   if (ending || !gameMode) return;
+  // HELL 9000のメニュー中(購入・構築・対戦)はフィーバーを起こさない
+  if (hellShop.isOpen || cardBattle.isOpen) return;
   if (feverActive) {
     const remain = feverEndsAt - clock.elapsedTime;
     feverSecEl.textContent = Math.max(0, Math.ceil(remain));

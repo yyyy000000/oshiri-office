@@ -45,6 +45,8 @@ const FILE_TRACKS = {
 };
 const FEVER_URL = "assets/bgm/fever.mp3";
 const ENDING_URL = "assets/bgm/ending.m4a";
+// カードゲームの対戦BGM。解禁状況に関係なく鳴らすので専用に読む
+const BATTLE_URL = "assets/bgm/android.mp3";
 
 // ---------------------------------------------------------------------
 // Small stateless synth helpers shared by heya/gedatsu.
@@ -297,6 +299,7 @@ export function createBGM() {
   let fileGain = null;
   let feverGain = null;
   let endingGain = null;
+  let battleGain = null;
   let noiseBuffer = null;
 
   // -- file loading: fetch+decode once per URL, cached ------------------
@@ -471,6 +474,11 @@ export function createBGM() {
       feverGain.gain.value = FILE_GAIN;
       feverGain.connect(masterGain);
     }
+    if (battleGain === null) {
+      battleGain = audioContext.createGain();
+      battleGain.gain.value = FILE_GAIN;
+      battleGain.connect(masterGain);
+    }
     if (endingGain === null) {
       endingGain = audioContext.createGain();
       endingGain.gain.value = FILE_GAIN;
@@ -605,6 +613,45 @@ export function createBGM() {
     }
   };
 
+  // -- 対戦BGM: ジュークボックスをダックして重ねる(毎回頭から) ------------
+  let battleSource = null;
+  let battlePlaying = false;
+
+  const startBattle = () => {
+    ensureAudioGraph();
+    const now = audioContext.currentTime;
+    jukeboxGain.gain.cancelScheduledValues(now);
+    jukeboxGain.gain.setValueAtTime(0, now);
+    if (battlePlaying) return;
+    battlePlaying = true;
+    loadAudioBuffer(BATTLE_URL)
+      .then((buf) => {
+        if (!battlePlaying) return;
+        const src = audioContext.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+        src.connect(battleGain);
+        src.start(audioContext.currentTime);
+        battleSource = src;
+      })
+      .catch(() => {});
+  };
+
+  const stopBattle = () => {
+    if (!battlePlaying) return;
+    battlePlaying = false;
+    if (battleSource) {
+      try { battleSource.stop(); } catch { /* already stopped */ }
+      try { battleSource.disconnect(); } catch { /* already disconnected */ }
+      battleSource = null;
+    }
+    if (jukeboxGain && audioContext) {
+      const now = audioContext.currentTime;
+      jukeboxGain.gain.cancelScheduledValues(now);
+      jukeboxGain.gain.setValueAtTime(1, now);
+    }
+  };
+
   // -- ending.m4a: terminal, stops the jukebox entirely --------------------
   let endingSource = null;
   let endingPlaying = false;
@@ -644,6 +691,8 @@ export function createBGM() {
     setTrack,
     startFever,
     stopFever,
+    startBattle,
+    stopBattle,
     playEnding,
     setVolume,
     get playing() {

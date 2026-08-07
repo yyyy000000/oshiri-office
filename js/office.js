@@ -468,8 +468,9 @@ export function createOffice(scene) {
     onReady: (g) => tagClickable(g, "hell"),
   });
   hellGroup.position.set(2.45, 0, -1.5);
-  // rotationY=0 がそのまま -x(部屋の中心)向き。T字に広げた腕は壁と平行なz方向に伸びる
-  // ので、90度回すと腕が壁を突き抜ける。ここは回さないのが正解。
+  // モデルの正面は+x(壁側)なので180度回して部屋の中心を向かせる。
+  // T字に広げた腕は壁と平行なz方向に伸びるので、90度回すと腕が壁を突き抜ける。
+  hellGroup.rotation.y = Math.PI;
   scene.add(hellGroup);
 
   // ⑩ Security guard [CLICKABLE: muscle] (GLB: Quaternius Soldier)

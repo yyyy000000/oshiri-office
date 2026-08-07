@@ -1,5 +1,12 @@
 // 対戦画面。cardengine.js の prompt/choose/roll を画面に橋渡しするだけで、
 // ルールの判断は一切しない(エンジンが唯一の正)。
+//
+// 演出の方針(ポケポケ参考):
+//  - 盤面は実物のカードを並べる(イラスト・HPバー付き)
+//  - エンジンが吐くイベントを**1件ずつ順番に再生**し、何が起きたか読める間を作る
+//  - ダメージ/回復は当該カードを揺らす・光らせる・数字を飛ばす
+//  - 出目のテキストは中央のバナーに大きく出す(ログを読まなくても分かるように)
+//  - 演出中に画面をタップすると早送りできる
 import { CARDS, OPPONENTS } from "./carddata.js";
 import { createBattle } from "./cardengine.js";
 import { renderCard } from "./cards.js";
@@ -7,65 +14,146 @@ import * as col from "./collection.js";
 
 const $ = (id) => document.getElementById(id);
 
+// 各イベントの見せ場の長さ(ms)。短すぎると何が起きたか読めない
+const DUR = {
+  turnStart: 850, play: 480, roll: 1150, damage: 780, heal: 680, draw: 260,
+  useEvent: 1050, bounce: 700, trash: 620, discard: 500, skipRoll: 700,
+  recover: 700, chooseFace: 950, mulligan: 700, over: 700, turnEnd: 120,
+};
+
 export function createCardBattle(deps) {
   // deps: { toast, onFinish }
   const overlay = $("battle-overlay");
   const els = {
     foeName: $("bt-foe-name"), foeSt: $("bt-foe-st"), youSt: $("bt-you-st"),
     turn: $("bt-turn"), foeField: $("bt-foe-field"), youField: $("bt-you-field"),
-    hand: $("bt-hand"), log: $("bt-log"), dice: $("bt-dice"), prompt: $("bt-prompt"),
+    hand: $("bt-hand"), log: $("bt-log"), dice: $("bt-dice"),
+    prompt: $("bt-prompt"), banner: $("bt-banner"), turnBanner: $("bt-turnbanner"),
+    rollBox: $("bt-rollbox"), faceList: $("bt-facelist"),
   };
-  $("bt-quit").addEventListener("click", () => finish(null));
+  $("bt-quit").addEventListener("click", () => { if (battle) finish(null); });
 
   let battle = null;
   let oppKey = null;
-  let selected = new Set(); // useEvent / recover の複数選択
-  let busy = false;         // 演出中は入力を止める
+  let selected = new Set();
+  let busy = false;        // 演出中は入力を止める
+  let pendingPlay = null;  // 交換相手を選ばせている最中の手札uid
+  let skipNow = null;      // 演出の早送り
+  let skipLayer = null;
+  const logLines = [];
 
-  function el(html) { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; }
+  const el = (html) => { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; };
+  const sfx = (n) => { if (deps.sfx) deps.sfx(n); };
   const nameOf = (id) => (CARDS[id] ? CARDS[id].name : id);
 
+  // ---------- 起動と終了 ----------
   function start(opponentKey) {
     oppKey = opponentKey;
-    const deck = col.getDeck() || [];
-    battle = createBattle({ playerDeck: deck, opponentKey });
-    selected.clear();
-    busy = false;
+    battle = createBattle({ playerDeck: col.getDeck() || [], opponentKey });
+    selected.clear(); pendingPlay = null; busy = false; logLines.length = 0;
+    els.log.textContent = "";
+    els.banner.className = "bt-banner";
+    hideFaceList();
     overlay.classList.add("show");
-    els.log.innerHTML = "";
+    if (deps.onBattleStart) deps.onBattleStart();
     render();
-    tick();
+    run();
   }
 
   function finish(winner) {
     overlay.classList.remove("show");
-    const b = battle;
+    const had = !!battle;
     battle = null;
-    if (winner === "you" && b) {
-      col.recordWin(oppKey);
-      showReward(oppKey);
-    } else if (deps.onFinish) deps.onFinish(winner);
+    if (winner === "you" && had) { col.recordWin(oppKey); showReward(oppKey); }
+    else if (deps.onFinish) deps.onFinish(winner);
   }
 
-  // ---------- 描画 ----------
-  function monEl(m, side) {
+  // ---------- 演出の下ごしらえ ----------
+  function wait(ms) {
+    return new Promise((res) => {
+      const t = setTimeout(done, ms);
+      function done() { clearTimeout(t); skipNow = null; res(); }
+      skipNow = done;
+    });
+  }
+  function setBusy(on) {
+    busy = on;
+    if (on && !skipLayer) {
+      skipLayer = el(`<div class="bt-skip" title="タップで早送り"></div>`);
+      skipLayer.addEventListener("click", () => { if (skipNow) skipNow(); });
+      overlay.appendChild(skipLayer);
+    } else if (!on && skipLayer) { skipLayer.remove(); skipLayer = null; }
+  }
+  function banner(text, sub) {
+    els.banner.innerHTML = text + (sub ? `<span class="sub">${sub}</span>` : "");
+    els.banner.className = "bt-banner";
+    void els.banner.offsetWidth; // アニメーションを再生し直す
+    els.banner.className = "bt-banner show";
+  }
+  function pushLog(t) {
+    logLines.push(t.replace(/<[^>]+>/g, ""));
+    while (logLines.length > 3) logLines.shift();
+    els.log.textContent = logLines.join("　/　");
+  }
+  const cardEl = (uid) => overlay.querySelector(`.bt-card[data-uid="${uid}"]`);
+
+  // --- 6面テキストの一覧(振る前に見せ、出目が決まったらその行を強調する) ---
+  let faceListId = null;
+  function showFaceList(cardId, hd) {
+    const def = CARDS[cardId];
+    if (!def || def.kind !== "monster") { hideFaceList(); return; }
+    faceListId = cardId;
+    els.faceList.innerHTML =
+      `<div class="hd">${hd || def.name}</div>` +
+      def.faces.map((f, i) =>
+        `<div class="bt-facerow" data-f="${i + 1}">` +
+        `<span class="pip pip-${i + 1}"></span><span class="tx">${f.text}</span></div>`
+      ).join("");
+    els.rollBox.classList.add("show");
+  }
+  function hideFaceList() {
+    faceListId = null;
+    els.faceList.innerHTML = "";
+    els.rollBox.classList.remove("show");
+  }
+  /** 抽選中の仮ハイライト(数字を1つ光らせる) */
+  function spinFaceList(face) {
+    for (const r of els.faceList.querySelectorAll(".bt-facerow"))
+      r.className = "bt-facerow" + (Number(r.dataset.f) === face ? " spin" : "");
+  }
+  /** 出目確定: その行だけ強調し、ほかを沈める */
+  function lockFaceList(face) {
+    for (const r of els.faceList.querySelectorAll(".bt-facerow"))
+      r.className = "bt-facerow " + (Number(r.dataset.f) === face ? "on" : "off");
+  }
+  function floatNum(uid, text, cls) {
+    const c = cardEl(uid);
+    if (!c) return;
+    const f = el(`<div class="bt-float ${cls}">${text}</div>`);
+    c.appendChild(f);
+    setTimeout(() => f.remove(), 1000);
+  }
+
+  // ---------- 盤面の描画 ----------
+  function fieldCard(m, side) {
     const def = CARDS[m.id];
     const pct = Math.max(0, Math.round((m.hp / m.maxHp) * 100));
-    const e = el(
-      `<div class="bt-mon" data-uid="${m.uid}" data-side="${side}">` +
-      `<div class="bt-mon-name">${def.name}</div>` +
-      `<div class="bt-mon-hp"><i style="width:${pct}%"></i></div>` +
-      `<div class="bt-mon-num">${m.hp} / ${m.maxHp}</div>` +
-      (m.sick ? `<span class="bt-sick">召喚酔い</span>` : "") + `</div>`
+    const c = el(
+      `<div class="bt-card ${def.attr || ""}" data-uid="${m.uid}" data-side="${side}">` +
+      `<div class="bt-flash"></div>` +
+      (m.sick ? `<span class="bt-sick">召喚酔い</span>` : "") +
+      `<div class="bt-card-art" style="background-image:url(assets/cards/${m.id}.jpeg)"></div>` +
+      `<div class="bt-card-name">${def.name}</div>` +
+      `<div class="bt-card-hp"><i style="width:${pct}%"></i></div>` +
+      `<div class="bt-card-num">${m.hp} / ${m.maxHp}</div></div>`
     );
-    e.addEventListener("click", () => onBoardClick(m.uid, side));
-    return e;
+    c.addEventListener("click", () => onBoardClick(m.uid, side));
+    return c;
   }
-
   function renderField(box, list, side) {
     box.innerHTML = "";
     if (!list.length) { box.appendChild(el(`<div class="bt-empty">場にモンスターがいない</div>`)); return; }
-    for (const m of list) box.appendChild(monEl(m, side));
+    for (const m of list) box.appendChild(fieldCard(m, side));
   }
 
   function render() {
@@ -83,22 +171,23 @@ export function createCardBattle(deps) {
     renderPrompt(s);
   }
 
-  // 盤面のモンスターを選ぶ prompt では、選べるものを光らせる
   function markPickable(s) {
     const q = s.prompt;
     if (!q || !q.options) return;
-    if (q.kind !== "rollOrder" && q.kind !== "pickTarget") return;
-    for (const uid of q.options) {
-      const e = overlay.querySelector(`.bt-mon[data-uid="${uid}"]`);
-      if (e) e.classList.add("pick");
+    if (q.kind === "rollOrder" || q.kind === "pickTarget") {
+      for (const uid of q.options) { const e = cardEl(uid); if (e) e.classList.add("pick"); }
+    }
+    if (q.kind === "roll" && q.monsterUid != null) {
+      const e = cardEl(q.monsterUid); if (e) e.classList.add("acting");
+    }
+    if (pendingPlay != null) {
+      for (const e of els.youField.querySelectorAll(".bt-card")) e.classList.add("pick");
     }
   }
 
   function renderHand(s) {
     const q = s.prompt;
-    const pickable = new Set(
-      q && (q.kind === "playMonster" || q.kind === "useEvent") ? q.options : []
-    );
+    const pickable = new Set(q && (q.kind === "playMonster" || q.kind === "useEvent") ? q.options : []);
     els.hand.innerHTML = "";
     for (const c of s.you.hand) {
       const mini = renderCard(CARDS[c.id], c.id, { mini: true });
@@ -110,45 +199,49 @@ export function createCardBattle(deps) {
     }
   }
 
-  // 選択待ちの説明文とボタン
+  // ---------- 選択待ちの表示 ----------
   function renderPrompt(s) {
     els.prompt.innerHTML = "";
     if (s.over) return;
+    if (busy) { els.prompt.appendChild(el(`<span class="msg" style="opacity:.6">…</span>`)); return; }
     if (s.awaitingAiTurn) { els.prompt.appendChild(el(`<span class="msg">相手のターン…</span>`)); return; }
     const q = s.prompt;
     if (!q) return;
     const msg = (t) => els.prompt.appendChild(el(`<span class="msg">${t}</span>`));
-    const act = (label, fn, ghost) => {
-      const b = el(`<button class="bt-act ${ghost ? "ghost" : ""}">${label}</button>`);
+    const act = (label, fn, cls) => {
+      const b = el(`<button class="bt-act ${cls || ""}">${label}</button>`);
       b.addEventListener("click", fn);
       els.prompt.appendChild(b);
       return b;
     };
+    // 出目の結果に続く選択(対象選び・イベント使用など)の間は、
+    // どのテキストが選ばれたのかを見せたままにする
+    if (q && (q.kind === "playMonster" || q.kind === "rollOrder") && !busy) hideFaceList();
+    if (pendingPlay != null) {
+      msg("場が埋まっています。<b>どのモンスターと交換しますか?</b>(戻したモンスターはHPが減ったまま手札に戻ります)");
+      act("やめる", () => { pendingPlay = null; render(); }, "ghost");
+      return;
+    }
     switch (q.kind) {
       case "playMonster":
-        msg(q.canSkip
-          ? "手札のモンスターを1体出せます(場のモンスターと交換もできます)"
-          : "<b>場が空です。</b>モンスターを出してください");
-        if (q.canSkip) act("出さない", () => answer(null), true);
+        msg(q.canSkip ? "手札のモンスターを1体出せます" : "<b>場が空です。</b>モンスターを出してください");
+        if (q.canSkip) act("出さない", () => answer(null), "ghost");
         break;
-      case "rollOrder":
-        msg("どのモンスターから振りますか?");
-        break;
+      case "rollOrder": msg("どのモンスターから振りますか?(カードをタップ)"); break;
       case "roll":
-        msg(`<b>${nameOf(monIdOf(q.monsterUid))}</b> のサイコロを振ります`);
-        act("🎲 振る", doRoll);
+        // 振る前に6面のテキストを見せる。何が当たりうるかを分かった上で振れるように
+        showFaceList(monIdOf(q.monsterUid), `${nameOf(monIdOf(q.monsterUid))} の6面`);
+        msg(`<b>${nameOf(monIdOf(q.monsterUid))}</b> の番です`);
+        act("🎲 サイコロを振る", doRoll, "big");
         break;
       case "useEvent":
-        msg(`イベントカードを最大${q.max}枚まで使えます(手札から選択)`);
-        act(`使う (${selected.size})`, () => answer(selected.size ? [...selected] : null))
-          .disabled = selected.size === 0;
-        if (q.canSkip !== false) act("使わない", () => answer(null), true);
+        msg(`イベントカードを最大${q.max}枚まで使えます(手札から選ぶ)`);
+        act(`使う (${selected.size})`, () => answer(selected.size ? [...selected] : null)).disabled = selected.size === 0;
+        if (q.canSkip !== false) act("使わない", () => answer(null), "ghost");
         break;
-      case "pickTarget":
-        msg(targetMsg(q));
-        break;
+      case "pickTarget": msg(targetMsg(q) + "(カードをタップ)"); break;
       case "pickFace": {
-        msg(`<b>${nameOf(monIdOf(q.monsterUid))}</b> の出目を選んでください`);
+        msg(`<b>${nameOf(monIdOf(q.monsterUid))}</b> の出目を選べます`);
         const box = el(`<div class="bt-faces"></div>`);
         for (const f of q.options) {
           const b = el(`<div class="bt-face pip-${f}" title="${f}"></div>`);
@@ -169,8 +262,7 @@ export function createCardBattle(deps) {
         els.prompt.appendChild(box);
         break;
       }
-      default:
-        msg("…");
+      default: msg("…");
     }
   }
 
@@ -197,13 +289,9 @@ export function createCardBattle(deps) {
     const q = battle.state.prompt;
     if (!q || !isPickable) { showDetail(card.id); return; }
     if (q.kind === "playMonster") {
-      // 場が2体埋まっているときだけ、交換相手を選ばせる
       if (battle.state.you.field.length >= 2 && q.canSwap && q.canSwap.length) {
-        pendingPlay = card.uid;
-        askSwap();
-      } else {
-        answer(card.uid);
-      }
+        pendingPlay = card.uid; render();
+      } else answer(card.uid);
     } else if (q.kind === "useEvent") {
       if (selected.has(card.uid)) selected.delete(card.uid);
       else if (selected.size < q.max) selected.add(card.uid);
@@ -211,27 +299,15 @@ export function createCardBattle(deps) {
     }
   }
 
-  let pendingPlay = null;
-  function askSwap() {
-    // 場が2体埋まっている状態。交換せずに出すことはできないので、やめる=選び直し
-    els.prompt.innerHTML = "";
-    els.prompt.appendChild(el(`<span class="msg">場が埋まっています。<b>どのモンスターと交換しますか?</b>(場のモンスターをタップ。戻したモンスターはHPが減ったまま手札に戻ります)</span>`));
-    const b = el(`<button class="bt-act ghost">やめる</button>`);
-    b.addEventListener("click", () => { pendingPlay = null; render(); });
-    els.prompt.appendChild(b);
-    for (const e of els.youField.querySelectorAll(".bt-mon")) e.classList.add("pick");
-  }
-
   function onBoardClick(uid, side) {
     if (busy || !battle) return;
-    const q = battle.state.prompt;
     if (pendingPlay != null && side === "you") {
       const p = pendingPlay; pendingPlay = null;
       answer({ play: p, swap: uid });
       return;
     }
-    if (!q) { showDetail(monIdOf(uid)); return; }
-    if ((q.kind === "rollOrder" || q.kind === "pickTarget") && q.options.includes(uid)) answer(uid);
+    const q = battle.state.prompt;
+    if (q && (q.kind === "rollOrder" || q.kind === "pickTarget") && q.options.includes(uid)) answer(uid);
     else showDetail(monIdOf(uid));
   }
 
@@ -239,108 +315,244 @@ export function createCardBattle(deps) {
     if (!battle) return;
     try { battle.choose(v); } catch (e) { deps.toast("⚠ " + e.message); return; }
     selected.clear();
-    flush();
-    render();
-    tick();
+    run();
   }
 
-  function doRoll() {
+  async function doRoll() {
     if (busy || !battle) return;
-    busy = true;
+    const q = battle.state.prompt;
+    const monId = q && q.monsterUid != null ? monIdOf(q.monsterUid) : null;
+    setBusy(true);
+    renderPrompt(battle.state);
+    if (monId) showFaceList(monId, `${nameOf(monId)} の6面`);
     els.dice.classList.add("rolling");
-    let n = 0;
+    sfx("dice");
+    // ダイスと6面リストを同時に回す
     const spin = setInterval(() => {
-      n = 1 + Math.floor(Math.random() * 6);
+      const n = 1 + Math.floor(Math.random() * 6);
       els.dice.className = "bt-dice rolling pip-" + n;
-    }, 70);
-    setTimeout(() => {
-      clearInterval(spin);
-      const face = battle.roll();
-      els.dice.className = "bt-dice pip-" + face;
-      busy = false;
-      flush();
-      render();
-      tick();
-    }, 620);
+      spinFaceList(n);
+    }, 65);
+    await wait(620);
+    clearInterval(spin);
+    const face = battle.roll();
+    els.dice.className = "bt-dice landed pip-" + face;
+    sfx("land");
+    lockFaceList(face); // 出目の行だけを強調して、どのテキストが選ばれたか示す
+    await wait(700);
+    setBusy(false);
+    run();
   }
 
-  // ---------- 進行 ----------
-  // AIの手番なら少し待ってから自動で進める
-  function tick() {
-    if (!battle) return;
-    const s = battle.state;
-    if (s.over) { flush(); setTimeout(() => showResult(s.winner), 500); return; }
-    if (s.awaitingAiTurn) {
-      busy = true;
-      setTimeout(() => {
+  // ---------- 進行(イベントを1件ずつ再生してから次の入力を待つ) ----------
+  let running = false;
+  async function run() {
+    if (running || !battle) return;
+    running = true;
+    try {
+      for (;;) {
+        await playEvents();
         if (!battle) return;
-        battle.autoPlayTurn();
-        busy = false;
-        flush();
+        const s = battle.state;
+        if (s.over) { render(); await wait(420); showResult(s.winner); return; }
+        if (s.awaitingAiTurn) {
+          render();
+          await wait(420);
+          if (!battle) return;
+          battle.autoPlayTurn();
+          continue; // 溜まったイベントを再生してから次へ
+        }
         render();
-        tick();
-      }, 700);
-    }
+        return; // プレイヤーの入力待ち
+      }
+    } finally { running = false; }
   }
 
-  // エンジンのイベント列をログに流す
-  function flush() {
+  async function playEvents() {
     if (!battle) return;
-    for (const ev of battle.drainEvents()) {
-      const t = describe(ev);
-      if (!t) continue;
-      const line = el(`<div>${t}</div>`);
-      els.log.appendChild(line);
+    const evs = battle.drainEvents();
+    if (!evs.length) return;
+    setBusy(true);
+    render(); // 演出中の盤面(まだ結果は反映されていない状態)
+    for (const ev of evs) {
+      if (!battle) break;
+      await playOne(ev);
     }
-    els.log.scrollTop = els.log.scrollHeight;
-    while (els.log.childElementCount > 120) els.log.removeChild(els.log.firstChild);
+    setBusy(false);
   }
 
-  function describe(ev) {
+  async function playOne(ev) {
     const who = ev.side === "you" ? "あなた" : "相手";
     switch (ev.t) {
-      case "turnStart": return `── ${who}のターン ──`;
-      case "play": return `${who}が <b>${nameOf(ev.id || monIdOf(ev.uid))}</b> を出した`;
-      case "roll": return `🎲 ${nameOf(ev.id || monIdOf(ev.uid))} → <b>${ev.face}</b>`;
-      case "damage": return `${nameOf(ev.id || monIdOf(ev.uid))} に <b>${ev.n}</b> ダメージ${ev.dead ? " → 撃破!" : ""}`;
-      case "heal": return `${nameOf(ev.id || monIdOf(ev.uid))} が ${ev.n} 回復`;
-      case "draw": return `${who}がカードを${ev.n}枚引いた`;
-      case "useEvent": return `${who}が <b>${nameOf(ev.id)}</b> を使った`;
-      case "bounce": return `${nameOf(ev.id || "?")} が手札に戻された`;
-      case "discard": return `${who}の手札が1枚トラッシュへ`;
-      case "over": return `<b>${ev.winner === "you" ? "あなたの勝ち!" : "あなたの負け…"}</b>`;
-      default: return "";
+      case "turnStart":
+        els.turnBanner.textContent = ev.side === "you" ? "YOUR TURN" : "OPPONENT";
+        els.turnBanner.className = "bt-turnbanner";
+        void els.turnBanner.offsetWidth;
+        els.turnBanner.className = "bt-turnbanner show";
+        sfx("turn");
+        hideFaceList();
+        pushLog(`${who}のターン`);
+        await wait(DUR.turnStart);
+        return;
+
+      case "play": {
+        render();
+        const c = cardEl(ev.uid);
+        if (c) c.classList.add("entering");
+        sfx("play");
+        banner(`${who}は <b>${nameOf(ev.id)}</b> を出した`, ev.swapped != null ? "交換して場に出した" : "このターンは召喚酔いで振れない");
+        pushLog(`${who}が${nameOf(ev.id)}を出した`);
+        await wait(DUR.play);
+        return;
+      }
+
+      case "roll":
+        // 6面を並べて出目の行を強調する。何が選ばれたかが一目で分かる
+        showFaceList(ev.id, `${who}の ${nameOf(ev.id)}`);
+        els.dice.className = "bt-dice landed pip-" + ev.face;
+        if (ev.side === "foe") sfx("land");
+        lockFaceList(ev.face);
+        banner(`🎲 <b>${ev.face}</b> — ${nameOf(ev.id)}`, ev.text);
+        pushLog(`${nameOf(ev.id)}→${ev.face} ${ev.text}`);
+        await wait(DUR.roll);
+        return;
+
+      case "chooseFace":
+        showFaceList(ev.id, `${who}の ${nameOf(ev.id)}`);
+        els.dice.className = "bt-dice landed pip-" + ev.face;
+        lockFaceList(ev.face);
+        banner(`✨ 出目を <b>${ev.face}</b> に選んだ`, ev.text);
+        pushLog(`${nameOf(ev.id)}の出目を${ev.face}に選択`);
+        await wait(DUR.chooseFace);
+        return;
+
+      case "damage": {
+        const c = cardEl(ev.uid);
+        sfx("hit");
+        if (c) {
+          c.classList.add("hit");
+          floatNum(ev.uid, "-" + ev.n, "dmg");
+          const bar = c.querySelector(".bt-card-hp i");
+          const num = c.querySelector(".bt-card-num");
+          const max = Number((num.textContent.split("/")[1] || "1").trim());
+          if (bar) bar.style.width = Math.max(0, (ev.hp / max) * 100) + "%";
+          if (num) num.textContent = `${ev.hp} / ${max}`;
+        }
+        pushLog(`${nameOf(ev.id)}に${ev.n}ダメージ`);
+        await wait(DUR.damage);
+        if (ev.dead && c) { sfx("ko"); c.classList.add("dying"); banner(`💥 <b>${nameOf(ev.id)}</b> は倒れた`); await wait(560); }
+        return;
+      }
+
+      case "heal": {
+        const c = cardEl(ev.uid);
+        sfx("heal");
+        if (c) {
+          c.classList.add("healed");
+          floatNum(ev.uid, "+" + ev.n, "heal");
+          const num = c.querySelector(".bt-card-num");
+          const max = Number((num.textContent.split("/")[1] || "1").trim());
+          const bar = c.querySelector(".bt-card-hp i");
+          if (bar) bar.style.width = Math.min(100, (ev.hp / max) * 100) + "%";
+          if (num) num.textContent = `${ev.hp} / ${max}`;
+        }
+        pushLog(`${nameOf(ev.id)}が${ev.n}回復`);
+        await wait(DUR.heal);
+        return;
+      }
+
+      case "useEvent": {
+        // 使ったイベントカードを中央に大きく出す
+        const pop = el(`<div class="bt-eventpop"></div>`);
+        pop.appendChild(renderCard(CARDS[ev.id], ev.id, { mini: true }));
+        overlay.appendChild(pop);
+        sfx("event");
+        banner(`${who}は <b>${nameOf(ev.id)}</b> を使った`);
+        pushLog(`${who}が${nameOf(ev.id)}を使用`);
+        await wait(DUR.useEvent);
+        pop.remove();
+        return;
+      }
+
+      case "bounce": {
+        const c = cardEl(ev.uid);
+        if (c) c.classList.add("leaving");
+        banner(`↩️ <b>${nameOf(ev.id)}</b> が手札に戻された`, "HPは減ったまま");
+        pushLog(`${nameOf(ev.id)}が手札に戻った`);
+        await wait(DUR.bounce);
+        return;
+      }
+
+      case "skipRoll":
+        banner(`🚫 <b>${nameOf(ev.id)}</b> は次のターン振れない`);
+        pushLog(`${nameOf(ev.id)}を行動不能に`);
+        await wait(DUR.skipRoll);
+        return;
+
+      case "discard":
+        banner(`🗑 ${who}の手札を1枚トラッシュ`, nameOf(ev.id));
+        pushLog(`${who}の手札を1枚落とした`);
+        await wait(DUR.discard);
+        return;
+
+      case "recover":
+        banner(`♻️ <b>${nameOf(ev.id)}</b> をトラッシュから手札へ`);
+        pushLog(`${nameOf(ev.id)}を回収`);
+        await wait(DUR.recover);
+        return;
+
+      case "draw":
+        sfx("draw");
+        pushLog(`${who}が${ev.n}枚引いた`);
+        await wait(DUR.draw);
+        return;
+
+      case "mulligan":
+        banner("🔄 引き直し", "モンスターが1枚も無かった");
+        await wait(DUR.mulligan);
+        return;
+
+      case "trash":
+        await wait(DUR.trash);
+        render();
+        return;
+
+      case "over":
+        await wait(DUR.over);
+        return;
+
+      default:
+        return;
     }
   }
 
   // ---------- 結果と報酬 ----------
   function showResult(winner) {
+    const win = winner === "you";
+    sfx(win ? "win" : "lose");
     const box = el(
-      `<div class="bt-result"><h2>${winner === "you" ? "WIN" : "LOSE"}</h2>` +
-      `<div class="sub">${winner === "you"
+      `<div class="bt-result"><h2 style="color:${win ? "#ffd76e" : "#8fa3bd"}">${win ? "WIN" : "LOSE"}</h2>` +
+      `<div class="sub">${win
         ? "勝利報酬として、相手の固有カードから1枚もらえます"
-        : "……出直してこい、とHELL 9000が言っています"}</div></div>`
+        : "……出直シテキテクダサイ、とHELL 9000が言っています"}</div></div>`
     );
-    const b = el(`<button class="bt-act">${winner === "you" ? "報酬を選ぶ" : "もどる"}</button>`);
+    const b = el(`<button class="bt-act big">${win ? "報酬を選ぶ" : "もどる"}</button>`);
     b.addEventListener("click", () => { box.remove(); finish(winner); });
     box.appendChild(b);
     overlay.appendChild(box);
   }
 
   function showReward(key) {
-    const ids = col.rewardChoices(key);
-    const box = el(
-      `<div class="bt-result"><h2>REWARD</h2>` +
-      `<div class="sub">好きなカードを1枚選んでください</div></div>`
-    );
+    const box = el(`<div class="bt-result"><h2 style="color:#ffd76e">REWARD</h2><div class="sub">好きなカードを1枚選んでください</div></div>`);
     const row = el(`<div class="bt-rewards"></div>`);
-    for (const id of ids) {
+    for (const id of col.rewardChoices(key)) {
       const card = renderCard(CARDS[id], id, { mini: true });
       card.title = CARDS[id].name;
       card.addEventListener("click", () => {
         col.grantReward(id);
         deps.toast(`🎴 ${CARDS[id].name} を手に入れた!`);
         box.remove();
+        overlay.classList.remove("show");
         if (deps.onFinish) deps.onFinish("you");
       });
       row.appendChild(card);
@@ -350,7 +562,6 @@ export function createCardBattle(deps) {
     overlay.appendChild(box);
   }
 
-  // カードの詳細(タップして中身を確認する)
   function showDetail(id) {
     if (!CARDS[id]) return;
     const w = el(`<div class="bt-result"></div>`);

@@ -466,80 +466,217 @@
     .hell-slot { width: calc(50% - 4px); }
   }
 
-  /* ===== 対戦画面(おしりバトルダイス) ===== */
+  /* ===== 対戦画面(おしりバトルダイス) =====
+     ポケポケ風: 盤面は実物のカードを並べ、1イベントずつ演出を挟んで進める。 */
   #battle-overlay {
     position: fixed; inset: 0; z-index: 28; display: none;
-    background: radial-gradient(ellipse at 50% 40%, #1d2536, #080c14 75%);
-    color: #e8f2ff; font-family: "Hiragino Sans", sans-serif;
+    background: radial-gradient(ellipse at 50% 42%, #24304a, #070a12 78%);
+    color: #e8f2ff; font-family: "Hiragino Sans", sans-serif; overflow: hidden;
   }
   #battle-overlay.show { display: flex; flex-direction: column; }
   .bt-bar {
-    flex: none;
-    display: flex; align-items: center; gap: 10px; padding: 7px 12px; font-size: 12px;
-    background: rgba(0,0,0,.4); border-bottom: 1px solid rgba(255,255,255,.12);
+    flex: none; display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 12px;
+    background: rgba(0,0,0,.45); border-bottom: 1px solid rgba(255,255,255,.1);
   }
+  .bt-bar.mine { border-bottom: none; border-top: 1px solid rgba(255,255,255,.1); }
   .bt-bar .who { font-weight: bold; font-size: 13px; }
-  .bt-bar .st { opacity: .7; }
+  .bt-bar .st { opacity: .68; }
   .bt-bar .turn { margin-left: auto; opacity: .7; }
   .bt-quit {
     padding: 4px 10px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 11px;
     background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.24); color: #fff;
   }
   .bt-field {
-    flex: none;
-    display: flex; gap: 10px; justify-content: center; align-items: center;
-    min-height: 104px; padding: 10px;
+    flex: none; display: flex; gap: 14px; justify-content: center; align-items: center;
+    min-height: 0; padding: 6px;
   }
-  .bt-mon {
-    position: relative; width: 168px; padding: 8px 10px; border-radius: 9px; cursor: default;
-    background: linear-gradient(180deg, rgba(60,80,110,.5), rgba(20,30,45,.55));
-    border: 1px solid rgba(255,255,255,.2);
+  .bt-empty { opacity: .28; font-size: 12px; }
+
+  /* --- 盤面のカード --- */
+  .bt-card {
+    position: relative; width: 124px; height: 164px; flex: none; border-radius: 9px;
+    overflow: visible; cursor: default; transition: transform .18s;
+    background: linear-gradient(160deg, var(--fr, #c9a227), #241a10 65%);
+    padding: 4px; box-shadow: 0 5px 16px rgba(0,0,0,.55);
   }
-  .bt-mon.pick { cursor: pointer; border-color: #ffd76e; box-shadow: 0 0 0 2px rgba(255,215,110,.5), 0 0 16px rgba(255,215,110,.35); }
-  .bt-mon.acting { border-color: #7fe3ff; box-shadow: 0 0 14px rgba(127,227,255,.5); }
-  .bt-mon-name { font-size: 12px; font-weight: bold; margin-bottom: 5px; }
-  .bt-mon-hp { height: 7px; border-radius: 4px; background: rgba(0,0,0,.45); overflow: hidden; }
-  .bt-mon-hp i { display: block; height: 100%; background: linear-gradient(90deg, #ff6b6b, #ffd76e); transition: width .3s; }
-  .bt-mon-num { font-size: 10.5px; opacity: .75; margin-top: 3px; }
+  .bt-card.power  { --fr: #d1452f; }
+  .bt-card.mecha  { --fr: #3f86c4; }
+  .bt-card.occult { --fr: #8b57c9; }
+  .bt-card-art {
+    height: 96px; border-radius: 6px; background-size: cover; background-position: center;
+    background-color: #14100c; border: 1px solid rgba(255,255,255,.22);
+  }
+  .bt-card-name {
+    font-size: 10.5px; font-weight: bold; line-height: 1.25; margin: 4px 2px 3px;
+    height: 26px; overflow: hidden;
+  }
+  .bt-card-hp { height: 7px; border-radius: 4px; background: rgba(0,0,0,.55); overflow: hidden; margin: 0 2px; }
+  .bt-card-hp i {
+    display: block; height: 100%; transition: width .45s cubic-bezier(.3,1,.4,1);
+    background: linear-gradient(90deg, #ff5f6d, #ffd76e);
+  }
+  .bt-card-num { font-size: 10px; opacity: .8; margin: 2px 3px 0; }
+  .bt-card.pick { cursor: pointer; box-shadow: 0 0 0 3px #ffd76e, 0 0 22px rgba(255,215,110,.5); }
+  .bt-card.pick:hover { transform: translateY(-5px); }
+  .bt-card.acting { box-shadow: 0 0 0 3px #7fe3ff, 0 0 22px rgba(127,227,255,.55); }
   .bt-sick {
-    position: absolute; top: 6px; right: 7px; padding: 1px 5px; border-radius: 4px;
-    background: rgba(120,140,180,.6); font-size: 9.5px;
+    position: absolute; top: 7px; right: 6px; z-index: 2; padding: 1px 5px; border-radius: 4px;
+    background: rgba(20,40,70,.85); border: 1px solid rgba(160,200,255,.5);
+    font-size: 9px; letter-spacing: .5px;
   }
-  .bt-empty { opacity: .3; font-size: 12px; }
+  /* 被弾・回復・撃破 */
+  .bt-card.hit { animation: btHit .42s ease-out; }
+  @keyframes btHit {
+    0% { transform: translate(0,0) }   15% { transform: translate(-8px,3px) rotate(-3deg) }
+    35% { transform: translate(7px,-2px) rotate(3deg) } 55% { transform: translate(-5px,2px) rotate(-2deg) }
+    75% { transform: translate(4px,0) rotate(1deg) }    100% { transform: translate(0,0) }
+  }
+  .bt-card .bt-flash {
+    position: absolute; inset: 0; border-radius: 9px; pointer-events: none; opacity: 0;
+  }
+  .bt-card.hit .bt-flash { background: rgba(255,60,60,.55); animation: btFlash .42s ease-out; }
+  .bt-card.healed .bt-flash { background: rgba(90,255,150,.45); animation: btFlash .55s ease-out; }
+  @keyframes btFlash { 0% { opacity: .9 } 100% { opacity: 0 } }
+  .bt-card.dying { animation: btDie .6s ease-in forwards; }
+  @keyframes btDie {
+    to { transform: scale(.55) rotate(14deg); opacity: 0; filter: grayscale(1); }
+  }
+  .bt-card.entering { animation: btEnter .42s cubic-bezier(.2,1.4,.4,1) backwards; }
+  @keyframes btEnter {
+    from { transform: translateY(40px) scale(.7); opacity: 0; }
+  }
+  .bt-card.leaving { animation: btLeave .5s ease-in forwards; }
+  @keyframes btLeave { to { transform: translateY(90px) scale(.6); opacity: 0; } }
+  /* 数字がふわっと上がる */
+  .bt-float {
+    position: absolute; left: 50%; top: 34%; z-index: 5; pointer-events: none;
+    font-size: 30px; font-weight: bold; text-shadow: 0 2px 8px rgba(0,0,0,.85), 0 0 14px currentColor;
+    animation: btFloat 1s ease-out forwards;
+  }
+  .bt-float.dmg { color: #ff5f6d; } .bt-float.heal { color: #7dffab; }
+  @keyframes btFloat {
+    0% { transform: translate(-50%, 6px) scale(.6); opacity: 0 }
+    22% { transform: translate(-50%, -6px) scale(1.25); opacity: 1 }
+    100% { transform: translate(-50%, -46px) scale(1); opacity: 0 }
+  }
+
+  /* --- 中央: 演出バナー・ダイス・直近ログ --- */
   .bt-mid {
-    flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 18px;
-    padding: 6px 12px; overflow: hidden;
+    flex: 1 1 0; min-height: 150px; position: relative; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 5px; padding: 4px 10px; overflow: hidden;
   }
-  .bt-log {
-    flex: 1; max-width: 460px; max-height: 100%; overflow-y: auto; font-size: 11.5px;
-    line-height: 1.65; opacity: .8; text-align: left;
+  .bt-banner {
+    max-width: 90%; padding: 9px 26px; border-radius: 10px; text-align: center;
+    font-size: 16px; font-weight: bold; line-height: 1.4; opacity: 0;
+    background: linear-gradient(90deg, rgba(0,0,0,0), rgba(10,20,35,.92) 18%, rgba(10,20,35,.92) 82%, rgba(0,0,0,0));
+    text-shadow: 0 2px 10px rgba(0,0,0,.8);
   }
-  .bt-log div { padding: 1px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
-  .bt-dicebox { flex: none; width: 78px; height: 78px; display: flex; align-items: center; justify-content: center; }
+  .bt-banner.show { animation: btBanner .9s ease-out; }
+  .bt-banner.hold { opacity: 1; }
+  @keyframes btBanner {
+    0% { opacity: 0; transform: translateX(-40px) skewX(-12deg) }
+    18% { opacity: 1; transform: none }
+    82% { opacity: 1; transform: none }
+    100% { opacity: 0; transform: translateX(40px) skewX(12deg) }
+  }
+  .bt-banner .sub { display: block; font-size: 12px; font-weight: normal; opacity: .8; margin-top: 3px; }
+  .bt-turnbanner {
+    position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+    text-align: center; font-size: 26px; font-weight: bold; letter-spacing: 6px;
+    pointer-events: none; opacity: 0; z-index: 4;
+    text-shadow: 0 0 22px rgba(127,227,255,.8), 0 3px 10px #000;
+  }
+  .bt-turnbanner.show { animation: btTurn 1s ease-out; }
+  @keyframes btTurn {
+    0% { opacity: 0; transform: translateY(-50%) scale(1.6) }
+    25% { opacity: 1; transform: translateY(-50%) scale(1) }
+    75% { opacity: 1 } 100% { opacity: 0; transform: translateY(-50%) scale(.9) }
+  }
+  .bt-dicebox { flex: none; display: flex; align-items: center; justify-content: center; }
   .bt-dice {
-    width: 66px; height: 66px; border-radius: 12px; background-color: #fdfaf2;
-    border: 2px solid #6b3f1d; box-shadow: 0 6px 18px rgba(0,0,0,.5);
-    background-repeat: no-repeat; --d: #5a3315; --r: 7px;
+    width: 64px; height: 64px; border-radius: 12px; background-color: #fdfaf2;
+    border: 2px solid #6b3f1d; box-shadow: 0 6px 18px rgba(0,0,0,.55);
+    background-repeat: no-repeat; --d: #5a3315; --r: 6.8px; transition: transform .2s;
   }
-  .bt-dice.rolling { animation: diceShake .12s linear infinite; }
+  .bt-dice.rolling { animation: diceShake .1s linear infinite; }
+  .bt-dice.landed { animation: diceLand .5s cubic-bezier(.2,1.5,.4,1); }
   @keyframes diceShake {
-    0% { transform: rotate(-9deg) scale(1); } 50% { transform: rotate(9deg) scale(1.06); }
-    100% { transform: rotate(-9deg) scale(1); }
+    0% { transform: rotate(-12deg) scale(1) } 50% { transform: rotate(12deg) scale(1.09) }
+    100% { transform: rotate(-12deg) scale(1) }
   }
+  @keyframes diceLand { 0% { transform: scale(1.5) } 100% { transform: scale(1) } }
+  /* 振る前に6面のテキストを見せ、出目が決まった行を強調する */
+  .bt-rollbox {
+    flex: none; display: flex; align-items: center; justify-content: center; gap: 10px;
+    max-width: 100%; width: 100%; opacity: 0; transition: opacity .2s;
+  }
+  .bt-rollbox.show { opacity: 1; }
+  .bt-facelist {
+    flex: 1; min-width: 0; max-width: 400px; padding: 5px 7px; border-radius: 9px;
+    background: rgba(6,12,22,.88); border: 1px solid rgba(255,255,255,.14);
+  }
+  .bt-facelist .hd {
+    font-size: 9.5px; opacity: .6; margin-bottom: 2px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .bt-facerow {
+    display: flex; align-items: center; gap: 6px; padding: 0.5px 3px; border-radius: 4px;
+    font-size: 10px; line-height: 1.25; transition: all .18s; opacity: .55;
+  }
+  .bt-facerow .pip {
+    flex: none; width: 13px; height: 13px; border-radius: 3px; background-color: #fdfaf2;
+    border: 1px solid #6b3f1d; background-repeat: no-repeat; --d: #5a3315; --r: 1.5px;
+  }
+  .bt-facerow .tx { flex: 1; min-width: 0; }
+  .bt-facerow.spin { opacity: .95; background: rgba(255,255,255,.14); }
+  .bt-facerow.off { opacity: .28; }
+  .bt-facerow.on {
+    opacity: 1; font-weight: bold; background: linear-gradient(90deg, rgba(255,215,110,.42), rgba(255,215,110,.1));
+    box-shadow: inset 0 0 0 1px rgba(255,215,110,.75);
+    animation: btPick .5s cubic-bezier(.2,1.5,.4,1);
+  }
+  @keyframes btPick {
+    0% { transform: scale(1.14); background: rgba(255,255,255,.7); }
+    100% { transform: scale(1); }
+  }
+  .bt-loglines {
+    font-size: 10.5px; line-height: 1.5; opacity: .5; text-align: center; max-width: 92%;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .bt-rollbox.show ~ .bt-loglines { display: none; }
+  .bt-rollbox.show ~ .bt-banner:not(.show) { display: none; }
+  /* イベントカードを中央に大きく出す */
+  .bt-eventpop {
+    position: absolute; left: 50%; top: 50%; z-index: 6; pointer-events: none;
+    transform: translate(-50%, -50%); animation: btPop 1.15s ease-out forwards;
+  }
+  @keyframes btPop {
+    0% { transform: translate(-50%,-50%) scale(.4) rotate(-14deg); opacity: 0 }
+    18% { transform: translate(-50%,-50%) scale(1.05) rotate(0); opacity: 1 }
+    76% { transform: translate(-50%,-50%) scale(1) rotate(0); opacity: 1 }
+    100% { transform: translate(-50%,-58%) scale(.9); opacity: 0 }
+  }
+
+  /* --- 手札・操作 --- */
   .bt-hand {
-    flex: none;
-    display: flex; gap: 6px; padding: 8px 10px; overflow-x: auto; -webkit-overflow-scrolling: touch;
-    background: rgba(0,0,0,.32); border-top: 1px solid rgba(255,255,255,.12);
+    flex: none; display: flex; gap: 5px; padding: 6px 9px; overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    background: rgba(0,0,0,.36); border-top: 1px solid rgba(255,255,255,.1);
   }
-  .bt-hand .pcard-mini { cursor: pointer; transition: transform .12s; }
-  .bt-hand .pcard-mini.pick { transform: translateY(-9px); box-shadow: 0 0 0 2px #ffd76e, 0 6px 18px rgba(0,0,0,.5); }
-  .bt-hand .pcard-mini.sel { transform: translateY(-14px); box-shadow: 0 0 0 3px #7dffab, 0 6px 18px rgba(0,0,0,.5); }
-  .bt-hand .pcard-mini.dim { opacity: .35; }
+  /* 手札は「何のカードか分かる」最小限まで縮め、中央の演出領域を広く取る */
+  .bt-hand .pcard-mini { width: 84px; height: 112px; padding: 3px; gap: 2px; }
+  .bt-hand .pcard-mini .pcard-head { padding: 2px 5px; }
+  .bt-hand .pcard-mini .pcard-name { font-size: 8px; }
+  .bt-hand .pcard-mini .pcard-attr { font-size: 9px; }
+  .bt-hand .pcard-mini .pcard-art { height: 56px; }
+  .bt-hand .pcard-mini { cursor: pointer; transition: transform .14s, box-shadow .14s; }
+  .bt-hand .pcard-mini.pick { transform: translateY(-10px); box-shadow: 0 0 0 2px #ffd76e, 0 8px 20px rgba(0,0,0,.55); }
+  .bt-hand .pcard-mini.sel { transform: translateY(-16px); box-shadow: 0 0 0 3px #7dffab, 0 8px 20px rgba(0,0,0,.55); }
+  .bt-hand .pcard-mini.dim { opacity: .32; }
   .bt-prompt {
-    flex: none;
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    padding: 10px 12px; background: rgba(0,0,0,.5); border-top: 1px solid rgba(255,255,255,.14);
-    font-size: 13px; min-height: 54px;
+    flex: none; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 9px 12px; background: rgba(0,0,0,.55); border-top: 1px solid rgba(255,255,255,.14);
+    font-size: 13px; min-height: 52px;
   }
   .bt-prompt .msg { flex: 1; min-width: 160px; }
   .bt-act {
@@ -547,44 +684,53 @@
     font-size: 13px; font-weight: bold; color: #08131f;
     background: linear-gradient(135deg, #ffd76e, #ffb04a); border: none;
   }
+  .bt-act.big { padding: 12px 30px; font-size: 15px; }
   .bt-act.ghost { background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.28); }
   .bt-act:disabled { opacity: .4; cursor: not-allowed; }
   .bt-faces { display: flex; gap: 6px; flex-wrap: wrap; }
   .bt-face {
-    width: 34px; height: 34px; border-radius: 7px; cursor: pointer; --d: #5a3315;
+    width: 34px; height: 34px; border-radius: 7px; cursor: pointer;
     background-color: #fdfaf2; border: 1px solid #6b3f1d; background-repeat: no-repeat;
     --d: #5a3315; --r: 3.6px;
   }
+  /* 演出中に画面をタップすると早送りする透明レイヤ */
+  .bt-skip { position: absolute; inset: 0; z-index: 7; cursor: pointer; }
+
   .bt-result {
-    position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column;
+    position: absolute; inset: 0; z-index: 9; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 16px; text-align: center;
-    background: rgba(6,10,18,.93); padding: 20px;
+    background: rgba(6,10,18,.94); padding: 20px;
   }
-  .bt-result h2 { font-size: 30px; letter-spacing: 5px; }
-  .bt-result .sub { font-size: 13px; opacity: .8; }
+  .bt-result h2 { font-size: 34px; letter-spacing: 6px; animation: btTurn .8s ease-out; }
+  .bt-result .sub { font-size: 13px; opacity: .82; }
   .bt-rewards { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-  .bt-rewards .pcard { cursor: pointer; transition: transform .12s; }
-  .bt-rewards .pcard:hover { transform: translateY(-6px); }
-  /* 縦が短いウィンドウ(ノートPCの小さい表示など)では各段を詰める */
-  @media (max-height: 660px) {
-    .bt-field { min-height: 80px; padding: 6px; }
-    .bt-mon { padding: 6px 9px; }
-    .bt-mid { padding: 2px 12px; }
-    .bt-hand { padding: 5px 8px; }
-    .bt-hand .pcard-mini { width: 96px; height: 116px; }
-    .bt-hand .pcard-mini .pcard-art { height: 56px; }
+  .bt-rewards .pcard-mini { cursor: pointer; transition: transform .14s; }
+  .bt-rewards .pcard-mini:hover { transform: translateY(-8px); box-shadow: 0 0 0 2px #ffd76e; }
+
+  @media (max-height: 700px) {
+    .bt-field { padding: 4px; }
+    .bt-card { width: 106px; height: 142px; }
+    .bt-card-art { height: 80px; }
+    .bt-card-name { height: 24px; font-size: 10px; }
+    .bt-dicebox { height: 62px; }
+    .bt-dice { width: 54px; height: 54px; --r: 5.8px; }
+    .bt-hand .pcard-mini { width: 74px; height: 98px; }
+    .bt-hand .pcard-mini .pcard-art { height: 46px; }
     .bt-prompt { padding: 7px 12px; min-height: 44px; }
+    .bt-banner { font-size: 14px; padding: 7px 20px; }
+    .bt-facerow { font-size: 9.5px; padding: 1px 3px; }
+    .bt-facelist { padding: 4px 6px; }
   }
   @media (max-width: 760px) {
-    /* 上部バーが2行に折り返すのを防ぐ */
-    .bt-bar { font-size: 10.5px; gap: 6px; padding: 6px 8px; white-space: nowrap; }
+    .bt-bar { font-size: 10.5px; gap: 6px; padding: 5px 8px; white-space: nowrap; }
     .bt-bar .who { font-size: 11.5px; }
     .bt-quit { padding: 3px 8px; font-size: 10px; }
-    .bt-mon { width: calc(50% - 6px); }
-    .bt-log { font-size: 10.5px; }
-    .bt-dicebox { width: 62px; height: 62px; }
-    .bt-dice { width: 54px; height: 54px; }
-    .bt-result h2 { font-size: 22px; }
+    .bt-field { gap: 10px; }
+    .bt-card { width: 104px; height: 140px; }
+    .bt-card-art { height: 78px; }
+    .bt-result h2 { font-size: 24px; }
+    .bt-rollbox { gap: 8px; }
+    .bt-facerow { font-size: 9.5px; }
   }
 
   #help-overlay, #settings-overlay, #zukan-overlay {
@@ -724,11 +870,16 @@
     </div>
     <div class="bt-field" id="bt-foe-field"></div>
     <div class="bt-mid">
-      <div class="bt-log" id="bt-log"></div>
-      <div class="bt-dicebox"><div class="bt-dice pip-1" id="bt-dice"></div></div>
+      <div class="bt-turnbanner" id="bt-turnbanner"></div>
+      <div class="bt-rollbox" id="bt-rollbox">
+        <div class="bt-dicebox"><div class="bt-dice pip-1" id="bt-dice"></div></div>
+        <div class="bt-facelist" id="bt-facelist"></div>
+      </div>
+      <div class="bt-banner" id="bt-banner"></div>
+      <div class="bt-loglines" id="bt-log"></div>
     </div>
     <div class="bt-field" id="bt-you-field"></div>
-    <div class="bt-bar">
+    <div class="bt-bar mine">
       <span class="who">あなた</span>
       <span class="st" id="bt-you-st"></span>
     </div>
