@@ -987,21 +987,7 @@ function* gameFlow(g) {
   }
   emit(g, { t: 'mulligan' });
 
-  // ゲーム開始時の初期配置1体 (召喚酔いは例外なし → 最初のターンは振れない)
-  for (const p of players) {
-    if (!handMonsters(p).length) continue;
-    p.turnNo = 1; // 自分の第1ターン中に出したのと同じ扱い
-    p.initialPlacement = true;
-    g.actingSide = p.side;
-    if (p.auto) {
-      placeMonster(g, p, aiChooseMonsterToPlay(p), null);
-    } else {
-      yield* playPhase(g, p);
-    }
-    p.initialPlacement = false;
-    p.turnNo = 0;
-  }
-
+  // 初期配置は廃止。第1ターンの「場が空なら出す」から始まる
   const first = g.rng.int(2);
   let cur = first;
   g.firstPlayer = first === 0 ? 'you' : 'foe';

@@ -16,9 +16,13 @@ const $ = (id) => document.getElementById(id);
 
 // 各イベントの見せ場の長さ(ms)。短すぎると何が起きたか読めない
 const DUR = {
-  turnStart: 850, play: 480, roll: 1150, damage: 780, heal: 680, draw: 260,
-  useEvent: 1050, bounce: 700, trash: 620, discard: 500, skipRoll: 700,
-  recover: 700, chooseFace: 950, mulligan: 700, over: 700, turnEnd: 120,
+  turnStart: 1500, play: 1000, roll: 2200, damage: 1400, heal: 1200, draw: 550,
+  useEvent: 1900, bounce: 1300, trash: 900, discard: 1000, skipRoll: 1300,
+  recover: 1300, chooseFace: 1800, mulligan: 1200, over: 900, turnEnd: 150,
+  ko: 1200,        // 撃破の追い演出
+  aiThink: 900,    // 相手のターンに入る前の間
+  diceSpin: 900,   // ダイスが回っている時間
+  diceHold: 1200,  // 出目が決まってから次へ進むまでの間
 };
 
 export function createCardBattle(deps) {
@@ -27,7 +31,7 @@ export function createCardBattle(deps) {
   const els = {
     foeName: $("bt-foe-name"), foeSt: $("bt-foe-st"), youSt: $("bt-you-st"),
     turn: $("bt-turn"), foeField: $("bt-foe-field"), youField: $("bt-you-field"),
-    hand: $("bt-hand"), log: $("bt-log"), dice: $("bt-dice"),
+    hand: $("bt-hand"), foeHand: $("bt-foe-hand"), log: $("bt-log"), dice: $("bt-dice"),
     prompt: $("bt-prompt"), banner: $("bt-banner"), turnBanner: $("bt-turnbanner"),
     rollBox: $("bt-rollbox"), faceList: $("bt-facelist"),
   };
@@ -161,9 +165,10 @@ export function createCardBattle(deps) {
     const s = battle.state;
     const meta = OPPONENTS.find((o) => o.key === s.opponentKey);
     els.foeName.textContent = meta ? meta.label : s.opponentKey;
-    els.foeSt.textContent = `手札${s.foe.handCount} / 山札${s.foe.deckCount} / トラッシュ${s.foe.trashCount}`;
+    els.foeSt.textContent = `山札${s.foe.deckCount} / トラッシュ${s.foe.trashCount}`;
     els.youSt.textContent = `山札${s.you.deckCount} / トラッシュ${s.you.trashCount}`;
     els.turn.textContent = `${s.turn}ターン目`;
+    renderFoeHand(s.foe.handCount);
     renderField(els.foeField, s.foe.field, "foe");
     renderField(els.youField, s.you.field, "you");
     markPickable(s);
@@ -183,6 +188,18 @@ export function createCardBattle(deps) {
     if (pendingPlay != null) {
       for (const e of els.youField.querySelectorAll(".bt-card")) e.classList.add("pick");
     }
+  }
+
+  // 相手の手札は中身を見せず、裏面を枚数ぶん並べる
+  function renderFoeHand(n) {
+    els.foeHand.innerHTML = "";
+    const show = Math.min(n, 12); // 多すぎるときは12枚までにして枚数を添える
+    for (let i = 0; i < show; i++) {
+      const b = el(`<div class="bt-back"></div>`);
+      b.style.animationDelay = i * 0.03 + "s";
+      els.foeHand.appendChild(b);
+    }
+    els.foeHand.appendChild(el(`<span class="cnt">手札 ${n}枚</span>`));
   }
 
   function renderHand(s) {
@@ -224,7 +241,12 @@ export function createCardBattle(deps) {
     }
     switch (q.kind) {
       case "playMonster":
-        msg(q.canSkip ? "手札のモンスターを1体出せます" : "<b>場が空です。</b>モンスターを出してください");
+        // 開始時の初期配置と、通常ターンの配置を区別して伝える
+        msg(q.initial
+          ? "<b>開始時の配置です。</b>モンスターを1体出してください(お互い1体ずつ置いてから第1ターンが始まります。置いたモンスターは召喚酔いで第1ターンは振れません)"
+          : q.canSkip
+            ? "手札のモンスターを1体出せます(<b>このターンに出せるのは1体まで</b>)"
+            : "<b>場が空です。</b>モンスターを出してください");
         if (q.canSkip) act("出さない", () => answer(null), "ghost");
         break;
       case "rollOrder": msg("どのモンスターから振りますか?(カードをタップ)"); break;
@@ -333,13 +355,13 @@ export function createCardBattle(deps) {
       els.dice.className = "bt-dice rolling pip-" + n;
       spinFaceList(n);
     }, 65);
-    await wait(620);
+    await wait(DUR.diceSpin);
     clearInterval(spin);
     const face = battle.roll();
     els.dice.className = "bt-dice landed pip-" + face;
     sfx("land");
     lockFaceList(face); // 出目の行だけを強調して、どのテキストが選ばれたか示す
-    await wait(700);
+    await wait(DUR.diceHold);
     setBusy(false);
     run();
   }
@@ -354,10 +376,10 @@ export function createCardBattle(deps) {
         await playEvents();
         if (!battle) return;
         const s = battle.state;
-        if (s.over) { render(); await wait(420); showResult(s.winner); return; }
+        if (s.over) { render(); await wait(700); showResult(s.winner); return; }
         if (s.awaitingAiTurn) {
           render();
-          await wait(420);
+          await wait(DUR.aiThink);
           if (!battle) return;
           battle.autoPlayTurn();
           continue; // 溜まったイベントを再生してから次へ
@@ -390,6 +412,8 @@ export function createCardBattle(deps) {
         void els.turnBanner.offsetWidth;
         els.turnBanner.className = "bt-turnbanner show";
         sfx("turn");
+        els.banner.className = "bt-banner"; // ターン表示と重ならないよう他は消す
+        els.banner.innerHTML = "";
         hideFaceList();
         pushLog(`${who}のターン`);
         await wait(DUR.turnStart);
@@ -440,7 +464,7 @@ export function createCardBattle(deps) {
         }
         pushLog(`${nameOf(ev.id)}に${ev.n}ダメージ`);
         await wait(DUR.damage);
-        if (ev.dead && c) { sfx("ko"); c.classList.add("dying"); banner(`💥 <b>${nameOf(ev.id)}</b> は倒れた`); await wait(560); }
+        if (ev.dead && c) { sfx("ko"); c.classList.add("dying"); banner(`💥 <b>${nameOf(ev.id)}</b> は倒れた`); await wait(DUR.ko); }
         return;
       }
 

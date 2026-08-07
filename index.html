@@ -486,6 +486,26 @@
     padding: 4px 10px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 11px;
     background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.24); color: #fff;
   }
+  /* 相手の手札は裏面で枚数ぶん並べる(少し重ねて場所を取らない) */
+  .bt-foehand {
+    flex: none; display: flex; justify-content: center; align-items: center;
+    min-height: 34px; padding: 3px 10px;
+  }
+  .bt-back {
+    width: 24px; height: 33px; flex: none; margin-right: -9px; border-radius: 4px;
+    background:
+      radial-gradient(circle 2px at 50% 50%, rgba(255,255,255,.5) 98%, transparent 100%),
+      radial-gradient(circle 2px at 28% 26%, rgba(255,255,255,.35) 98%, transparent 100%),
+      radial-gradient(circle 2px at 72% 74%, rgba(255,255,255,.35) 98%, transparent 100%),
+      linear-gradient(150deg, #4a3a86, #1b1330 70%);
+    background-repeat: no-repeat;
+    border: 1px solid rgba(190,175,255,.45); box-shadow: 0 2px 5px rgba(0,0,0,.5);
+    animation: btBackIn .3s ease-out backwards;
+  }
+  .bt-back:last-child { margin-right: 0; }
+  @keyframes btBackIn { from { opacity: 0; transform: translateY(-8px); } }
+  .bt-foehand .cnt { margin-left: 14px; font-size: 11px; opacity: .6; }
+
   .bt-field {
     flex: none; display: flex; gap: 14px; justify-content: center; align-items: center;
     min-height: 0; padding: 6px;
@@ -571,13 +591,10 @@
     background: linear-gradient(90deg, rgba(0,0,0,0), rgba(10,20,35,.92) 18%, rgba(10,20,35,.92) 82%, rgba(0,0,0,0));
     text-shadow: 0 2px 10px rgba(0,0,0,.8);
   }
-  .bt-banner.show { animation: btBanner .9s ease-out; }
-  .bt-banner.hold { opacity: 1; }
+  .bt-banner.show { animation: btBanner .45s ease-out forwards; }
   @keyframes btBanner {
     0% { opacity: 0; transform: translateX(-40px) skewX(-12deg) }
-    18% { opacity: 1; transform: none }
-    82% { opacity: 1; transform: none }
-    100% { opacity: 0; transform: translateX(40px) skewX(12deg) }
+    100% { opacity: 1; transform: none }
   }
   .bt-banner .sub { display: block; font-size: 12px; font-weight: normal; opacity: .8; margin-top: 3px; }
   .bt-turnbanner {
@@ -712,7 +729,8 @@
     .bt-card { width: 106px; height: 142px; }
     .bt-card-art { height: 80px; }
     .bt-card-name { height: 24px; font-size: 10px; }
-    .bt-dicebox { height: 62px; }
+    .bt-foehand { min-height: 26px; padding: 2px 8px; }
+    .bt-back { width: 20px; height: 27px; }
     .bt-dice { width: 54px; height: 54px; --r: 5.8px; }
     .bt-hand .pcard-mini { width: 74px; height: 98px; }
     .bt-hand .pcard-mini .pcard-art { height: 46px; }
@@ -868,6 +886,7 @@
       <span class="turn" id="bt-turn"></span>
       <button class="bt-quit" id="bt-quit">投了してもどる</button>
     </div>
+    <div class="bt-foehand" id="bt-foe-hand"></div>
     <div class="bt-field" id="bt-foe-field"></div>
     <div class="bt-mid">
       <div class="bt-turnbanner" id="bt-turnbanner"></div>
