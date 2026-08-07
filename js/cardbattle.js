@@ -50,6 +50,8 @@ export function createCardBattle(deps) {
   // 配布・ドロー演出の間だけ手札の表示枚数を絞る(nullなら全部出す)
   let handLimit = null;
   let foeHandLimit = null;
+  // これから捨てられる予定のカード。演出でトラッシュに落ちるまで手札に残して見せる
+  let handGhosts = [];
   let skipNow = null;      // 演出の早送り
   let nextNow = null;      // 「次へ」待ちの解放
   let skipLayer = null;
@@ -60,12 +62,13 @@ export function createCardBattle(deps) {
   const nameOf = (id) => (CARDS[id] ? CARDS[id].name : id);
 
   // ---------- 起動と終了 ----------
-  function start(opponentKey) {
+  function start(opponentKey, seed) {
     if (nextNow) nextNow();
     oppKey = opponentKey;
-    battle = createBattle({ playerDeck: col.getDeck() || [], opponentKey });
+    // seed は検証用(省略時は毎回ランダム)
+    battle = createBattle({ playerDeck: col.getDeck() || [], opponentKey, seed });
     selected.clear(); pendingPlay = null; pendingPick = null; actingUid = null; busy = false; logLines.length = 0;
-    handLimit = null; foeHandLimit = null;
+    handLimit = null; foeHandLimit = null; handGhosts = [];
     els.log.textContent = "";
     els.banner.className = "bt-banner";
     closeStage();
@@ -288,6 +291,13 @@ export function createCardBattle(deps) {
     const pickable = new Set(q && (q.kind === "playMonster" || q.kind === "useEvent") ? q.options : []);
     els.hand.innerHTML = "";
     const shown = handLimit == null ? s.you.hand : s.you.hand.slice(0, handLimit);
+    // まだ演出していない「捨てられる予定」のカードも並べておく
+    for (const g of handGhosts) {
+      const mini = renderCard(CARDS[g.id], g.id, { mini: true });
+      mini.dataset.uid = g.uid;
+      mini.classList.add("dim");
+      els.hand.appendChild(mini);
+    }
     for (const c of shown) {
       const mini = renderCard(CARDS[c.id], c.id, { mini: true });
       mini.dataset.uid = c.uid;
@@ -367,8 +377,12 @@ export function createCardBattle(deps) {
           const c = s.you.hand.find((x) => x.uid === last);
           if (c) openStage(c.id, els.hand.querySelector(`[data-uid="${c.uid}"]`), "ev" + c.uid);
         } else closeStage();
-        msg(`イベントカードを最大${q.max}枚まで使えます(手札をタップすると効果が出ます)`);
+        msg(selected.size
+          ? `<b>${nameOf(s.you.hand.find((x) => x.uid === last).id)}</b> を使いますか?` +
+            `(別の手札をタップすると選び替えられます)`
+          : `イベントカードを最大${q.max}枚まで使えます(手札をタップすると効果が出ます)`);
         act(`使う (${selected.size})`, () => answer(selected.size ? [...selected] : null)).disabled = selected.size === 0;
+        if (selected.size) act("選び直す", () => { selected.clear(); closeStage(); render(); }, "ghost");
         if (q.canSkip !== false) act("使わない", () => answer(null), "ghost");
         break;
       }
@@ -433,8 +447,14 @@ export function createCardBattle(deps) {
         pendingPlay = card.uid; render();
       } else answer(card.uid);
     } else if (q.kind === "useEvent") {
-      if (selected.has(card.uid)) selected.delete(card.uid);
-      else if (selected.size < q.max) selected.add(card.uid);
+      if (selected.has(card.uid)) {
+        selected.delete(card.uid); // もう一度タップで選択解除
+      } else {
+        // 上限まで選んでいる時に別のカードをタップしたら、古いほうと入れ替える
+        // (1枚しか使えない場面で選び直せないのを防ぐ)
+        while (selected.size >= q.max) selected.delete(selected.values().next().value);
+        selected.add(card.uid);
+      }
       render();
     }
   }
@@ -564,7 +584,12 @@ export function createCardBattle(deps) {
     // (相手のターンを再生している最中に、自分の次のドローが見えてしまうのを防ぐ)
     const s0 = battle.state;
     handLimit = Math.max(0, s0.you.hand.length - pendingHandAdds(evs, "you"));
-    foeHandLimit = Math.max(0, s0.foe.handCount - pendingHandAdds(evs, "foe"));
+    // 捨てられる予定のカードは、演出でトラッシュへ落ちるまで手札に残して見せる
+    handGhosts = evs.filter((e) => e.t === "discard" && e.side === "you" && CARDS[e.id])
+      .map((e) => ({ uid: e.uid, id: e.id }));
+    const foeAdds = pendingHandAdds(evs, "foe");
+    const foeDrops = evs.filter((e) => e.t === "discard" && e.side === "foe").length;
+    foeHandLimit = Math.max(0, s0.foe.handCount - foeAdds + foeDrops);
     render(); // 演出中の盤面(まだ結果は反映されていない状態)
     for (const ev of evs) {
       if (!battle) break;
@@ -719,11 +744,22 @@ export function createCardBattle(deps) {
         await wait(DUR.skipRoll);
         return;
 
-      case "discard":
-        banner(`🗑 ${who}の手札を1枚トラッシュ`, nameOf(ev.id));
-        pushLog(`${who}の手札を1枚落とした`);
+      case "discard": {
+        // 手札から実際に1枚落ちるところを見せる
+        const from = els.hand.querySelector(`[data-uid="${ev.uid}"]`);
+        flyToTrash(ev.side, ev.id, ev.side === "you" ? from : null);
+        if (ev.side === "you") {
+          handGhosts = handGhosts.filter((g) => g.uid !== ev.uid);
+          renderHand(battle.state);
+        } else {
+          foeHandLimit = Math.max(0, foeHandLimit - 1);
+          renderFoeHand(foeHandLimit);
+        }
+        banner(`🗑 ${who}の手札から <b>${nameOf(ev.id)}</b> がトラッシュへ`);
+        pushLog(`${who}の手札から${nameOf(ev.id)}が落ちた`);
         await wait(DUR.discard);
         return;
+      }
 
       case "recover":
         if (ev.side === "you") { handLimit++; renderHand(battle.state); }
