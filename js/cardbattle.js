@@ -58,6 +58,8 @@ export function createCardBattle(deps) {
   let ghostMons = [];
   // 直前の場のスナップショット(消えるモンスターの見た目を復元するのに使う)
   let prevField = { you: [], foe: [] };
+  // 演出が追いつくまで表示しておくHP(uid → hp)。エンジンは先に減らしているため
+  let hpOverride = new Map();
   let skipNow = null;      // 演出の早送り
   let nextNow = null;      // 「次へ」待ちの解放
   let skipLayer = null;
@@ -76,6 +78,7 @@ export function createCardBattle(deps) {
     selected.clear(); pendingPlay = null; pendingPick = null; actingUid = null; busy = false; logLines.length = 0;
     handLimit = null; foeHandLimit = null; handGhosts = [];
     hiddenMons = new Set(); ghostMons = []; prevField = { you: [], foe: [] };
+    hpOverride = new Map();
     els.log.textContent = "";
     els.banner.className = "bt-banner";
     closeStage();
@@ -219,7 +222,9 @@ export function createCardBattle(deps) {
   // ---------- 盤面の描画 ----------
   function fieldCard(m, side) {
     const def = CARDS[m.id];
-    const pct = Math.max(0, Math.round((m.hp / m.maxHp) * 100));
+    // 演出がまだのダメージ/回復は反映しない
+    const hp = hpOverride.has(m.uid) ? hpOverride.get(m.uid) : m.hp;
+    const pct = Math.max(0, Math.round((hp / m.maxHp) * 100));
     const c = el(
       `<div class="bt-card ${def.attr || ""}" data-uid="${m.uid}" data-side="${side}">` +
       `<div class="bt-flash"></div>` +
@@ -227,7 +232,7 @@ export function createCardBattle(deps) {
       `<div class="bt-card-art" style="background-image:url(assets/cards/${m.id}.jpeg)"></div>` +
       `<div class="bt-card-name">${def.name}</div>` +
       `<div class="bt-card-hp"><i style="width:${pct}%"></i></div>` +
-      `<div class="bt-card-num">${m.hp} / ${m.maxHp}</div></div>`
+      `<div class="bt-card-num">${hp} / ${m.maxHp}</div></div>`
     );
     c.addEventListener("click", () => onBoardClick(m.uid, side));
     return c;
@@ -608,6 +613,11 @@ export function createCardBattle(deps) {
     // 捨てられる予定のカードは、演出でトラッシュへ落ちるまで手札に残して見せる
     handGhosts = evs.filter((e) => e.t === "discard" && e.side === "you" && CARDS[e.id])
       .map((e) => ({ uid: e.uid, id: e.id }));
+    // ダメージ/回復もエンジンは先に適用済みなので、直前のHPを持ち越して表示する
+    hpOverride = new Map();
+    for (const sd of ["you", "foe"]) {
+      for (const m of prevField[sd] || []) hpOverride.set(m.uid, m.hp);
+    }
     // これから場に出るモンスターは、play の演出まで出さない
     hiddenMons = new Set(evs.filter((e) => e.t === "play").map((e) => e.uid));
     // これから場を離れるモンスターは、その演出まで残しておく
@@ -636,6 +646,7 @@ export function createCardBattle(deps) {
     handGhosts = [];
     hiddenMons = new Set();
     ghostMons = [];
+    hpOverride = new Map();
     render();
     snapField();
     setBusy(false);
@@ -703,6 +714,7 @@ export function createCardBattle(deps) {
         return;
 
       case "damage": {
+        hpOverride.set(ev.uid, ev.hp); // ここで初めてHPが減る
         const c = cardEl(ev.uid);
         // 攻撃側(行動中のモンスター)が踏み込む。相手を殴っている時だけ
         if (actingUid != null && actingUid !== ev.uid) {
@@ -731,6 +743,7 @@ export function createCardBattle(deps) {
       }
 
       case "heal": {
+        hpOverride.set(ev.uid, ev.hp);
         const c = cardEl(ev.uid);
         sfx("heal");
         if (c) {
