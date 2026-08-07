@@ -46,6 +46,7 @@ export function createCardBattle(deps) {
   let busy = false;        // 演出中は入力を止める
   let pendingPlay = null;  // 交換相手を選ばせている最中の手札uid
   let pendingPick = null;  // 盤面の選択で「詳細を見て確認待ち」のuid
+  let actingUid = null;    // いま行動している(振る)モンスター
   let skipNow = null;      // 演出の早送り
   let skipLayer = null;
   const logLines = [];
@@ -58,7 +59,7 @@ export function createCardBattle(deps) {
   function start(opponentKey) {
     oppKey = opponentKey;
     battle = createBattle({ playerDeck: col.getDeck() || [], opponentKey });
-    selected.clear(); pendingPlay = null; pendingPick = null; busy = false; logLines.length = 0;
+    selected.clear(); pendingPlay = null; pendingPick = null; actingUid = null; busy = false; logLines.length = 0;
     els.log.textContent = "";
     els.banner.className = "bt-banner";
     hideFaceList();
@@ -198,13 +199,19 @@ export function createCardBattle(deps) {
   }
 
   function markPickable(s) {
+    // いま行動するモンスターを強調し、同じ場の他のカードを沈める
+    if (actingUid != null) {
+      const e = cardEl(actingUid);
+      if (e) { e.classList.add("acting"); e.parentElement.classList.add("hasacting"); }
+    }
     const q = s.prompt;
     if (!q || !q.options) return;
     if (q.kind === "rollOrder" || q.kind === "pickTarget") {
       for (const uid of q.options) { const e = cardEl(uid); if (e) e.classList.add("pick"); }
     }
     if (q.kind === "roll" && q.monsterUid != null) {
-      const e = cardEl(q.monsterUid); if (e) e.classList.add("acting");
+      const e = cardEl(q.monsterUid);
+      if (e) { e.classList.add("acting"); e.parentElement.classList.add("hasacting"); }
     }
     if (pendingPlay != null) {
       for (const e of els.youField.querySelectorAll(".bt-card")) e.classList.add("pick");
@@ -500,6 +507,7 @@ export function createCardBattle(deps) {
         void els.turnBanner.offsetWidth;
         els.turnBanner.className = "bt-turnbanner show";
         sfx("turn");
+        actingUid = null;
         els.banner.className = "bt-banner"; // ターン表示と重ならないよう他は消す
         els.banner.innerHTML = "";
         hideFaceList();
@@ -519,7 +527,10 @@ export function createCardBattle(deps) {
       }
 
       case "roll":
-        // 6面を並べて出目の行を強調する。何が選ばれたかが一目で分かる
+        // どのモンスターが振るのかを先に見せてから回す
+        actingUid = ev.uid;
+        render();
+        await wait(500);
         showFaceList(ev.id, `${who}の ${nameOf(ev.id)}`);
         // 相手のロールも自分と同じようにサイコロを回してから止める
         if (ev.side === "foe") await spinDice(ev.face);
@@ -531,6 +542,8 @@ export function createCardBattle(deps) {
         return;
 
       case "chooseFace":
+        actingUid = ev.uid;
+        render();
         showFaceList(ev.id, `${who}の ${nameOf(ev.id)}`);
         els.dice.className = "bt-dice landed pip-" + ev.face;
         lockFaceList(ev.face);
@@ -541,6 +554,16 @@ export function createCardBattle(deps) {
 
       case "damage": {
         const c = cardEl(ev.uid);
+        // 攻撃側(行動中のモンスター)が踏み込む。相手を殴っている時だけ
+        if (actingUid != null && actingUid !== ev.uid) {
+          const a = cardEl(actingUid);
+          if (a) {
+            const dir = a.dataset.side === "you" ? "lunge-up" : "lunge-down";
+            a.classList.add(dir);
+            setTimeout(() => a.classList.remove(dir), 520);
+            await wait(190); // 踏み込んでから当たるように少し待つ
+          }
+        }
         sfx("hit");
         if (c) {
           c.classList.add("hit");
@@ -639,7 +662,14 @@ export function createCardBattle(deps) {
       }
 
       case "over":
+        actingUid = null;
         await wait(DUR.over);
+        return;
+
+      case "turnEnd":
+        actingUid = null; // ターンが終わったら行動中の強調を解除
+        render();
+        await wait(DUR.turnEnd);
         return;
 
       default:
