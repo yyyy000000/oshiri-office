@@ -589,8 +589,8 @@
     font-size: 9px; font-weight: bold; letter-spacing: 1px; padding: 1px 9px;
     border-radius: 8px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.5);
   }
-  /* 行動中のカードがある間は、それ以外を沈めて視線を集める */
-  .bt-field.hasacting .bt-card:not(.acting) { opacity: .42; filter: saturate(.45); }
+  /* 行動を終えたカードだけを沈める(ターンが終わると全部明るく戻る) */
+  .bt-card.done { opacity: .45; filter: saturate(.5); }
   /* 攻撃の踏み込み(自分は上へ、相手は下へ) */
   .bt-card.lunge-up { animation: btLungeUp .5s cubic-bezier(.3,1.4,.5,1); }
   .bt-card.lunge-down { animation: btLungeDown .5s cubic-bezier(.3,1.4,.5,1); }

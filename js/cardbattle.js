@@ -47,6 +47,10 @@ export function createCardBattle(deps) {
   let pendingPlay = null;  // 交換相手を選ばせている最中の手札uid
   let pendingPick = null;  // 盤面の選択で「詳細を見て確認待ち」のuid
   let actingUid = null;    // いま行動している(振る)モンスター
+  // このターンに行動を終えたモンスター(暗く表示する)。ターンが変わると空になる
+  let doneMons = new Set();
+  // ターン終了で召喚酔いの表示を消したモンスター(エンジン上は次の自分の手番まで酔ったまま)
+  let sickCleared = new Set();
   // 配布・ドロー演出の間だけ手札の表示枚数を絞る(nullなら全部出す)
   let handLimit = null;
   let foeHandLimit = null;
@@ -76,6 +80,8 @@ export function createCardBattle(deps) {
     // seed は検証用(省略時は毎回ランダム)
     battle = createBattle({ playerDeck: col.getDeck() || [], opponentKey, seed });
     selected.clear(); pendingPlay = null; pendingPick = null; actingUid = null; busy = false; logLines.length = 0;
+    doneMons = new Set();
+    sickCleared = new Set();
     handLimit = null; foeHandLimit = null; handGhosts = [];
     hiddenMons = new Set(); ghostMons = []; prevField = { you: [], foe: [] };
     hpOverride = new Map();
@@ -225,10 +231,11 @@ export function createCardBattle(deps) {
     // 演出がまだのダメージ/回復は反映しない
     const hp = hpOverride.has(m.uid) ? hpOverride.get(m.uid) : m.hp;
     const pct = Math.max(0, Math.round((hp / m.maxHp) * 100));
+    const sick = m.sick && !sickCleared.has(m.uid); // 召喚酔い(ターン終了で表示は消える)
     const c = el(
-      `<div class="bt-card ${def.attr || ""}" data-uid="${m.uid}" data-side="${side}">` +
+      `<div class="bt-card ${def.attr || ""}${sick ? " done" : ""}" data-uid="${m.uid}" data-side="${side}">` +
       `<div class="bt-flash"></div>` +
-      (m.sick ? `<span class="bt-sick">召喚酔い</span>` : "") +
+      (sick ? `<span class="bt-sick">召喚酔い</span>` : "") +
       `<div class="bt-card-art" style="background-image:url(assets/cards/${m.id}.jpeg)"></div>` +
       `<div class="bt-card-name">${def.name}</div>` +
       `<div class="bt-card-hp"><i style="width:${pct}%"></i></div>` +
@@ -269,10 +276,16 @@ export function createCardBattle(deps) {
   }
 
   function markPickable(s) {
-    // いま行動するモンスターを強調し、同じ場の他のカードを沈める
+    // 行動を終えたモンスターだけ沈める(相手の場・未行動のカードは明るいまま)
+    for (const uid of doneMons) {
+      if (uid === actingUid) continue;
+      const e = cardEl(uid);
+      if (e) e.classList.add("done");
+    }
+    // いま行動するモンスターを強調する
     if (actingUid != null) {
       const e = cardEl(actingUid);
-      if (e) { e.classList.add("acting"); e.parentElement.classList.add("hasacting"); }
+      if (e) { e.classList.remove("done"); e.classList.add("acting"); }
     }
     const q = s.prompt;
     if (!q || !q.options) return;
@@ -281,7 +294,7 @@ export function createCardBattle(deps) {
     }
     if (q.kind === "roll" && q.monsterUid != null) {
       const e = cardEl(q.monsterUid);
-      if (e) { e.classList.add("acting"); e.parentElement.classList.add("hasacting"); }
+      if (e) { e.classList.remove("done"); e.classList.add("acting"); }
     }
     if (pendingPlay != null) {
       for (const e of els.youField.querySelectorAll(".bt-card")) e.classList.add("pick");
@@ -662,6 +675,8 @@ export function createCardBattle(deps) {
         els.turnBanner.className = "bt-turnbanner show";
         sfx("turn");
         actingUid = null;
+        doneMons = new Set(); // 新しいターン: 全部明るく戻す
+        render();             // 暗くしていた表示をここで戻す
         closeStage();
         els.banner.className = "bt-banner"; // ターン表示と重ならないよう他は消す
         els.banner.innerHTML = "";
@@ -671,6 +686,7 @@ export function createCardBattle(deps) {
 
       case "play": {
         hiddenMons.delete(ev.uid);                     // ここで初めて場に現れる
+        sickCleared.delete(ev.uid);                    // 出し直しなら再び召喚酔い
         if (ev.swapped != null) ghostMons = ghostMons.filter((g) => g.m.uid !== ev.swapped);
         render();
         const c = cardEl(ev.uid);
@@ -698,6 +714,9 @@ export function createCardBattle(deps) {
         pushLog(`${nameOf(ev.id)}→${ev.face} ${ev.text}`);
         await wait(already ? 700 : DUR.roll); // 既に見せた分は短くする
         closeStage();
+        doneMons.add(ev.uid); // このモンスターは行動済み
+        actingUid = null;
+        render();
         return;
       }
 
@@ -866,12 +885,17 @@ export function createCardBattle(deps) {
         await wait(DUR.over);
         return;
 
-      case "turnEnd":
+      case "turnEnd": {
         actingUid = null; // ターンが終わったら行動中の強調を解除
+        doneMons = new Set(); // 暗くしていたカードも明るく戻す
+        // 召喚酔いの表示もここで消す(エンジン上は次の自分の手番まで酔ったまま)
+        const fs = ev.side === "you" ? battle.state.you.field : battle.state.foe.field;
+        for (const m of fs) sickCleared.add(m.uid);
         closeStage();
         render();
         await wait(DUR.turnEnd);
         return;
+      }
 
       default:
         return;
