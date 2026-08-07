@@ -514,16 +514,35 @@ export function createCardBattle(deps) {
     } finally { running = false; }
   }
 
+  /** これから再生するイベントのうち、その側の手札を増やすものの合計枚数 */
+  function pendingHandAdds(evs, side) {
+    let n = 0;
+    for (const ev of evs) {
+      if (ev.side !== side) continue;
+      if (ev.t === "draw") n += ev.n;
+      else if (ev.t === "recover" || ev.t === "bounce") n += 1;
+    }
+    return n;
+  }
+
   async function playEvents() {
     if (!battle) return;
     const evs = battle.drainEvents();
     if (!evs.length) return;
     setBusy(true);
+    // エンジンは先の手番まで進んでいるので、これから演出する増加分は伏せておく。
+    // (相手のターンを再生している最中に、自分の次のドローが見えてしまうのを防ぐ)
+    const s0 = battle.state;
+    handLimit = Math.max(0, s0.you.hand.length - pendingHandAdds(evs, "you"));
+    foeHandLimit = Math.max(0, s0.foe.handCount - pendingHandAdds(evs, "foe"));
     render(); // 演出中の盤面(まだ結果は反映されていない状態)
     for (const ev of evs) {
       if (!battle) break;
       await playOne(ev);
     }
+    handLimit = null;
+    foeHandLimit = null;
+    render();
     setBusy(false);
   }
 
@@ -646,6 +665,7 @@ export function createCardBattle(deps) {
       case "bounce": {
         const c = cardEl(ev.uid);
         if (c) c.classList.add("leaving");
+        if (ev.side === "you") { handLimit++; } else { foeHandLimit++; }
         banner(`↩️ <b>${nameOf(ev.id)}</b> が手札に戻された`, "HPは減ったまま");
         pushLog(`${nameOf(ev.id)}が手札に戻った`);
         await wait(DUR.bounce);
@@ -665,6 +685,8 @@ export function createCardBattle(deps) {
         return;
 
       case "recover":
+        if (ev.side === "you") { handLimit++; renderHand(battle.state); }
+        else { foeHandLimit++; renderFoeHand(foeHandLimit); }
         banner(`♻️ <b>${nameOf(ev.id)}</b> をトラッシュから手札へ`);
         pushLog(`${nameOf(ev.id)}を回収`);
         await wait(DUR.recover);
@@ -672,19 +694,13 @@ export function createCardBattle(deps) {
 
       case "draw": {
         sfx("draw");
-        // 引いたぶんを一旦隠し、スライドが着地したところで手札に現れるようにする
-        const st = battle.state;
-        if (ev.side === "you") { handLimit = Math.max(0, st.you.hand.length - ev.n); renderHand(st); }
-        else { foeHandLimit = Math.max(0, st.foe.handCount - ev.n); renderFoeHand(foeHandLimit); }
+        // スライドが着地したところで手札に1枚ずつ現れる
         const ms = flyFromDeck(ev.side, ev.n, 0, () => {
           if (ev.side === "you") { handLimit++; renderHand(battle.state); }
           else { foeHandLimit++; renderFoeHand(foeHandLimit); }
         });
         pushLog(`${who}が${ev.n}枚引いた`);
         await wait(Math.max(DUR.draw, ms));
-        handLimit = null;
-        foeHandLimit = null;
-        render();
         return;
       }
 
@@ -698,9 +714,6 @@ export function createCardBattle(deps) {
         const a = flyFromDeck("foe", 5, 0, () => { foeHandLimit++; renderFoeHand(foeHandLimit); sfx("draw"); });
         const b = flyFromDeck("you", 5, 130, () => { handLimit++; renderHand(battle.state); });
         await wait(Math.max(a, b) + 250);
-        handLimit = null;
-        foeHandLimit = null;
-        render();
         return;
       }
 
