@@ -34,7 +34,6 @@ export function createCardBattle(deps) {
     hand: $("bt-hand"), foeHand: $("bt-foe-hand"), log: $("bt-log"), dice: $("bt-dice"),
     youTrash: $("bt-you-trash"), foeTrash: $("bt-foe-trash"),
     prompt: $("bt-prompt"), banner: $("bt-banner"), turnBanner: $("bt-turnbanner"),
-    rollBox: $("bt-rollbox"), faceList: $("bt-facelist"),
   };
   $("bt-quit").addEventListener("click", () => { if (battle) finish(null); });
   els.youTrash.addEventListener("click", () => showTrash("you"));
@@ -62,7 +61,7 @@ export function createCardBattle(deps) {
     selected.clear(); pendingPlay = null; pendingPick = null; actingUid = null; busy = false; logLines.length = 0;
     els.log.textContent = "";
     els.banner.className = "bt-banner";
-    hideFaceList();
+    closeStage();
     overlay.classList.add("show");
     if (deps.onBattleStart) deps.onBattleStart();
     render();
@@ -70,6 +69,7 @@ export function createCardBattle(deps) {
   }
 
   function finish(winner) {
+    closeStage();
     overlay.classList.remove("show");
     const had = !!battle;
     battle = null;
@@ -106,48 +106,68 @@ export function createCardBattle(deps) {
   }
   const cardEl = (uid) => overlay.querySelector(`.bt-card[data-uid="${uid}"]`);
 
-  // --- 6面テキストの一覧(振る前に見せ、出目が決まったらその行を強調する) ---
-  let faceListId = null;
-  function showFaceList(cardId, hd) {
-    const def = CARDS[cardId];
-    if (!def || def.kind !== "monster") { hideFaceList(); return; }
-    faceListId = cardId;
-    els.faceList.innerHTML =
-      `<div class="hd">${hd || def.name}</div>` +
-      def.faces.map((f, i) =>
-        `<div class="bt-facerow" data-f="${i + 1}">` +
-        `<span class="pip pip-${i + 1}"></span><span class="tx">${f.text}</span></div>`
-      ).join("");
-    els.rollBox.classList.add("show");
-  }
-  /** モンスターなら6面、イベントなら効果文を同じ枠に出す(選択時の詳細確認用) */
-  function showCardInfo(cardId, hd) {
-    const def = CARDS[cardId];
-    if (!def) { hideFaceList(); return; }
-    if (def.kind === "monster") { showFaceList(cardId, hd); return; }
-    faceListId = cardId;
-    els.faceList.innerHTML =
-      `<div class="hd">${hd || def.name}</div>` +
-      `<div class="bt-facerow on" style="animation:none"><span class="tx">${def.text}</span></div>` +
-      (def.flavor ? `<div class="bt-facerow" style="opacity:.5"><span class="tx">${def.flavor}</span></div>` : "");
-    els.rollBox.classList.add("show");
+  // --- カードを画面中央にせり出させる「ステージ」 ---
+  // 選択中のカードやロール中のモンスターを実物大で見せ、6面テキストを直接強調する。
+  let stageEl = null;
+  let stageCardEl = null;
+  let stageKey = null;   // いま出しているカードの識別(同じなら出し直さない)
+  let stageHidden = null; // 元の場所で隠しているDOM
+
+  function openStage(cardId, fromEl, key) {
+    const k = key != null ? key : cardId;
+    if (stageEl && stageKey === k) return stageCardEl;
+    closeStage();
+    stageKey = k;
+    const wrap = el(`<div class="bt-stage"><div class="bt-stage-inner"></div></div>`);
+    const inner = wrap.firstElementChild;
+    const card = renderCard(CARDS[cardId], cardId);
+    inner.appendChild(card);
+    overlay.appendChild(wrap);
+    stageEl = wrap;
+    stageCardEl = card;
+    // 画面に収まるよう縮める
+    const sc = Math.min(1, (innerHeight - 130) / 502, (innerWidth - 30) / 340);
+    inner.style.transform = `scale(${sc.toFixed(3)})`;
+    // 元のカードの位置から飛んでくる
+    if (fromEl) {
+      const a = fromEl.getBoundingClientRect();
+      const b = card.getBoundingClientRect();
+      const dx = a.left + a.width / 2 - (b.left + b.width / 2);
+      const dy = a.top + a.height / 2 - (b.top + b.height / 2);
+      const r = a.width / b.width;
+      card.style.transition = "none";
+      card.style.transform = `translate(${dx}px, ${dy}px) scale(${r.toFixed(3)})`;
+      requestAnimationFrame(() => {
+        card.style.transition = "transform .42s cubic-bezier(.2,1.2,.4,1)";
+        card.style.transform = "";
+      });
+      fromEl.style.visibility = "hidden";
+      stageHidden = fromEl;
+    }
+    // サイコロをステージ上へ移す
+    inner.appendChild(els.dice);
+    return card;
   }
 
-  function hideFaceList() {
-    faceListId = null;
-    els.faceList.innerHTML = "";
-    els.rollBox.classList.remove("show");
+  function closeStage() {
+    if (!stageEl) return;
+    document.querySelector(".bt-dicebox").appendChild(els.dice); // サイコロを元に戻す
+    stageEl.remove();
+    if (stageHidden) { stageHidden.style.visibility = ""; stageHidden = null; }
+    stageEl = null; stageCardEl = null; stageKey = null;
   }
-  /** 抽選中の仮ハイライト(数字を1つ光らせる) */
-  function spinFaceList(face) {
-    for (const r of els.faceList.querySelectorAll(".bt-facerow"))
-      r.className = "bt-facerow" + (Number(r.dataset.f) === face ? " spin" : "");
+
+  /** ステージ上のカードの6面のうち1つを光らせる。mode: "spin" | "lock" */
+  function stageHighlight(face, mode) {
+    if (!stageCardEl) return;
+    const rows = [...stageCardEl.querySelectorAll(".pcard-face")];
+    rows.forEach((r, i) => {
+      r.classList.remove("spin", "on", "off");
+      if (mode === "spin") { if (i === face - 1) r.classList.add("spin"); }
+      else r.classList.add(i === face - 1 ? "on" : "off");
+    });
   }
-  /** 出目確定: その行だけ強調し、ほかを沈める */
-  function lockFaceList(face) {
-    for (const r of els.faceList.querySelectorAll(".bt-facerow"))
-      r.className = "bt-facerow " + (Number(r.dataset.f) === face ? "on" : "off");
-  }
+
   function floatNum(uid, text, cls) {
     const c = cardEl(uid);
     if (!c) return;
@@ -265,7 +285,7 @@ export function createCardBattle(deps) {
     // 盤面の選択で1枚目をタップ済み: 中身を見せて確定を促す
     if (pendingPick != null && (q.kind === "rollOrder" || q.kind === "pickTarget")) {
       const id = monIdOf(pendingPick);
-      showCardInfo(id, `${nameOf(id)} の中身`);
+      openStage(id, cardEl(pendingPick), "pick" + pendingPick);
       msg(q.kind === "rollOrder"
         ? `<b>${nameOf(id)}</b> で振りますか?(中身は上に表示中)`
         : `<b>${nameOf(id)}</b> を対象にしますか?`);
@@ -273,7 +293,7 @@ export function createCardBattle(deps) {
       act("選び直す", () => { pendingPick = null; render(); }, "ghost");
       return;
     }
-    if (q && (q.kind === "playMonster" || q.kind === "rollOrder") && !busy) hideFaceList();
+    if (q && (q.kind === "playMonster" || q.kind === "rollOrder") && pendingPick == null && !busy) closeStage();
     if (pendingPlay != null) {
       msg("場が埋まっています。<b>どのモンスターと交換しますか?</b>(戻したモンスターはHPが減ったまま手札に戻ります)");
       act("やめる", () => { pendingPlay = null; render(); }, "ghost");
@@ -284,10 +304,10 @@ export function createCardBattle(deps) {
         if (pendingPick != null) {
           const c = s.you.hand.find((x) => x.uid === pendingPick);
           if (c) {
-            showCardInfo(c.id, `${nameOf(c.id)} の6面`);
-            msg(`<b>${nameOf(c.id)}</b> を場に出しますか?(6面は上に表示中)`);
+            openStage(c.id, els.hand.querySelector(`[data-uid="${c.uid}"]`), "hand" + c.uid);
+            msg(`<b>${nameOf(c.id)}</b> を場に出しますか?`);
             act("出す", () => { const u = pendingPick; pendingPick = null; onConfirmPlay(u); });
-            act("選び直す", () => { pendingPick = null; hideFaceList(); render(); }, "ghost");
+            act("選び直す", () => { pendingPick = null; closeStage(); render(); }, "ghost");
             return;
           }
         }
@@ -302,8 +322,8 @@ export function createCardBattle(deps) {
       }
       case "rollOrder": msg("どのモンスターから振りますか?(カードをタップ)"); break;
       case "roll":
-        // 振る前に6面のテキストを見せる。何が当たりうるかを分かった上で振れるように
-        showFaceList(monIdOf(q.monsterUid), `${nameOf(monIdOf(q.monsterUid))} の6面`);
+        // 振る前にカードを中央にせり出させる。何が当たりうるかを見た上で振れる
+        openStage(monIdOf(q.monsterUid), cardEl(q.monsterUid), "roll" + q.monsterUid);
         msg(`<b>${nameOf(monIdOf(q.monsterUid))}</b> の番です`);
         act("🎲 サイコロを振る", doRoll, "big");
         break;
@@ -311,8 +331,8 @@ export function createCardBattle(deps) {
         const last = [...selected].pop();
         if (last != null) {
           const c = s.you.hand.find((x) => x.uid === last);
-          if (c) showCardInfo(c.id, `${nameOf(c.id)} の効果`);
-        }
+          if (c) openStage(c.id, els.hand.querySelector(`[data-uid="${c.uid}"]`), "ev" + c.uid);
+        } else closeStage();
         msg(`イベントカードを最大${q.max}枚まで使えます(手札をタップすると効果が出ます)`);
         act(`使う (${selected.size})`, () => answer(selected.size ? [...selected] : null)).disabled = selected.size === 0;
         if (q.canSkip !== false) act("使わない", () => answer(null), "ghost");
@@ -371,7 +391,6 @@ export function createCardBattle(deps) {
       // 1回目のタップで6面を見せ、同じカードをもう一度タップすると場に出す
       if (pendingPick !== card.uid) {
         pendingPick = card.uid;
-        showCardInfo(card.id, `${nameOf(card.id)} の6面`);
         render();
         return;
       }
@@ -417,6 +436,7 @@ export function createCardBattle(deps) {
     try { battle.choose(v); } catch (e) { deps.toast("⚠ " + e.message); return; }
     selected.clear();
     pendingPick = null;
+    closeStage();
     run();
   }
 
@@ -427,7 +447,7 @@ export function createCardBattle(deps) {
     const spin = setInterval(() => {
       const n = 1 + Math.floor(Math.random() * 6);
       els.dice.className = "bt-dice rolling pip-" + n;
-      spinFaceList(n);
+      stageHighlight(n, "spin");
     }, 65);
     await wait(DUR.diceSpin);
     clearInterval(spin);
@@ -441,22 +461,23 @@ export function createCardBattle(deps) {
     const monId = q && q.monsterUid != null ? monIdOf(q.monsterUid) : null;
     setBusy(true);
     renderPrompt(battle.state);
-    if (monId) showFaceList(monId, `${nameOf(monId)} の6面`);
+    if (monId) openStage(monId, cardEl(q.monsterUid), "roll" + q.monsterUid);
     // 先に回してから、止める瞬間に出目を確定させる
     sfx("dice");
     els.dice.classList.add("rolling");
     const spin = setInterval(() => {
       const n = 1 + Math.floor(Math.random() * 6);
       els.dice.className = "bt-dice rolling pip-" + n;
-      spinFaceList(n);
+      stageHighlight(n, "spin");
     }, 65);
     await wait(DUR.diceSpin);
     clearInterval(spin);
     const face = battle.roll();
     els.dice.className = "bt-dice landed pip-" + face;
     sfx("land");
-    lockFaceList(face); // 出目の行だけを強調して、どのテキストが選ばれたか示す
-    await wait(DUR.diceHold);
+    stageHighlight(face, "lock"); // カード内の該当テキストだけを強調する
+    await wait(DUR.diceHold + 400);
+    closeStage();
     setBusy(false);
     run();
   }
@@ -508,9 +529,9 @@ export function createCardBattle(deps) {
         els.turnBanner.className = "bt-turnbanner show";
         sfx("turn");
         actingUid = null;
+        closeStage();
         els.banner.className = "bt-banner"; // ターン表示と重ならないよう他は消す
         els.banner.innerHTML = "";
-        hideFaceList();
         pushLog(`${who}のターン`);
         await wait(DUR.turnStart);
         return;
@@ -527,29 +548,30 @@ export function createCardBattle(deps) {
       }
 
       case "roll":
-        // どのモンスターが振るのかを先に見せてから回す
+        // どのモンスターが振るのかを先に見せてから、カードごと中央にせり出させる
         actingUid = ev.uid;
         render();
         await wait(500);
-        showFaceList(ev.id, `${who}の ${nameOf(ev.id)}`);
-        // 相手のロールも自分と同じようにサイコロを回してから止める
+        openStage(ev.id, cardEl(ev.uid), "roll" + ev.uid);
         if (ev.side === "foe") await spinDice(ev.face);
         else { els.dice.className = "bt-dice landed pip-" + ev.face; }
-        lockFaceList(ev.face);
+        stageHighlight(ev.face, "lock");
         banner(`🎲 <b>${ev.face}</b> — ${nameOf(ev.id)}`, ev.text);
         pushLog(`${nameOf(ev.id)}→${ev.face} ${ev.text}`);
         await wait(DUR.roll);
+        closeStage();
         return;
 
       case "chooseFace":
         actingUid = ev.uid;
         render();
-        showFaceList(ev.id, `${who}の ${nameOf(ev.id)}`);
+        openStage(ev.id, cardEl(ev.uid), "roll" + ev.uid);
         els.dice.className = "bt-dice landed pip-" + ev.face;
-        lockFaceList(ev.face);
+        stageHighlight(ev.face, "lock");
         banner(`✨ 出目を <b>${ev.face}</b> に選んだ`, ev.text);
         pushLog(`${nameOf(ev.id)}の出目を${ev.face}に選択`);
         await wait(DUR.chooseFace);
+        closeStage();
         return;
 
       case "damage": {
@@ -601,11 +623,11 @@ export function createCardBattle(deps) {
         // 使ったイベントカードを中央に大きく出し、効果文も併記する。
         // 特に相手のイベントは何が起きたのか分からなくなりがちなので、枠に効果を出す
         const def = CARDS[ev.id];
+        closeStage();
         const pop = el(`<div class="bt-eventpop"></div>`);
         pop.appendChild(renderCard(def, ev.id));
         overlay.appendChild(pop);
         sfx("event");
-        showCardInfo(ev.id, `${who}が使ったイベント`);
         banner(`${who}は <b>${nameOf(ev.id)}</b> を使った`, def.text);
         pushLog(`${who}が${nameOf(ev.id)}を使用: ${def.text}`);
         await wait(ev.side === "foe" ? DUR.useEvent + 700 : DUR.useEvent);
@@ -668,6 +690,7 @@ export function createCardBattle(deps) {
 
       case "turnEnd":
         actingUid = null; // ターンが終わったら行動中の強調を解除
+        closeStage();
         render();
         await wait(DUR.turnEnd);
         return;
