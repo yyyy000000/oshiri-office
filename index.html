@@ -511,6 +511,42 @@
     min-height: 0; padding: 6px;
   }
   .bt-empty { opacity: .28; font-size: 12px; }
+  /* 場とトラッシュ置き場を横並びに */
+  .bt-row { flex: none; position: relative; display: flex; align-items: center; }
+  .bt-row .bt-field { flex: 1; }
+  .bt-trash {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    width: 52px; height: 70px; border-radius: 7px; cursor: pointer; font-family: inherit;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    background: linear-gradient(160deg, rgba(70,80,100,.5), rgba(15,20,30,.7));
+    border: 1px dashed rgba(255,255,255,.28); color: #cfe0f5;
+  }
+  .bt-trash .ic { font-size: 19px; opacity: .8; }
+  .bt-trash .n { font-size: 11px; font-weight: bold; color: #ffd76e; }
+  .bt-trash.empty { opacity: .35; }
+  .bt-trash:hover { border-color: #ffd76e; }
+  .bt-trash.flash { animation: btTrashFlash .5s ease-out; }
+  @keyframes btTrashFlash {
+    0% { transform: translateY(-50%) scale(1.28); border-color: #ffd76e; }
+    100% { transform: translateY(-50%) scale(1); }
+  }
+  /* トラッシュへ飛んでいくカードの残像 */
+  .bt-fly {
+    position: fixed; z-index: 8; pointer-events: none; border-radius: 7px;
+    background-size: cover; background-position: center;
+    border: 1px solid rgba(255,255,255,.4); box-shadow: 0 6px 18px rgba(0,0,0,.6);
+    transition: transform .55s cubic-bezier(.4,0,.6,1), opacity .55s ease-in;
+  }
+  /* トラッシュ一覧 */
+  .bt-trashlist {
+    position: absolute; inset: 0; z-index: 9; display: flex; flex-direction: column;
+    align-items: center; gap: 12px; padding: 18px 14px; overflow-y: auto;
+    background: rgba(6,10,18,.94);
+  }
+  .bt-trashlist h3 { font-size: 16px; letter-spacing: 2px; }
+  .bt-trashlist .grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .bt-trashlist .pcard-mini { cursor: pointer; }
+  .bt-trashlist .pcard-mini:hover { box-shadow: 0 0 0 2px #ffd76e; }
 
   /* --- 盤面のカード --- */
   .bt-card {
@@ -599,7 +635,7 @@
   .bt-banner .sub { display: block; font-size: 12px; font-weight: normal; opacity: .8; margin-top: 3px; }
   .bt-turnbanner {
     position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
-    text-align: center; font-size: 26px; font-weight: bold; letter-spacing: 6px;
+    text-align: center; font-size: 28px; font-weight: bold; letter-spacing: 3px;
     pointer-events: none; opacity: 0; z-index: 4;
     text-shadow: 0 0 22px rgba(127,227,255,.8), 0 3px 10px #000;
   }
@@ -718,7 +754,7 @@
     align-items: center; justify-content: center; gap: 16px; text-align: center;
     background: rgba(6,10,18,.94); padding: 20px;
   }
-  .bt-result h2 { font-size: 34px; letter-spacing: 6px; animation: btTurn .8s ease-out; }
+  .bt-result h2 { font-size: 32px; letter-spacing: 4px; animation: btTurn .8s ease-out; }
   .bt-result .sub { font-size: 13px; opacity: .82; }
   .bt-rewards { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
   .bt-rewards .pcard-mini { cursor: pointer; transition: transform .14s; }
@@ -745,6 +781,8 @@
     .bt-quit { padding: 3px 8px; font-size: 10px; }
     .bt-field { gap: 10px; }
     .bt-card { width: 104px; height: 140px; }
+    .bt-trash { width: 42px; height: 58px; right: 5px; }
+    .bt-trash .ic { font-size: 16px; }
     .bt-card-art { height: 78px; }
     .bt-result h2 { font-size: 24px; }
     .bt-rollbox { gap: 8px; }
@@ -887,7 +925,10 @@
       <button class="bt-quit" id="bt-quit">投了してもどる</button>
     </div>
     <div class="bt-foehand" id="bt-foe-hand"></div>
-    <div class="bt-field" id="bt-foe-field"></div>
+    <div class="bt-row">
+      <div class="bt-field" id="bt-foe-field"></div>
+      <button class="bt-trash" id="bt-foe-trash" title="相手のトラッシュ"><span class="ic">🗑</span><span class="n">0</span></button>
+    </div>
     <div class="bt-mid">
       <div class="bt-turnbanner" id="bt-turnbanner"></div>
       <div class="bt-rollbox" id="bt-rollbox">
@@ -897,7 +938,10 @@
       <div class="bt-banner" id="bt-banner"></div>
       <div class="bt-loglines" id="bt-log"></div>
     </div>
-    <div class="bt-field" id="bt-you-field"></div>
+    <div class="bt-row">
+      <div class="bt-field" id="bt-you-field"></div>
+      <button class="bt-trash" id="bt-you-trash" title="自分のトラッシュ"><span class="ic">🗑</span><span class="n">0</span></button>
+    </div>
     <div class="bt-bar mine">
       <span class="who">あなた</span>
       <span class="st" id="bt-you-st"></span>
