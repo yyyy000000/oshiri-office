@@ -52,6 +52,12 @@ export function createCardBattle(deps) {
   let foeHandLimit = null;
   // これから捨てられる予定のカード。演出でトラッシュに落ちるまで手札に残して見せる
   let handGhosts = [];
+  // これから場に出るモンスター(playの演出まで出さない)
+  let hiddenMons = new Set();
+  // これから場から消えるモンスター(trash/bounce/交換の演出まで残す)
+  let ghostMons = [];
+  // 直前の場のスナップショット(消えるモンスターの見た目を復元するのに使う)
+  let prevField = { you: [], foe: [] };
   let skipNow = null;      // 演出の早送り
   let nextNow = null;      // 「次へ」待ちの解放
   let skipLayer = null;
@@ -69,6 +75,7 @@ export function createCardBattle(deps) {
     battle = createBattle({ playerDeck: col.getDeck() || [], opponentKey, seed });
     selected.clear(); pendingPlay = null; pendingPick = null; actingUid = null; busy = false; logLines.length = 0;
     handLimit = null; foeHandLimit = null; handGhosts = [];
+    hiddenMons = new Set(); ghostMons = []; prevField = { you: [], foe: [] };
     els.log.textContent = "";
     els.banner.className = "bt-banner";
     closeStage();
@@ -227,8 +234,11 @@ export function createCardBattle(deps) {
   }
   function renderField(box, list, side) {
     box.innerHTML = "";
-    if (!list.length) { box.appendChild(el(`<div class="bt-empty">場にモンスターがいない</div>`)); return; }
-    for (const m of list) box.appendChild(fieldCard(m, side));
+    const shown = list.filter((m) => !hiddenMons.has(m.uid));
+    const ghosts = ghostMons.filter((g) => g.side === side).map((g) => g.m);
+    const all = shown.concat(ghosts);
+    if (!all.length) { box.appendChild(el(`<div class="bt-empty">場にモンスターがいない</div>`)); return; }
+    for (const m of all) box.appendChild(fieldCard(m, side));
   }
 
   function render() {
@@ -559,6 +569,7 @@ export function createCardBattle(deps) {
           continue; // 溜まったイベントを再生してから次へ
         }
         render();
+        snapField();
         return; // プレイヤーの入力待ち
       }
     } finally { running = false; }
@@ -575,6 +586,16 @@ export function createCardBattle(deps) {
     return n;
   }
 
+  /** いまの場を覚えておく(次の再生で「消えるモンスター」を復元するため) */
+  function snapField() {
+    if (!battle) return;
+    const s = battle.state;
+    prevField = {
+      you: s.you.field.map((m) => ({ ...m })),
+      foe: s.foe.field.map((m) => ({ ...m })),
+    };
+  }
+
   async function playEvents() {
     if (!battle) return;
     const evs = battle.drainEvents();
@@ -587,6 +608,21 @@ export function createCardBattle(deps) {
     // 捨てられる予定のカードは、演出でトラッシュへ落ちるまで手札に残して見せる
     handGhosts = evs.filter((e) => e.t === "discard" && e.side === "you" && CARDS[e.id])
       .map((e) => ({ uid: e.uid, id: e.id }));
+    // これから場に出るモンスターは、play の演出まで出さない
+    hiddenMons = new Set(evs.filter((e) => e.t === "play").map((e) => e.uid));
+    // これから場を離れるモンスターは、その演出まで残しておく
+    ghostMons = [];
+    const leaving = [];
+    for (const e of evs) {
+      if (e.t === "trash" || e.t === "bounce") leaving.push({ side: e.side, uid: e.uid });
+      else if (e.t === "play" && e.swapped != null) leaving.push({ side: e.side, uid: e.swapped });
+    }
+    for (const lv of leaving) {
+      const cur = (lv.side === "you" ? s0.you.field : s0.foe.field).find((m) => m.uid === lv.uid);
+      if (cur) continue; // まだ場にいるなら復元不要
+      const old = (prevField[lv.side] || []).find((m) => m.uid === lv.uid);
+      if (old) ghostMons.push({ side: lv.side, m: old });
+    }
     const foeAdds = pendingHandAdds(evs, "foe");
     const foeDrops = evs.filter((e) => e.t === "discard" && e.side === "foe").length;
     foeHandLimit = Math.max(0, s0.foe.handCount - foeAdds + foeDrops);
@@ -597,7 +633,11 @@ export function createCardBattle(deps) {
     }
     handLimit = null;
     foeHandLimit = null;
+    handGhosts = [];
+    hiddenMons = new Set();
+    ghostMons = [];
     render();
+    snapField();
     setBusy(false);
   }
 
@@ -619,6 +659,8 @@ export function createCardBattle(deps) {
         return;
 
       case "play": {
+        hiddenMons.delete(ev.uid);                     // ここで初めて場に現れる
+        if (ev.swapped != null) ghostMons = ghostMons.filter((g) => g.m.uid !== ev.swapped);
         render();
         const c = cardEl(ev.uid);
         if (c) c.classList.add("entering");
@@ -732,6 +774,7 @@ export function createCardBattle(deps) {
         const c = cardEl(ev.uid);
         if (c) c.classList.add("leaving");
         if (ev.side === "you") { handLimit++; } else { foeHandLimit++; }
+        ghostMons = ghostMons.filter((g) => g.m.uid !== ev.uid);
         banner(`↩️ <b>${nameOf(ev.id)}</b> が手札に戻された`, "HPは減ったまま");
         pushLog(`${nameOf(ev.id)}が手札に戻った`);
         await wait(DUR.bounce);
@@ -795,11 +838,12 @@ export function createCardBattle(deps) {
       }
 
       case "trash": {
-        // 場から消えるカードをトラッシュへ飛ばす
+        // 場から消えるカードをトラッシュへ飛ばしてから盤面から外す
         const from = cardEl(ev.uid);
         flyToTrash(ev.side, ev.id, from);
         if (from) from.style.visibility = "hidden";
         await wait(DUR.trash);
+        ghostMons = ghostMons.filter((g) => g.m.uid !== ev.uid);
         render();
         return;
       }
