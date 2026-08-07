@@ -51,6 +51,7 @@ export function createCardBattle(deps) {
   let handLimit = null;
   let foeHandLimit = null;
   let skipNow = null;      // 演出の早送り
+  let nextNow = null;      // 「次へ」待ちの解放
   let skipLayer = null;
   const logLines = [];
 
@@ -60,6 +61,7 @@ export function createCardBattle(deps) {
 
   // ---------- 起動と終了 ----------
   function start(opponentKey) {
+    if (nextNow) nextNow();
     oppKey = opponentKey;
     battle = createBattle({ playerDeck: col.getDeck() || [], opponentKey });
     selected.clear(); pendingPlay = null; pendingPick = null; actingUid = null; busy = false; logLines.length = 0;
@@ -74,6 +76,7 @@ export function createCardBattle(deps) {
   }
 
   function finish(winner) {
+    if (nextNow) nextNow();
     closeStage();
     overlay.classList.remove("show");
     const had = !!battle;
@@ -98,6 +101,28 @@ export function createCardBattle(deps) {
       overlay.appendChild(skipLayer);
     } else if (!on && skipLayer) { skipLayer.remove(); skipLayer = null; }
   }
+  /**
+   * 操作バーに「次へ」を出して、押されるまで演出を止める。
+   * 早送りレイヤは一時的に外す(ボタンが押せなくなるため)。
+   */
+  function waitForNext(msgText, label) {
+    return new Promise((resolve) => {
+      const hadSkip = !!skipLayer;
+      if (skipLayer) { skipLayer.remove(); skipLayer = null; }
+      els.prompt.innerHTML = "";
+      els.prompt.appendChild(el(`<span class="msg">${msgText}</span>`));
+      const done = () => {
+        nextNow = null;
+        if (hadSkip && busy) setBusy(true); // 早送りレイヤを戻す
+        resolve();
+      };
+      nextNow = done;
+      const b = el(`<button class="bt-act big">${label || "次へ ▶"}</button>`);
+      b.addEventListener("click", done, { once: true });
+      els.prompt.appendChild(b);
+    });
+  }
+
   function banner(text, sub) {
     els.banner.innerHTML = text + (sub ? `<span class="sub">${sub}</span>` : "");
     els.banner.className = "bt-banner";
@@ -293,7 +318,7 @@ export function createCardBattle(deps) {
     // 盤面の選択で1枚目をタップ済み: 中身を見せて確定を促す
     if (pendingPick != null && (q.kind === "rollOrder" || q.kind === "pickTarget")) {
       const id = monIdOf(pendingPick);
-      openStage(id, cardEl(pendingPick), "pick" + pendingPick);
+      openStage(id, cardEl(pendingPick), "mon" + pendingPick);
       msg(q.kind === "rollOrder"
         ? `<b>${nameOf(id)}</b> で振りますか?(中身は上に表示中)`
         : `<b>${nameOf(id)}</b> を対象にしますか?`);
@@ -332,7 +357,7 @@ export function createCardBattle(deps) {
       case "rollOrder": msg("どのモンスターから振りますか?(カードをタップ)"); break;
       case "roll":
         // 振る前にカードを中央にせり出させる。何が当たりうるかを見た上で振れる
-        openStage(monIdOf(q.monsterUid), cardEl(q.monsterUid), "roll" + q.monsterUid);
+        openStage(monIdOf(q.monsterUid), cardEl(q.monsterUid), "mon" + q.monsterUid);
         msg(`<b>${nameOf(monIdOf(q.monsterUid))}</b> の番です`);
         act("🎲 サイコロを振る", doRoll, "big");
         break;
@@ -442,10 +467,13 @@ export function createCardBattle(deps) {
 
   function answer(v) {
     if (!battle) return;
+    const kind = battle.state.prompt && battle.state.prompt.kind;
     try { battle.choose(v); } catch (e) { deps.toast("⚠ " + e.message); return; }
     selected.clear();
     pendingPick = null;
-    closeStage();
+    // ロール順を決めた直後は同じモンスターの「振る」に続くので、
+    // ここで閉じるとカードが一度消えて出し直しになる
+    if (kind !== "rollOrder") closeStage();
     run();
   }
 
@@ -470,7 +498,7 @@ export function createCardBattle(deps) {
     const monId = q && q.monsterUid != null ? monIdOf(q.monsterUid) : null;
     setBusy(true);
     renderPrompt(battle.state);
-    if (monId) openStage(monId, cardEl(q.monsterUid), "roll" + q.monsterUid);
+    if (monId) openStage(monId, cardEl(q.monsterUid), "mon" + q.monsterUid);
     // 先に回してから、止める瞬間に出目を確定させる
     sfx("dice");
     els.dice.classList.add("rolling");
@@ -578,12 +606,12 @@ export function createCardBattle(deps) {
 
       case "roll": {
         // 自分で振った直後は、すでに同じカードがせり出しているので出し直さない
-        const already = stageKey === "roll" + ev.uid;
+        const already = stageKey === "mon" + ev.uid;
         actingUid = ev.uid;
         if (!already) {
           render();
           await wait(500); // 誰が振るのかを見せる間
-          openStage(ev.id, cardEl(ev.uid), "roll" + ev.uid);
+          openStage(ev.id, cardEl(ev.uid), "mon" + ev.uid);
           if (ev.side === "foe") await spinDice(ev.face);
           else els.dice.className = "bt-dice landed pip-" + ev.face;
           stageHighlight(ev.face, "lock");
@@ -598,7 +626,7 @@ export function createCardBattle(deps) {
       case "chooseFace":
         actingUid = ev.uid;
         render();
-        openStage(ev.id, cardEl(ev.uid), "roll" + ev.uid);
+        openStage(ev.id, cardEl(ev.uid), "mon" + ev.uid);
         els.dice.className = "bt-dice landed pip-" + ev.face;
         stageHighlight(ev.face, "lock");
         banner(`✨ 出目を <b>${ev.face}</b> に選んだ`, ev.text);
@@ -663,7 +691,14 @@ export function createCardBattle(deps) {
         sfx("event");
         banner(`${who}は <b>${nameOf(ev.id)}</b> を使った`, def.text);
         pushLog(`${who}が${nameOf(ev.id)}を使用: ${def.text}`);
-        await wait(ev.side === "foe" ? DUR.useEvent + 700 : DUR.useEvent);
+        if (ev.side === "foe") {
+          // 相手のイベントは見落としやすいので、押すまで止める。
+          // 効果の発動(後続のイベント)もここで待たされる
+          pop.classList.add("hold");
+          await waitForNext(`相手が <b>${nameOf(ev.id)}</b> を使いました。効果: ${def.text}`);
+        } else {
+          await wait(DUR.useEvent);
+        }
         pop.remove();
         return;
       }
