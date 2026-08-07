@@ -76,7 +76,8 @@ export function renderCard(def, id, opts = {}) {
   if (missingArt.has(id)) {
     art.innerHTML = ph;
   } else {
-    art.innerHTML = `<img alt="" src="assets/cards/${id}.jpg">` + ph;
+    // イラストは1024pxの原寸(1枚150KB前後)。手札に何枚も並ぶので遅延読み込みにする
+    art.innerHTML = `<img alt="" loading="lazy" decoding="async" src="assets/cards/${id}.jpeg">` + ph;
     const img = art.firstElementChild;
     img.addEventListener("error", () => {
       missingArt.add(id);
