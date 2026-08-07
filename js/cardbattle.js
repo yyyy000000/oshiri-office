@@ -47,6 +47,9 @@ export function createCardBattle(deps) {
   let pendingPlay = null;  // 交換相手を選ばせている最中の手札uid
   let pendingPick = null;  // 盤面の選択で「詳細を見て確認待ち」のuid
   let actingUid = null;    // いま行動している(振る)モンスター
+  // 配布・ドロー演出の間だけ手札の表示枚数を絞る(nullなら全部出す)
+  let handLimit = null;
+  let foeHandLimit = null;
   let skipNow = null;      // 演出の早送り
   let skipLayer = null;
   const logLines = [];
@@ -60,6 +63,7 @@ export function createCardBattle(deps) {
     oppKey = opponentKey;
     battle = createBattle({ playerDeck: col.getDeck() || [], opponentKey });
     selected.clear(); pendingPlay = null; pendingPick = null; actingUid = null; busy = false; logLines.length = 0;
+    handLimit = null; foeHandLimit = null;
     els.log.textContent = "";
     els.banner.className = "bt-banner";
     closeStage();
@@ -207,7 +211,7 @@ export function createCardBattle(deps) {
     els.foeSt.textContent = `山札${s.foe.deckCount} / トラッシュ${s.foe.trashCount}`;
     els.youSt.textContent = `山札${s.you.deckCount} / トラッシュ${s.you.trashCount}`;
     els.turn.textContent = `${s.turn}ターン目`;
-    renderFoeHand(s.foe.handCount);
+    renderFoeHand(foeHandLimit == null ? s.foe.handCount : foeHandLimit);
     for (const [el2, n] of [[els.youTrash, s.you.trashCount], [els.foeTrash, s.foe.trashCount]]) {
       el2.querySelector(".n").textContent = n;
       el2.classList.toggle("empty", n === 0);
@@ -258,7 +262,8 @@ export function createCardBattle(deps) {
     const q = s.prompt;
     const pickable = new Set(q && (q.kind === "playMonster" || q.kind === "useEvent") ? q.options : []);
     els.hand.innerHTML = "";
-    for (const c of s.you.hand) {
+    const shown = handLimit == null ? s.you.hand : s.you.hand.slice(0, handLimit);
+    for (const c of shown) {
       const mini = renderCard(CARDS[c.id], c.id, { mini: true });
       mini.dataset.uid = c.uid;
       if (pickable.size) mini.classList.add(pickable.has(c.uid) ? "pick" : "dim");
@@ -667,20 +672,34 @@ export function createCardBattle(deps) {
 
       case "draw": {
         sfx("draw");
-        const ms = flyFromDeck(ev.side, ev.n);
+        // 引いたぶんを一旦隠し、スライドが着地したところで手札に現れるようにする
+        const st = battle.state;
+        if (ev.side === "you") { handLimit = Math.max(0, st.you.hand.length - ev.n); renderHand(st); }
+        else { foeHandLimit = Math.max(0, st.foe.handCount - ev.n); renderFoeHand(foeHandLimit); }
+        const ms = flyFromDeck(ev.side, ev.n, 0, () => {
+          if (ev.side === "you") { handLimit++; renderHand(battle.state); }
+          else { foeHandLimit++; renderFoeHand(foeHandLimit); }
+        });
         pushLog(`${who}が${ev.n}枚引いた`);
         await wait(Math.max(DUR.draw, ms));
+        handLimit = null;
+        foeHandLimit = null;
         render();
         return;
       }
 
       case "mulligan": {
-        // 対戦開始: 双方に5枚ずつ配る
+        // 対戦開始: 手札を空にしてから、1枚着地するたびに増やしていく
         banner("カードを配ります", "お互い5枚");
+        handLimit = 0;
+        foeHandLimit = 0;
+        render();
         sfx("draw");
-        const a = flyFromDeck("foe", 5, 0);
-        const b = flyFromDeck("you", 5, 130); // 交互に配って1枚ずつ見えるように
+        const a = flyFromDeck("foe", 5, 0, () => { foeHandLimit++; renderFoeHand(foeHandLimit); sfx("draw"); });
+        const b = flyFromDeck("you", 5, 130, () => { handLimit++; renderHand(battle.state); });
         await wait(Math.max(a, b) + 250);
+        handLimit = null;
+        foeHandLimit = null;
         render();
         return;
       }
@@ -775,7 +794,7 @@ export function createCardBattle(deps) {
    * 山札の一番上からカードが1枚ずつスライドして抜け、手札へ滑り込む演出。
    * @returns 全部終わるまでの時間(ms)
    */
-  function flyFromDeck(side, n, offset = 0) {
+  function flyFromDeck(side, n, offset = 0, onLand) {
     const deck = side === "you" ? els.youDeck : els.foeDeck;
     const target = side === "you" ? els.hand : els.foeHand;
     const dr = deck.getBoundingClientRect();
@@ -806,7 +825,7 @@ export function createCardBattle(deps) {
           g.style.transition = `transform ${move}ms cubic-bezier(.4,0,.3,1), opacity ${move}ms ease-in`;
           g.style.transform = `translate(${dx}px, ${dy}px) scale(.82)`;
           g.style.opacity = "0.2";
-          setTimeout(() => g.remove(), move + 30);
+          setTimeout(() => { g.remove(); if (onLand) onLand(); }, move + 30);
         }, slide);
       }, offset + i * step);
     }
