@@ -87,8 +87,9 @@
   }
   #chat-toggle { display: none; }
   @media (max-width: 760px) {
-    /* 仮想スティック(左下24〜144px)と被らないよう上へ。畳んだ状態がデフォルト */
-    #controls { bottom: 156px; width: min(340px, 78vw); }
+    /* 仮想スティック(左下24〜144px)とスパンキングボタン(右下76〜196px)を避けて上へ。
+       畳んだ状態がデフォルト */
+    #controls { bottom: 206px; width: min(340px, 78vw); }
     #chat-toggle {
       display: block; align-self: flex-start; width: 44px; height: 44px;
       border: 1px solid rgba(255,255,255,.3); border-radius: 50%;
@@ -243,6 +244,27 @@
   }
   #settings-btn { right: 68px; font-size: 19px; }
   #zukan-btn { right: 120px; font-size: 19px; }
+  /* スパンキングボタン(スマホのみ): 照準位置=画面中央をクリック扱いにする。
+     設定ボタン(44px)の約3倍・左下の仮想スティック(120px)と左右対称のサイズ */
+  #spank-btn {
+    position: fixed; right: 20px; bottom: 76px; z-index: 9;
+    display: none; width: 120px; height: 120px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.45);
+    background: radial-gradient(circle at 38% 32%, rgba(255,120,170,.55), rgba(220,30,90,.5));
+    color: #fff; font-size: 46px; font-family: inherit; cursor: pointer;
+    text-shadow: 0 2px 6px rgba(0,0,0,.6); touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #spank-btn.show { display: block; }
+  #spank-btn:active { transform: scale(.92); background: radial-gradient(circle at 38% 32%, rgba(255,160,200,.8), rgba(255,60,120,.7)); }
+  /* 神様モード用の照準(FPSの照準はfpscontrols側が出す) */
+  #aim-dot {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 18px; height: 18px; border-radius: 50%; z-index: 8;
+    border: 2px solid rgba(255,255,255,.75); box-shadow: 0 0 6px rgba(0,0,0,.6);
+    pointer-events: none; display: none;
+  }
+  #aim-dot.show { display: block; }
   #help-overlay, #settings-overlay, #zukan-overlay {
     position: fixed; inset: 0; z-index: 25; display: none;
     align-items: center; justify-content: center; padding: 20px;
@@ -315,7 +337,8 @@
     <p id="mode-god-hint">神様モードはFPSモードをクリアすると解禁</p>
     <div id="start-hint">
       <b>PC:</b> W・S 前後 / A・D 左右 / 矢印キーかドラッグで視点 / Space か クリックで叩く<br>
-      <b>スマホ:</b> 左スティックで移動・回転 / スワイプで視線 / タップで叩く<br>
+      <b>スマホ:</b> 左スティックで移動・回転 / スワイプで視線 / タップか右下の👋ボタンで叩く<br>
+      👋ボタンとSpaceキーは<b>照準(画面中央)</b>を叩きます。神様モードでも使えます。<br>
       対象には<b>近づかないと</b>叩けません。照準が赤くなったらチャンス!
     </div>
   </div>
@@ -329,6 +352,8 @@
     <div id="equip-line">🖐 <span id="equip-name">素手</span>(+<span id="equip-pts">5</span>pt)</div>
   </div>
   <div id="toast-area"></div>
+  <div id="aim-dot"></div>
+  <button id="spank-btn" title="スパンキング">👋</button>
   <button id="zukan-btn" title="ずかん">📖</button>
   <button id="settings-btn" title="せってい">⚙️</button>
   <button id="help-btn" title="あそびかた">?</button>
@@ -336,7 +361,8 @@
     <div id="help-card">
       <h3>あそびかた</h3>
       <b>PC:</b> W・S 前後 / A・D 左右 / 矢印キーかドラッグで視点 / Space か クリックで叩く<br>
-      <b>スマホ:</b> 左スティックで移動・回転 / スワイプで視線 / タップで叩く<br>
+      <b>スマホ:</b> 左スティックで移動・回転 / スワイプで視線 / タップか右下の👋ボタンで叩く<br>
+      👋ボタンとSpaceキーは<b>照準(画面中央)</b>を叩きます。神様モードでも使えます。<br>
       対象には<b>近づかないと</b>叩けません。照準が赤くなったらチャンス!<br>
       おじさんのお尻を叩いてポイントを貯めよう。部屋のいろんな場所も探ってみて。
       <div class="close-note">画面のどこかをタップで閉じる</div>
@@ -346,7 +372,7 @@
   <div id="hoshi-bubble"></div>
   <div id="carrie-bubble"></div>
   <div id="stage-flash"></div>
-  <div id="fever-banner">🕺 FEVER TIME! ×2 <span class="fever-sec" id="fever-sec">15</span></div>
+  <div id="fever-banner">🕺 FEVER TIME! ×3 <span class="fever-sec" id="fever-sec">15</span></div>
   <div id="controls">
     <button id="chat-toggle" title="おじさんに質問">💬</button>
     <div id="chat-row">

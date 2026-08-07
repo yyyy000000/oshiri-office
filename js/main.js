@@ -83,20 +83,31 @@ const carrieBubble = document.getElementById("carrie-bubble");
 let bubbleTimer = 0;
 let hoshiBubbleTimer = 0;
 let carrieBubbleTimer = 0;
-function say(text, ms = 3500) {
+// 発言クールダウン: おじさん/キャリーちゃん/星は、前の発言から15タップ以上経たないと
+// 次のひとことを言わない(3者それぞれ独立カウンタ)。喋りすぎ防止。
+// 解禁告知・ステージ・エンディング等の重要な発言はクールダウンで潰さないが、
+// 発言した時刻は記録するので、直後の雑談は自然に後ろへずれる。
+const SPEAK_COOLDOWN_TAPS = 15;
+let tapCount = 0;
+const lastSpeakTap = { ojisan: -999, hoshi: -999, carrie: -999 };
+function canSpeak(who) { return tapCount - lastSpeakTap[who] >= SPEAK_COOLDOWN_TAPS; }
+function say(text, ms = 5000) {
+  lastSpeakTap.ojisan = tapCount;
   bubble.textContent = text;
   bubble.style.display = "block";
   clearTimeout(bubbleTimer);
   bubbleTimer = setTimeout(() => (bubble.style.display = "none"), ms);
   ojisan.startTalk(Math.min(ms, 2200));
 }
-function sayHoshi(text, ms = 3000) {
+function sayHoshi(text, ms = 5000) {
+  lastSpeakTap.hoshi = tapCount;
   hoshiBubble.textContent = text;
   hoshiBubble.style.display = "block";
   clearTimeout(hoshiBubbleTimer);
   hoshiBubbleTimer = setTimeout(() => (hoshiBubble.style.display = "none"), ms);
 }
-function sayCarrie(text, ms = 2400) {
+function sayCarrie(text, ms = 4000) {
+  lastSpeakTap.carrie = tapCount;
   carrieBubble.textContent = text;
   carrieBubble.style.display = "block";
   clearTimeout(carrieBubbleTimer);
@@ -149,7 +160,7 @@ function sendChat() {
   const text = chatInput.value.trim();
   if (!text || ending) return;
   chatInput.value = "";
-  say(getReply(text), 4200);
+  say(getReply(text), 7000);
 }
 chatSend.addEventListener("click", sendChat);
 // Enter送信はしない(漢字変換の確定Enterで誤送信するため、送信は送信ボタンのみ)
@@ -410,7 +421,7 @@ function checkUnlocks(announce) {
       if (announce) {
         playDropSound();
         toast(`🎁 ${it.name} が降ってきた!(+${it.points}pt)`);
-        say("おっ、なんか降ってきたぞ!?嫌な予感しかせんのう…", 3000);
+        say("おっ、なんか降ってきたぞ!?嫌な予感しかせんのう…", 4500);
       }
     }
   }
@@ -421,7 +432,7 @@ function checkUnlocks(announce) {
       if (announce) {
         playDropSound();
         toast(`👗 ${c.name} が降ってきた!クリックで着せ替え`);
-        say("なんか可愛いのが落ちてきたが…まさかワシが着るんか?", 3200);
+        say("なんか可愛いのが落ちてきたが…まさかワシが着るんか?", 4500);
       }
     }
   }
@@ -470,7 +481,7 @@ function checkPetUnlocks(announce) {
     if (announce) {
       playDropSound();
       toast("🧸 隠し衣装『クマの着ぐるみ』がハンガーに出現!");
-      say("おお!?クマ君とおそろいの服が出てきたぞ!", 3500);
+      say("おお!?クマ君とおそろいの服が出てきたぞ!", 5000);
     }
   }
   if (petCount >= 1000 && !dropped.has("cos:gold")) {
@@ -482,7 +493,7 @@ function checkPetUnlocks(announce) {
       playDropSound();
       toast("👑 隠し衣装『黄金スーツ』がハンガーに出現!");
       toast("🐾 最強アイテム『もふもふクマパンチ』が棚に出現!(+3000pt)");
-      say("な、なんじゃこの黄金のオーラは…!クマ君、おぬし何者じゃ!?", 4500);
+      say("な、なんじゃこの黄金のオーラは…!クマ君、おぬし何者じゃ!?", 6000);
     }
   }
 }
@@ -528,27 +539,27 @@ items.setWornCostume("suit");
 
 // ---------- 部屋オブジェクトのクリックギミック ----------
 const CLICK_UNLOCKS = {
-  trash:  { count: 50,  kind: "item",    id: "newspaper",  name: "丸めた新聞紙",
+  trash:  { count: 30,  kind: "item",    id: "newspaper",  name: "丸めた新聞紙",
             line: "ゴミ箱から新聞紙!?昭和のしつけ道具じゃないか…" },
-  boxes:  { count: 100, kind: "costume", id: "boxrobo",    name: "段ボールロボ",
+  boxes:  { count: 60,  kind: "costume", id: "boxrobo",    name: "段ボールロボ",
             line: "段ボールから服が…ワシ、ロボになるんか?" },
-  locker: { count: 50,  kind: "costume", id: "tuxedo",     name: "タキシード",
+  locker: { count: 30,  kind: "costume", id: "tuxedo",     name: "タキシード",
             line: "ロッカーにタキシード…誰のじゃ?まあ、着るがの。" },
-  fridge: { count: 150, kind: "costume", id: "penguin",    name: "ペンギンの着ぐるみ",
+  fridge: { count: 90,  kind: "costume", id: "penguin",    name: "ペンギンの着ぐるみ",
             line: "冷蔵庫からペンギン服…ひんやりしとるのう!" },
-  muscle: { count: 500, kind: "item",    id: "machinegun", name: "マシンガン",
+  muscle: { count: 250, kind: "item",    id: "machinegun", name: "マシンガン",
             line: "ちょ、キャリーちゃん!?それはやりすぎじゃろ!!" },
-  umbrella: { count: 100, kind: "item",  id: "kasa",       name: "ビニール傘",
+  umbrella: { count: 60,  kind: "item",  id: "kasa",       name: "ビニール傘",
             line: "その傘、誰のか知らんが…借りるんかの?ワシを叩くのに?" },
-  safe:   { count: 200, kind: "item",    id: "duck",       name: "金庫のラバーダック",
+  safe:   { count: 120, kind: "item",    id: "duck",       name: "金庫のラバーダック",
             line: "き、金庫の中身はアヒルじゃったんか…!ワシも知らんかったわい!" },
-  musicposter: { count: 30, kind: "bgm", id: "android",    name: "ぴっちぴち・アンドロイド",
+  musicposter: { count: 20, kind: "bgm", id: "android",    name: "ぴっちぴち・アンドロイド",
             line: "おっ、このアーティストの曲が聴きたくなってきたのう。" },
   // レコードの山は2段階解禁(配列は多段階解禁として扱われる)。To the zooは星300クリック
   records: [
-    { count: 80,  kind: "bgm", id: "gedatsu", name: "解脱",
+    { count: 50,  kind: "bgm", id: "gedatsu", name: "解脱",
       line: "このレコード…なんだか心が無になりそうじゃ…。" },
-    { count: 200, kind: "bgm", id: "alice",   name: "Alice fell down",
+    { count: 120, kind: "bgm", id: "alice",   name: "Alice fell down",
       line: "ほう、不思議な曲が出てきたのう。誰の落とし物じゃ?" },
   ],
 };
@@ -602,14 +613,14 @@ function checkClickUnlocks(announce) {
           if (announce) {
             playDropSound();
             toast(`🎵 新しいBGM『${cfg.name}』を獲得!レコードプレイヤーで切替できます`);
-            say(cfg.line, 3800);
+            say(cfg.line, 5500);
           }
         } else {
           items.spawn(cfg.kind, cfg.id);
           if (announce) {
             playDropSound();
             toast(`${cfg.kind === "item" ? "🎁" : "👗"} 隠し${cfg.kind === "item" ? "アイテム" : "衣装"}『${cfg.name}』が出現!`);
-            say(cfg.line, 3800);
+            say(cfg.line, 5500);
           }
         }
       }
@@ -633,7 +644,7 @@ function onObjectClick(clickId) {
   clicks[clickId] = (clicks[clickId] || 0) + 1;
   saveClicks();
   office.react(clickId);
-  if (clickId === "muscle" && Math.random() < 0.2) {
+  if (clickId === "muscle" && Math.random() < 0.2 && canSpeak("carrie")) {
     sayCarrie(CARRIE_LINES[Math.floor(Math.random() * CARRIE_LINES.length)]);
   }
   if (clickId === "player") {
@@ -735,7 +746,7 @@ function checkHoshiUnlocks(announce) {
     if (announce) {
       playDropSound();
       toast("🎵 新しいBGM『To the zoo』を獲得!レコードプレイヤーで切替できます");
-      sayHoshi("……『To the zoo』やるよ。オレ様の秘蔵コレクションだ。感謝して聴けよな。", 3800);
+      sayHoshi("……『To the zoo』やるよ。オレ様の秘蔵コレクションだ。感謝して聴けよな。", 5500);
     }
   }
   if (n >= 500 && !dropped.has("cos:hoshi")) {
@@ -744,7 +755,7 @@ function checkHoshiUnlocks(announce) {
     if (announce) {
       playDropSound();
       toast("⭐ 隠し衣装『星の着ぐるみ』がハンガーに出現!");
-      sayHoshi("おっさんをオレ様にしてやれ。光栄だろ?That's me!", 3800);
+      sayHoshi("おっさんをオレ様にしてやれ。光栄だろ?That's me!", 5500);
     }
   }
   if (n >= 1000 && !dropped.has("item:starrod")) {
@@ -753,7 +764,7 @@ function checkHoshiUnlocks(announce) {
     if (announce) {
       playDropSound();
       toast("⭐ 隠しアイテム『スターロッド』が棚に出現!(+10000pt)");
-      sayHoshi("オレ様の力、貸してやるよ。F**k yeah!", 3600);
+      sayHoshi("オレ様の力、貸してやるよ。F**k yeah!", 5500);
     }
   }
 }
@@ -763,7 +774,7 @@ function onHoshiClick() {
   hoshi.react();
   hoshiSound();
   checkHoshiUnlocks(true);
-  if (Math.random() < 0.2) sayHoshi(hoshiLineOnClick()); // 80%は無言(リアクションのみ)
+  if (Math.random() < 0.2 && canSpeak("hoshi")) sayHoshi(hoshiLineOnClick()); // 80%は無言(リアクションのみ)
   if (clicks.hoshi % 10 === 0) {
     toast(`⭐ 星: ${clicks.hoshi}回目`);
   }
@@ -772,12 +783,14 @@ checkHoshiUnlocks(false); // 保存済みクリック数ぶんを起動時に復
 
 // ---------- フィーバータイム ----------
 // 500pt以降、前回終了から2分経過後に毎秒約1/70の確率で発動(平均3〜4分に1回)。
-// 15秒間ポイント2倍+ミラーボール+フィーバー曲+おじさんはパターン移動(5種からランダム)
+// 15秒間ポイント3倍+ミラーボール+フィーバー曲+おじさんはパターン移動(5種からランダム)
 const feverBanner = document.getElementById("fever-banner");
 const feverSecEl = document.getElementById("fever-sec");
 const slapCounterBox = document.getElementById("slap-counter");
 const FEVER_DURATION = 15;
-const FEVER_COOLDOWN = 120;
+const FEVER_COOLDOWN = 75;   // この秒数は絶対に発生しない
+const FEVER_MULT = 3;        // フィーバー中のポイント倍率
+const FEVER_MEAN_WAIT = 45;  // クールダウン明けからの平均待ち秒数(合計で平均2分に1回)
 let feverActive = false;
 let feverEndsAt = 0;
 let lastFeverEnd = 0;
@@ -804,7 +817,7 @@ function startFeverTime(pattern) {
   hoshi.setProgress(1);
   feverBanner.classList.add("show");
   slapCounterBox.classList.add("fever");
-  say(FEVER_START_LINES[Math.floor(Math.random() * FEVER_START_LINES.length)], 3000);
+  say(FEVER_START_LINES[Math.floor(Math.random() * FEVER_START_LINES.length)], 4500);
 }
 function endFeverTime(silent) {
   if (!feverActive) return;
@@ -819,7 +832,7 @@ function endFeverTime(silent) {
   slapCounterBox.classList.remove("fever");
   if (!silent) {
     toast(`🕺 フィーバー終了! +${(points - feverStartPoints).toLocaleString()}pt`);
-    say(FEVER_END_LINES[Math.floor(Math.random() * FEVER_END_LINES.length)], 3000);
+    say(FEVER_END_LINES[Math.floor(Math.random() * FEVER_END_LINES.length)], 4500);
   }
 }
 function updateFever(dt) {
@@ -833,7 +846,7 @@ function updateFever(dt) {
   } else if (
     points >= 500 && points < TOTAL_POINTS &&
     clock.elapsedTime - lastFeverEnd > FEVER_COOLDOWN &&
-    Math.random() < dt / 70
+    Math.random() < dt / FEVER_MEAN_WAIT
   ) {
     startFeverTime();
   }
@@ -862,6 +875,7 @@ document.addEventListener("click", unlockAudio);
 // クリック/タップ/Shiftキー共通のゲーム内クリック処理(cssX/cssYはCSSピクセル座標)
 function handleGameClick(cssX, cssY) {
   if (!gameMode || ending) return; // スタート画面中は無効
+  tapCount++; // 発言クールダウン用(叩く・撫でる・オブジェクトクリック・空振り すべて1タップ)
   pointer.set((cssX / innerWidth) * 2 - 1, -(cssY / innerHeight) * 2 + 1);
   raycaster.setFromCamera(pointer, camera);
   // FPSモードは目の前まで近づかないとクリックできない
@@ -904,7 +918,7 @@ function handleGameClick(cssX, cssY) {
       items.setWornCostume(next);
       const def = COSTUMES.find((c) => c.id === next);
       toast(`👔 ${def ? def.name : next} にお着替え!`);
-      say(next === "suit" ? "ふう、やっぱりスーツが落ち着くわい。" : "は、恥ずかしいのう…似合っとるか?", 3000);
+      say(next === "suit" ? "ふう、やっぱりスーツが落ち着くわい。" : "は、恥ずかしいのう…似合っとるか?", 4500);
       return;
     }
   }
@@ -915,11 +929,11 @@ function handleGameClick(cssX, cssY) {
 
   slapCount++;
   if (equipped.id !== "hand") onlyHandUsed = false;
-  points = Math.min(points + equipped.points * (feverActive ? 2 : 1), TOTAL_POINTS);
+  points = Math.min(points + equipped.points * (feverActive ? FEVER_MULT : 1), TOTAL_POINTS);
   slapper.swing(equipped.id, hits[0].point, camera.position);
   ojisan.slap();
   playItemSound(equipped.sound);
-  const voiceLine = maybeSlapVoice(ojisan.getCostume(), points / TOTAL_POINTS);
+  const voiceLine = canSpeak("ojisan") ? maybeSlapVoice(ojisan.getCostume(), points / TOTAL_POINTS) : null;
   if (voiceLine) say(voiceLine, 15000);
   applyProgress();
   checkUnlocks(true);
@@ -940,27 +954,41 @@ function handleGameClick(cssX, cssY) {
   if (newStage !== stage) {
     stage = newStage;
     flashStage();
-    say(getStageLine(stage), 4200);
-  } else if (slapCount % 5 === 0) {
-    say(getSlapLine(slapCount), 2600);
+    say(getStageLine(stage), 6500);
+  } else if (slapCount % 5 === 0 && canSpeak("ojisan")) {
+    say(getSlapLine(slapCount), 5000);
   }
 }
 renderer.domElement.addEventListener("pointerup", (e) => {
   if (!downPos || Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]) > 6) return;
   handleGameClick(e.clientX, e.clientY);
 });
-// PC(FPSモード): Spaceキーで画面中央(照準)をクリック。押しっぱなしの連射は無効
+// 画面中央(照準)をクリック扱いにする。FPS・神様モードの両方で使える
+function overlayOpen() {
+  return helpOverlay.classList.contains("show") ||
+    document.getElementById("settings-overlay").classList.contains("show") ||
+    document.getElementById("zukan-overlay").classList.contains("show");
+}
+function clickAtCrosshair() {
+  if (!gameMode || ending || overlayOpen()) return;
+  handleGameClick(innerWidth / 2, innerHeight / 2);
+}
+// PC: Spaceキー。押しっぱなしの連射は無効
 window.addEventListener("keydown", (e) => {
   if (e.code !== "Space" || e.repeat) return;
-  if (gameMode !== "fps") return;
-  if (helpOverlay.classList.contains("show") ||
-      document.getElementById("settings-overlay").classList.contains("show") ||
-      document.getElementById("zukan-overlay").classList.contains("show")) return;
   const el = document.activeElement;
   if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
   e.preventDefault();
-  handleGameClick(innerWidth / 2, innerHeight / 2);
+  clickAtCrosshair();
 });
+// スマホ: スパンキングボタン(画面右下の大きいボタン)。連打できるようpointerdownで反応
+const spankBtn = document.getElementById("spank-btn");
+const aimDot = document.getElementById("aim-dot");
+spankBtn.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  clickAtCrosshair();
+});
+spankBtn.addEventListener("contextmenu", (e) => e.preventDefault());
 
 // ---------- エンディング ----------
 const endingEl = document.getElementById("ending");
@@ -1000,6 +1028,8 @@ function startEnding() {
     localStorage.setItem("oshiri_god", "1"); // FPSモードクリアで神様モード解禁
     fps.disable(); // エンディングはシネマティックカメラに切替
   }
+  spankBtn.classList.remove("show");
+  aimDot.classList.remove("show");
   slapCountEl.textContent = TOTAL_POINTS.toLocaleString();
   slapBarFill.style.width = "100%";
   flashStage();
@@ -1166,8 +1196,11 @@ function beginGame(mode) {
     fps.enable();
   } else {
     controls.enabled = true;
+    aimDot.classList.add("show"); // 神様モードにも照準を出す(Space/スパンキングボタン用)
   }
-  say("おお、いらっしゃい。散らかっとるが、まあゆっくりしていきなさい。", 4500);
+  // スパンキングボタンはタッチ端末のみ。FPS・神様モードの両方で使える
+  if ("ontouchstart" in window) spankBtn.classList.add("show");
+  say("おお、いらっしゃい。散らかっとるが、まあゆっくりしていきなさい。", 6000);
 }
 // ヘルプ(操作説明のオーバーレイ)
 const helpOverlay = document.getElementById("help-overlay");
