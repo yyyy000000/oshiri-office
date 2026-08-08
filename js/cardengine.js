@@ -75,6 +75,8 @@ export function makeRng(seed) {
 // ---------------------------------------------------------------------------
 
 export const MAX_TURNS = 200; // 打ち切り(引き分け)
+export const INITIAL_HAND = 4; // 初期手札
+export const HAND_MAX = 7;     // 手札の上限。ターン終了時に超過分をトラッシュへ
 export const MAX_ROLLS_PER_TURN = 10; // 「もう一度振る」連鎖のフェイルセーフ
 const MAX_LOG = 300;
 
@@ -961,7 +963,13 @@ function* takeTurn(g, p, opp) {
   const res = yield* playPhase(g, p); // ②③
   if (res === 'lose') return 'lose';
   yield* rollPhase(g, p, opp); // ④
-  emit(g, { t: 'turnEnd', side: p.side }); // ⑤
+  // ⑤ ターン終了: 手札が上限を超えていたら、古いものからトラッシュへ
+  while (p.hand.length > HAND_MAX) {
+    const c = p.hand.shift();
+    p.trash.push(c);
+    emit(g, { t: 'discard', side: p.side, uid: c.uid, id: c.def.id, cause: 'handMax' });
+  }
+  emit(g, { t: 'turnEnd', side: p.side });
   return null;
 }
 
@@ -972,13 +980,13 @@ function* takeTurn(g, p, opp) {
 function* gameFlow(g) {
   const players = [g.you, g.foe];
 
-  // 初期手札5枚。モンスターが1枚も無ければ引き直し (最大5回)
+  // 初期手札。モンスターが1枚も無ければ引き直し (最大5回)
   for (const p of players) {
     for (let attempt = 0; attempt < 6; attempt++) {
       p.deck = p.deck.concat(p.hand);
       p.hand = [];
       g.rng.shuffle(p.deck);
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < INITIAL_HAND; i++) {
         if (!p.deck.length) break;
         p.hand.push(p.deck.pop());
       }

@@ -8,7 +8,7 @@
 //  - 出目のテキストは中央のバナーに大きく出す(ログを読まなくても分かるように)
 //  - 演出中に画面をタップすると早送りできる
 import { CARDS, OPPONENTS } from "./carddata.js";
-import { createBattle } from "./cardengine.js";
+import { createBattle, INITIAL_HAND } from "./cardengine.js";
 import { renderCard } from "./cards.js";
 import * as col from "./collection.js";
 
@@ -830,7 +830,9 @@ export function createCardBattle(deps) {
           foeHandLimit = Math.max(0, foeHandLimit - 1);
           renderFoeHand(foeHandLimit);
         }
-        banner(`🗑 ${who}の手札から <b>${nameOf(ev.id)}</b> がトラッシュへ`);
+        banner(ev.cause === "handMax"
+          ? `🗑 手札が多いので <b>${nameOf(ev.id)}</b> をトラッシュへ`
+          : `🗑 ${who}の手札から <b>${nameOf(ev.id)}</b> がトラッシュへ`);
         pushLog(`${who}の手札から${nameOf(ev.id)}が落ちた`);
         await wait(DUR.discard);
         return;
@@ -858,13 +860,13 @@ export function createCardBattle(deps) {
 
       case "mulligan": {
         // 対戦開始: 手札を空にしてから、1枚着地するたびに増やしていく
-        banner("カードを配ります", "お互い5枚");
+        banner("カードを配ります", `お互い${INITIAL_HAND}枚`);
         handLimit = 0;
         foeHandLimit = 0;
         render();
         sfx("draw");
-        const a = flyFromDeck("foe", 5, 0, () => { foeHandLimit++; renderFoeHand(foeHandLimit); sfx("draw"); });
-        const b = flyFromDeck("you", 5, 130, () => { handLimit++; renderHand(battle.state); });
+        const a = flyFromDeck("foe", INITIAL_HAND, 0, () => { foeHandLimit++; renderFoeHand(foeHandLimit); sfx("draw"); });
+        const b = flyFromDeck("you", INITIAL_HAND, 130, () => { handLimit++; renderHand(battle.state); });
         await wait(Math.max(a, b) + 250);
         return;
       }
