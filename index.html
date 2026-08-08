@@ -871,6 +871,15 @@
   .bt-result h2 { font-size: 32px; letter-spacing: 4px; animation: btTurn .8s ease-out; }
   .bt-result .sub { font-size: 13px; opacity: .82; }
   .bt-rewards { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  /* 報酬カードの確認表示(画面に収まるよう縮める) */
+  .bt-rewardbig {
+    display: flex; align-items: center; justify-content: center;
+    max-height: 62vh; overflow: hidden;
+  }
+  .bt-rewardbig .pcard { transform: scale(min(1, 0.9)); transform-origin: center; }
+  @media (max-height: 800px) { .bt-rewardbig .pcard { transform: scale(.78); margin: -55px 0; } }
+  @media (max-height: 660px) { .bt-rewardbig .pcard { transform: scale(.62); margin: -95px 0; } }
+  .bt-rewardbtns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
   .bt-rewards .pcard-mini { cursor: pointer; transition: transform .14s; }
   .bt-rewards .pcard-mini:hover { transform: translateY(-8px); box-shadow: 0 0 0 2px #ffd76e; }
 

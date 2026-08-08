@@ -919,23 +919,48 @@ export function createCardBattle(deps) {
   }
 
   function showReward(key) {
-    const box = el(`<div class="bt-result"><h2 style="color:#ffd76e">勝利報酬</h2><div class="sub">好きなカードを1枚選んでください</div></div>`);
-    const row = el(`<div class="bt-rewards"></div>`);
-    for (const id of col.rewardChoices(key)) {
-      const card = renderCard(CARDS[id], id, { mini: true });
-      card.title = CARDS[id].name;
-      card.addEventListener("click", () => {
+    const box = el(`<div class="bt-result"></div>`);
+    overlay.classList.add("show");
+    overlay.appendChild(box);
+
+    // 一覧から1枚選ぶ → 大きく表示して確認 → 決定
+    const pickList = () => {
+      box.innerHTML = "";
+      box.appendChild(el(`<h2 style="color:#ffd76e">勝利報酬</h2>`));
+      box.appendChild(el(`<div class="sub">好きなカードを1枚選んでください(タップすると大きく見られます)</div>`));
+      const row = el(`<div class="bt-rewards"></div>`);
+      for (const id of col.rewardChoices(key)) {
+        const card = renderCard(CARDS[id], id, { mini: true });
+        card.title = CARDS[id].name;
+        card.addEventListener("click", () => confirmOne(id));
+        row.appendChild(card);
+      }
+      box.appendChild(row);
+    };
+
+    const confirmOne = (id) => {
+      box.innerHTML = "";
+      box.appendChild(el(`<div class="sub">このカードを受け取りますか?</div>`));
+      const holder = el(`<div class="bt-rewardbig"></div>`);
+      holder.appendChild(renderCard(CARDS[id], id));
+      box.appendChild(holder);
+      const btns = el(`<div class="bt-rewardbtns"></div>`);
+      const ok = el(`<button class="bt-act big">これで決定</button>`);
+      ok.addEventListener("click", () => {
         col.grantReward(id);
         deps.toast(`🎴 ${CARDS[id].name} を手に入れた!`);
         box.remove();
         overlay.classList.remove("show");
         if (deps.onFinish) deps.onFinish("you");
       });
-      row.appendChild(card);
-    }
-    box.appendChild(row);
-    overlay.classList.add("show");
-    overlay.appendChild(box);
+      const re = el(`<button class="bt-act ghost">選び直す</button>`);
+      re.addEventListener("click", pickList);
+      btns.appendChild(ok);
+      btns.appendChild(re);
+      box.appendChild(btns);
+    };
+
+    pickList();
   }
 
   // トラッシュの中身を一覧表示(カードをタップすると詳細)
