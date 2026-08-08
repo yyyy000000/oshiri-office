@@ -830,9 +830,7 @@ export function createCardBattle(deps) {
           foeHandLimit = Math.max(0, foeHandLimit - 1);
           renderFoeHand(foeHandLimit);
         }
-        banner(ev.cause === "handMax"
-          ? `🗑 手札が多いので <b>${nameOf(ev.id)}</b> をトラッシュへ`
-          : `🗑 ${who}の手札から <b>${nameOf(ev.id)}</b> がトラッシュへ`);
+        banner(`🗑 ${who}の手札から <b>${nameOf(ev.id)}</b> がトラッシュへ`);
         pushLog(`${who}の手札から${nameOf(ev.id)}が落ちた`);
         await wait(DUR.discard);
         return;
