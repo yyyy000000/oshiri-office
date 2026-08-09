@@ -67,20 +67,20 @@ export function createHellShop(deps) {
     const menu = el(`<div class="hell-menu"></div>`);
     const unlocked = col.unlocked();
 
-    const buy = el(`<button class="hell-btn">🛒 パックを買う<small>カードを手に入れる</small></button>`);
+    const buy = el(`<button class="hell-btn">🛒 パックを買う<small>${col.starterAvailable() ? "スターターパックは無料" : "カードを手に入れる"}</small></button>`);
     buy.addEventListener("click", screenShop);
     menu.appendChild(buy);
 
     const build = el(
       `<button class="hell-btn" ${unlocked ? "" : "disabled"}>🗂 デッキ構築` +
-      `<small>${unlocked ? "モンスター5枚+イベント10枚を組む" : "スターターパックを買うと使えます"}</small></button>`
+      `<small>${unlocked ? "モンスター5枚+イベント10枚を組む" : "無料のスターターパックを受け取ると使えます"}</small></button>`
     );
     build.addEventListener("click", screenDeck);
     menu.appendChild(build);
 
     const fight = el(
       `<button class="hell-btn" ${unlocked ? "" : "disabled"}>⚔️ 対戦する` +
-      `<small>${unlocked ? "5人の相手から選ぶ" : "スターターパックを買うと使えます"}</small></button>`
+      `<small>${unlocked ? "5人の相手から選ぶ" : "無料のスターターパックを受け取ると使えます"}</small></button>`
     );
     fight.addEventListener("click", screenOpponents);
     menu.appendChild(fight);
@@ -102,7 +102,7 @@ export function createHellShop(deps) {
       `<button class="hell-btn" ${sold || !afford ? "disabled" : ""}>` +
       `<span>${p.name}<small>${p.sub} — ${p.desc}</small></span>` +
       `<span class="hell-cost ${afford ? "" : "short"}">` +
-      `${sold ? "購入済み" : price.toLocaleString() + " pt"}</span></button>`
+      `${sold ? "受取済み" : price > 0 ? price.toLocaleString() + " pt" : "むりょう"}</span></button>`
     );
     if (!sold && afford) b.addEventListener("click", () => doBuy(kind));
     return b;
@@ -152,7 +152,8 @@ export function createHellShop(deps) {
   function screenOpened(res, before) {
     refreshPoints();
     const line = el(
-      `<div class="hell-line">${pick(LINES.bought)} <b>−${res.cost.toLocaleString()} pt</b></div>`
+      `<div class="hell-line">${pick(LINES.bought)}` +
+      (res.cost > 0 ? ` <b>−${res.cost.toLocaleString()} pt</b>` : " <b>むりょう</b>") + `</div>`
     );
     const seen = { ...before };
     let wrap;

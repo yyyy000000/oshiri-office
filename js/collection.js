@@ -23,8 +23,8 @@ let misc = Object.assign({ starterBought: false, pity: 0 }, load(KEY_MISC, {}));
 export const PACKS = {
   starter: {
     id: "starter", name: "スターターパック", sub: "デッキ1個ぶん・15枚",
-    price: 5000, once: true,
-    desc: "対戦に必要な15枚が入った基本デッキ。<b>生涯1回だけ</b>購入できる。",
+    price: 0, once: true, // 無料。カードゲームの入り口なので、ポイント0でも始められる
+    desc: "対戦に必要な15枚が入った基本デッキ。<b>無料・生涯1回だけ</b>受け取れる。",
   },
   normal: {
     id: "normal", name: "夜明けのお尻", sub: "ノーマルブースター・3枚",
