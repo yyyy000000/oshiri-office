@@ -4,6 +4,7 @@
 import { CARDS, OPPONENTS } from "./carddata.js";
 import { renderCard } from "./cards.js";
 import * as col from "./collection.js";
+import { playPackOpen } from "./packfx.js";
 
 // HELL 9000のひとこと(機械的で、微妙に脅してくる)
 const LINES = {
@@ -122,9 +123,30 @@ export function createHellShop(deps) {
     if (deps.getPoints() < price) { deps.toast(pick(LINES.broke)); return; }
     const before = col.ownedAll();
     deps.spendPoints(price);
-    const res = col.openPack(kind);
     if (deps.playSfx) deps.playSfx();
-    screenOpened(res, before);
+    refreshPoints();
+    // 先にポイントだけ引き、抽選は「開ける」を押した瞬間に行う
+    if (kind === "starter") {
+      // スターターは15枚あるので、演出せず一覧で見せる
+      screenOpened(col.openPack(kind), before);
+      return;
+    }
+    screenOpening(kind, before, price);
+  }
+
+  /** 購入したパックを大きく出して開封する */
+  function screenOpening(kind, before, price) {
+    const host = el(`<div></div>`);
+    setBody(el(`<div class="hell-line">${pick(LINES.bought)} <b>−${price.toLocaleString()} pt</b></div>`), host);
+    let res = null;
+    playPackOpen({
+      host,
+      pack: col.PACKS[kind],
+      draw: () => { res = col.openPack(kind); refreshPoints(); return res.cards; },
+      isNew: (id) => !before[id],
+      sfx: (n) => { if (deps.sfx) deps.sfx(n); },
+      onDone: screenShop,
+    });
   }
 
   function screenOpened(res, before) {
@@ -222,9 +244,14 @@ export function createHellShop(deps) {
       const add = () => { if ((draft.get(id) || 0) < col.ownedCount(id)) { draft.set(id, (draft.get(id) || 0) + 1); renderDeck(); } };
       const sub = () => { const c = draft.get(id) || 0; if (c > 0) { draft.set(id, c - 1); renderDeck(); } };
       slot.addEventListener("click", add);
-      slot.addEventListener("contextmenu", (e) => { e.preventDefault(); sub(); });
       let held = 0;
-      slot.addEventListener("pointerdown", () => { held = setTimeout(sub, 450); });
+      // 右クリックは contextmenu で−1する。長押しタイマーも走っていると−2になるので必ず止める
+      slot.addEventListener("contextmenu", (e) => { e.preventDefault(); clearTimeout(held); held = 0; sub(); });
+      // 長押しの−1は左ボタン(またはタッチ)のときだけ
+      slot.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        held = setTimeout(sub, 450);
+      });
       for (const ev2 of ["pointerup", "pointerleave", "pointercancel"])
         slot.addEventListener(ev2, () => clearTimeout(held));
       // 🔍 は枚数を増やさずにカードだけ見せる

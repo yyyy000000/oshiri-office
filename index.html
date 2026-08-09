@@ -281,10 +281,41 @@
   .pcard-mecha  { --frame: #3f86c4; --deep: #0d2338; }
   .pcard-occult { --frame: #8b57c9; --deep: #241038; }
   .pcard-event  { --frame: #b9873f; --deep: #2c1c0c; }
+  /* レアカードは金枠+ホロ。一目でレアと分かるようにする */
   .pcard-rare {
-    box-shadow: 0 6px 26px rgba(0,0,0,.6), inset 0 0 0 2px #ffdf7a,
-                0 0 18px rgba(255,214,110,.45);
+    position: relative;
+    background:
+      linear-gradient(160deg, #fff3bd 0%, #e8b64a 16%, #8a5f14 34%, #ffe9a8 50%,
+                      #8a5f14 66%, #e8b64a 84%, #fff3bd 100%);
+    box-shadow: 0 8px 30px rgba(0,0,0,.7), inset 0 0 0 2px #fff6cf,
+                0 0 26px rgba(255,214,110,.65);
+    animation: rareGlow 2.6s ease-in-out infinite;
   }
+  @keyframes rareGlow {
+    0%, 100% { box-shadow: 0 8px 30px rgba(0,0,0,.7), inset 0 0 0 2px #fff6cf, 0 0 22px rgba(255,214,110,.5); }
+    50%      { box-shadow: 0 8px 30px rgba(0,0,0,.7), inset 0 0 0 2px #fff6cf, 0 0 40px rgba(255,214,110,.95); }
+  }
+  /* 枠の上を斜めに走る虹色のホロ */
+  .pcard-rare::before {
+    content: ""; position: absolute; inset: 0; border-radius: 14px; pointer-events: none; z-index: 4;
+    background: linear-gradient(66deg, transparent 38%, rgba(255,255,255,.55) 46%,
+                rgba(180,240,255,.5) 50%, rgba(255,190,255,.5) 54%, transparent 62%);
+    background-size: 260% 260%;
+    animation: rareHolo 3.4s linear infinite;
+    mix-blend-mode: screen;
+  }
+  @keyframes rareHolo { from { background-position: 130% 0; } to { background-position: -130% 0; } }
+  /* 右上に RARE の箔押し */
+  .pcard-rare::after {
+    content: "RARE"; position: absolute; top: 9px; right: 42px; z-index: 5;
+    padding: 1px 6px; border-radius: 4px; letter-spacing: 2px;
+    font-family: "Hiragino Sans", sans-serif; font-size: 9px; font-weight: bold;
+    color: #3a2600; background: linear-gradient(160deg, #fff3bd, #e8b64a);
+    box-shadow: 0 1px 4px rgba(0,0,0,.55);
+  }
+  .pcard-rare.pcard-mini::after { top: 4px; right: 18px; font-size: 7px; padding: 0 3px; letter-spacing: 1px; }
+  .pcard-rare .pcard-head { box-shadow: inset 0 0 0 1px rgba(255,240,190,.55); }
+  .pcard-rare .pcard-art { box-shadow: 0 0 0 2px rgba(255,240,190,.6); }
   .pcard-head {
     display: flex; align-items: center; justify-content: space-between; gap: 6px;
     padding: 4px 9px; border-radius: 7px;
@@ -479,6 +510,175 @@
   @media (max-width: 760px) {
     #hell-body { padding: 14px 12px; }
     .hell-slot { width: calc(50% - 4px); }
+  }
+
+  /* ===== 対戦後の寄り演出のセリフ(映画の字幕風) ===== */
+  #cine-caption {
+    position: fixed; left: 50%; bottom: 12%; z-index: 27; display: none;
+    transform: translateX(-50%); max-width: min(680px, 88vw); padding: 12px 20px;
+    border-radius: 10px; text-align: center; pointer-events: none;
+    background: rgba(6,10,18,.82); border: 1px solid rgba(255,215,110,.4);
+    color: #fff; font-size: 16px; line-height: 1.6; font-family: "Hiragino Sans", sans-serif;
+    text-shadow: 0 2px 8px rgba(0,0,0,.9);
+  }
+  #cine-caption.show { display: block; animation: cineIn .4s ease-out; }
+  #cine-caption b { display: block; font-size: 12px; letter-spacing: 2px; color: #ffd76e; margin-bottom: 4px; }
+  @keyframes cineIn { from { opacity: 0; transform: translate(-50%, 14px); } }
+
+  /* ===== 対戦開始の乱入演出(ストリートファイター風) ===== */
+  .bt-intro {
+    position: absolute; inset: 0; z-index: 20; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    background: #05070d;
+  }
+  /* 背後を斜めに走る帯 */
+  .bt-intro .band {
+    position: absolute; left: -30%; width: 160%; height: 26%;
+    background: linear-gradient(90deg, #ff2e4d, #ff8a3d);
+    transform: skewY(-9deg); opacity: .9;
+  }
+  .bt-intro .band.b1 { top: 18%; animation: introBand .42s cubic-bezier(.15,.9,.2,1) backwards; }
+  .bt-intro .band.b2 { top: 56%; background: linear-gradient(90deg, #2f7bff, #7a3dff);
+    animation: introBand .42s .07s cubic-bezier(.15,.9,.2,1) backwards; animation-direction: reverse; }
+  @keyframes introBand { from { transform: skewY(-9deg) translateX(-120%); } }
+  .bt-intro .portrait {
+    position: relative; z-index: 2; width: min(340px, 62vw); border-radius: 12px; overflow: hidden;
+    border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(0,0,0,.55), 0 20px 60px rgba(0,0,0,.8);
+    animation: introSlam .38s cubic-bezier(.2,1.5,.35,1) backwards;
+  }
+  .bt-intro .portrait img { display: block; width: 100%; }
+  @keyframes introSlam {
+    from { transform: translateX(38%) scale(1.5) rotate(6deg); opacity: 0; filter: blur(6px); }
+  }
+  .bt-intro .who {
+    position: absolute; z-index: 3; left: 0; right: 0; top: 12%; text-align: center;
+    font-size: clamp(26px, 7vw, 52px); font-weight: bold; letter-spacing: 4px; color: #fff;
+    text-shadow: 0 4px 0 #000, 0 0 24px rgba(255,90,60,.9);
+    animation: introWho .34s .18s cubic-bezier(.2,1.4,.4,1) backwards;
+  }
+  @keyframes introWho { from { transform: translateX(-40%); opacity: 0; } }
+  .bt-intro .vs {
+    position: absolute; z-index: 4; left: 0; right: 0; bottom: 14%; text-align: center;
+    font-size: clamp(30px, 9vw, 74px); font-weight: bold; letter-spacing: 6px;
+    color: #ffe27a; -webkit-text-stroke: 2px #23140a;
+    text-shadow: 0 0 30px rgba(255,180,60,.95);
+    animation: introSlamText .3s cubic-bezier(.2,1.6,.35,1) backwards;
+  }
+  @keyframes introSlamText {
+    from { transform: scale(3.2) rotate(-8deg); opacity: 0; filter: blur(10px); }
+  }
+  .bt-intro .shock {
+    position: absolute; z-index: 5; inset: 0; background: #fff; opacity: 0;
+    animation: introShock .22s ease-out;
+  }
+  @keyframes introShock { from { opacity: .95 } to { opacity: 0 } }
+  .bt-intro.out { animation: introOut .32s ease-in forwards; }
+  @keyframes introOut { to { opacity: 0; transform: scale(1.08); } }
+
+  /* ===== パック開封の演出(購入画面と勝利報酬で共用) ===== */
+  .pk-stage {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 6px 0 14px; text-align: center;
+  }
+  .pk-title { font-size: 20px; font-weight: bold; color: #ffd76e; letter-spacing: 2px; }
+  .pk-sub { font-size: 11px; opacity: .65; margin-bottom: 6px; }
+  .pk-holder { position: relative; min-height: 230px; display: flex; align-items: center; justify-content: center; }
+  /* --- パック本体 --- */
+  .pk-pack {
+    position: relative; width: 168px; height: 226px; border-radius: 10px; cursor: pointer;
+    overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.65);
+    border: 2px solid rgba(255,255,255,.3);
+    animation: pkIdle 2.4s ease-in-out infinite;
+  }
+  .pk-pack.starter { background: linear-gradient(150deg, #caa06a, #6b4a2a 78%); }
+  .pk-pack.normal  { background: linear-gradient(150deg, #ffb36b, #ff6f91 45%, #3b2350 95%); }
+  .pk-pack.rare    { background: linear-gradient(150deg, #8f6bff, #2b1a5e 55%, #0b0718 95%); }
+  /* 斜めに走る光沢 */
+  .pk-foil {
+    position: absolute; inset: -40% -120%; pointer-events: none;
+    background: linear-gradient(72deg, transparent 42%, rgba(255,255,255,.42) 50%, transparent 58%);
+    animation: pkFoil 2.8s linear infinite;
+  }
+  /* パックの顔になるおしり */
+  .pk-butt {
+    position: absolute; left: 50%; top: 44%; width: 104px; height: 62px; margin: -31px 0 0 -52px;
+    background-color: transparent;
+    background-image:
+      linear-gradient(rgba(150,70,60,.6), rgba(150,70,60,.6)),
+      radial-gradient(circle 27px at 27% 50%, #ffc7bb 0 96%, transparent 97%),
+      radial-gradient(circle 27px at 73% 50%, #ffc7bb 0 96%, transparent 97%);
+    background-size: 3px 34px, 100% 100%, 100% 100%;
+    background-position: 50% 50%, 0 0, 0 0;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 3px 6px rgba(0,0,0,.5));
+  }
+  .pk-label {
+    position: absolute; left: 0; right: 0; bottom: 14px; font-size: 12px; font-weight: bold;
+    letter-spacing: 1px; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.8);
+  }
+  /* 上辺のギザギザ(破り口) */
+  .pk-tear {
+    position: absolute; left: 0; right: 0; top: 0; height: 16px;
+    background: repeating-linear-gradient(90deg, rgba(255,255,255,.32) 0 6px, transparent 6px 12px);
+    border-bottom: 1px dashed rgba(255,255,255,.45);
+  }
+  .pk-pack.tearing { animation: pkShake .55s ease-in-out; }
+  .pk-pack.tearing .pk-tear { animation: pkTear .6s ease-in forwards; }
+  .pk-pack.gone { animation: pkGone .25s ease-in forwards; }
+  @keyframes pkIdle {
+    0%, 100% { transform: rotate(-2.5deg) translateY(0); }
+    50% { transform: rotate(2.5deg) translateY(-8px); }
+  }
+  @keyframes pkFoil { from { transform: translateX(-30%); } to { transform: translateX(30%); } }
+  @keyframes pkShake {
+    0%, 100% { transform: translateX(0) rotate(0); }
+    20% { transform: translateX(-9px) rotate(-4deg); }
+    45% { transform: translateX(8px) rotate(4deg); }
+    70% { transform: translateX(-6px) rotate(-2deg); }
+  }
+  @keyframes pkTear { to { transform: translateY(-24px) rotate(-9deg); opacity: 0; } }
+  @keyframes pkGone { to { transform: scale(1.25); opacity: 0; } }
+  .pk-flash {
+    position: absolute; inset: -60px; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle, rgba(255,245,200,.95), rgba(255,220,120,0) 70%);
+    animation: pkFlash .2s ease-out forwards;
+  }
+  @keyframes pkFlash { from { transform: scale(.3); opacity: 1 } to { transform: scale(1.6); opacity: 0 } }
+  /* --- 出てくるカード --- */
+  .pk-cards { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .pk-slot {
+    width: 116px; height: 172px; perspective: 900px;
+    opacity: 0; transform: translateY(26px) scale(.85); transition: opacity .24s, transform .24s;
+  }
+  .pk-slot.in { opacity: 1; transform: none; }
+  .pk-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .34s ease; }
+  .pk-slot.flip .pk-inner { transform: rotateY(180deg); }
+  .pk-back, .pk-front { position: absolute; inset: 0; backface-visibility: hidden; }
+  .pk-back {
+    border-radius: 8px; border: 1px solid rgba(190,175,255,.45);
+    background-color: #1b1330;
+    background-image:
+      radial-gradient(circle 16px at 34% 46%, #ffc7bb 0 96%, transparent 97%),
+      radial-gradient(circle 16px at 66% 46%, #ffc7bb 0 96%, transparent 97%),
+      linear-gradient(150deg, #4a3a86, #1b1330 70%);
+    background-repeat: no-repeat;
+  }
+  .pk-front { transform: rotateY(180deg); display: flex; align-items: center; justify-content: center; }
+  .pk-front .pcard-mini { cursor: default; }
+  .pk-slot.rare .pk-front { filter: drop-shadow(0 0 12px rgba(255,215,110,.9)); }
+  .pk-new {
+    position: absolute; top: -6px; left: -4px; z-index: 3; padding: 1px 6px; border-radius: 4px;
+    background: #e0483c; color: #fff; font-size: 9px; font-weight: bold; letter-spacing: 1px;
+  }
+  .pk-rarehit {
+    font-size: 22px; font-weight: bold; letter-spacing: 4px; color: #ffd76e;
+    text-shadow: 0 0 16px rgba(255,215,110,.8);
+    animation: pkRare .5s cubic-bezier(.2,1.4,.4,1) backwards;
+  }
+  @keyframes pkRare { from { transform: scale(.4); opacity: 0 } }
+  @media (max-width: 560px) {
+    .pk-pack { width: 132px; height: 178px; }
+    .pk-slot { width: 96px; height: 142px; }
   }
 
   /* ===== ルール表示(HELLのメニューと対戦画面の両方から開く) ===== */
@@ -1220,6 +1420,8 @@
       <div id="hell-body"></div>
     </div>
   </div>
+
+  <div id="cine-caption"></div>
 
   <div id="rules-overlay">
     <div id="rules-panel">

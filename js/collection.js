@@ -58,6 +58,11 @@ function grant(ids) {
 
 function pickRandom(list, rnd) { return list[Math.floor(rnd() * list.length)]; }
 
+/** レアブースターの共通枠はガチャ限定カードだけ(スタートデッキの11種は出ない) */
+function commonPool(kind) {
+  return kind === "rare" ? GACHA_POOL.premium : GACHA_POOL.common;
+}
+
 /**
  * パックを開ける。ポイントが足りるかは呼び出し側で確認済みの前提。
  * @returns {{ cost:number, cards:string[] }} 引いたカードIDの配列(レアは重複しうる=単純ランダム)
@@ -85,7 +90,7 @@ export function openPack(kind, rnd = Math.random) {
     }
     for (let i = 0; i < p.cards; i++) {
       const isRare = rareHit && i === p.cards - 1; // レアは最後の1枚に置く(開封演出映え)
-      cards.push(pickRandom(isRare ? GACHA_POOL.rare : GACHA_POOL.common, rnd));
+      cards.push(pickRandom(isRare ? GACHA_POOL.rare : commonPool(kind), rnd));
     }
   }
   grant(cards);
@@ -139,7 +144,7 @@ export function openRewardPack(kind, rnd = Math.random) {
   }
   for (let i = 0; i < p.cards; i++) {
     const isRare = rareHit && i === p.cards - 1;
-    cards.push(pickRandom(isRare ? GACHA_POOL.rare : GACHA_POOL.common, rnd));
+    cards.push(pickRandom(isRare ? GACHA_POOL.rare : commonPool(kind), rnd));
   }
   grant(cards);
   return { cost: 0, cards };

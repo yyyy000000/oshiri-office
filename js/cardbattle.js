@@ -11,6 +11,7 @@ import { CARDS, OPPONENTS } from "./carddata.js";
 import { createBattle, INITIAL_HAND, DRAW_LIMIT } from "./cardengine.js";
 import { renderCard } from "./cards.js";
 import * as col from "./collection.js";
+import { playPackOpen } from "./packfx.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -79,6 +80,32 @@ export function createCardBattle(deps) {
   const nameOf = (id) => (CARDS[id] ? CARDS[id].name : id);
 
   // ---------- 起動と終了 ----------
+  // 乱入演出に使う顔(そのキャラの固有モンスターのイラストを流用する)
+  const PORTRAIT = { hoshi: "hoshi", kuma: "kuma", carry: "carry", hell: "gacha", ojisan: "ojisan" };
+
+  /** 対戦開始の乱入演出。相手の顔と BATTLE START を叩きつける */
+  function intro(opponentKey, label) {
+    return new Promise((resolve) => {
+      const art = PORTRAIT[opponentKey] || "ojisan";
+      const box = el(
+        `<div class="bt-intro">` +
+        `<div class="band b1"></div><div class="band b2"></div>` +
+        `<div class="portrait"><img alt="" src="assets/cards/${art}.jpeg"></div>` +
+        `<div class="who">${label}</div>` +
+        `</div>`
+      );
+      overlay.appendChild(box);
+      sfx("vs");
+      setTimeout(() => {
+        box.appendChild(el(`<div class="shock"></div>`));
+        box.appendChild(el(`<div class="vs">BATTLE START</div>`));
+        sfx("slam");
+      }, 620);
+      setTimeout(() => box.classList.add("out"), 1750);
+      setTimeout(() => { box.remove(); resolve(); }, 2080);
+    });
+  }
+
   /**
    * 対戦前の先攻決め。伏せた2枚から1枚選ばせる(中身は「先攻」「後攻」)。
    * @returns {Promise<'you'|'foe'>}
@@ -115,6 +142,8 @@ export function createCardBattle(deps) {
 
   async function start(opponentKey, seed) {
     closePickRow();
+    // 前の対戦の演出が残っていたら片付ける(連続で開始した時の取りこぼし防止)
+    overlay.querySelectorAll(".bt-intro, .bt-flip, .bt-result, .bt-eventpop").forEach((e) => e.remove());
     oppKey = opponentKey;
     els.log.textContent = "";
     els.banner.className = "bt-banner";
@@ -123,6 +152,7 @@ export function createCardBattle(deps) {
     els.foeName.textContent = meta0 ? meta0.label : opponentKey;
     overlay.classList.add("show");
     if (deps.onBattleStart) deps.onBattleStart();
+    await intro(opponentKey, meta0 ? meta0.label : opponentKey);
     const first = await coinFlip();
     // seed は検証用(省略時は毎回ランダム)
     battle = createBattle({ playerDeck: col.getDeck() || [], opponentKey, seed, firstPlayer: first });
@@ -145,7 +175,7 @@ export function createCardBattle(deps) {
     const had = !!battle;
     battle = null;
     if (winner === "you" && had) { col.recordWin(oppKey); showReward(oppKey); }
-    else if (deps.onFinish) deps.onFinish(winner);
+    else if (deps.onFinish) deps.onFinish(winner, oppKey);
   }
 
   // ---------- 演出の下ごしらえ ----------
@@ -1013,40 +1043,26 @@ export function createCardBattle(deps) {
     };
 
     // 固有カードを選んだあと、おまけのパックを開ける
+    // 固有カードを選んだあと、おまけのパックを開ける(購入時と同じ演出)
     const packStep = () => {
       const kind = col.rewardPack(key);
-      const p = col.PACKS[kind];
+      const before = col.ownedAll();
       box.innerHTML = "";
-      box.appendChild(el(`<h2 style="color:#ffd76e">${p.name}</h2>`));
-      box.appendChild(el(`<div class="sub">おまけのパックです。タップして開けてください</div>`));
-      const wrap = el(`<div class="bt-rewardpack"></div>`);
-      const back = el(`<div class="bt-packback"><span>${p.sub}</span></div>`);
-      wrap.appendChild(back);
-      box.appendChild(wrap);
-      const open = () => {
-        const res = col.openRewardPack(kind);
-        sfx("event");
-        box.innerHTML = "";
-        box.appendChild(el(`<h2 style="color:#ffd76e">${p.name}</h2>`));
-        box.appendChild(el(`<div class="sub">${res.cards.length}枚 手に入れた!</div>`));
-        const row = el(`<div class="bt-rewards"></div>`);
-        res.cards.forEach((id, i) => {
-          const card = renderCard(CARDS[id], id, { mini: true });
-          card.title = CARDS[id].name;
-          card.style.animationDelay = i * 0.12 + "s";
-          card.addEventListener("click", () => showDetail(id));
-          row.appendChild(card);
-        });
-        box.appendChild(row);
-        const done = el(`<button class="bt-act big">もどる</button>`);
-        done.addEventListener("click", () => {
+      box.appendChild(el(`<div class="sub">勝利のおまけです</div>`));
+      const host = el(`<div></div>`);
+      box.appendChild(host);
+      playPackOpen({
+        host,
+        pack: col.PACKS[kind],
+        draw: () => col.openRewardPack(kind).cards,
+        isNew: (id) => !before[id],
+        sfx,
+        onDone: () => {
           box.remove();
           overlay.classList.remove("show");
-          if (deps.onFinish) deps.onFinish("you");
-        });
-        box.appendChild(done);
-      };
-      back.addEventListener("click", open);
+          if (deps.onFinish) deps.onFinish("you", key);
+        },
+      });
     };
 
     pickList();

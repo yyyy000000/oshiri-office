@@ -149,6 +149,75 @@ function updateBubblePos() {
   placeBubble(hoshiBubble, _hoshiHead, 170);
   placeBubble(carrieBubble, _carrieHead, 250);
 }
+// ---------- 対戦後の寄り演出 ----------
+// 対戦画面を閉じたあと、部屋にいる当人をアップで映してひとこと言わせる。
+// 専用の画面は作らず、いつもの3D空間のカメラを一時的に借りるだけ。
+const CINE_SPOTS = {
+  hoshi: () => ({ at: hoshi.group.position.clone().setY(hoshi.group.position.y + 0.11), dist: 0.55 }),
+  kuma: () => {
+    const s = Math.max(1, animal.group.scale.x);
+    return { at: animal.group.position.clone().setY(0.6 * s), dist: 0.9 + s * 0.5 };
+  },
+  carry: () => ({ at: new THREE.Vector3(2.5, 1.55, 2.3), dist: 1.25 }),
+  hell: () => ({ at: new THREE.Vector3(2.45, 1.05, -1.5), dist: 1.15 }),
+  ojisan: () => ({ at: ojisan.headPos().clone(), dist: 1.05 }),
+};
+// 対戦後のひとこと。win = そのキャラが勝った時 / lose = 負けた時
+const CARD_OUTRO = {
+  hoshi: {
+    name: "星",
+    win: ["よえーーー! 机の上から見てても分かるわ、よえー!", "オレに勝てない奴が、おじさんに勝てるわけねーだろ。"],
+    lose: ["は? いまのナシ。サイコロが悪い。サイコロが。", "……つよ。ちょっとだけ認めてやる。ちょっとだけな。"],
+  },
+  kuma: {
+    name: "クマ",
+    win: ["(勝ち誇ってすごい速さで踊っている)", "(こちらを見ずに、ただ踊り続けている)"],
+    lose: ["(負けたのに、なぜか嬉しそうに踊っている)", "(しょんぼりしたあと、また踊りはじめた)"],
+  },
+  carry: {
+    name: "警備員キャリーちゃん",
+    win: ["以上。次の巡回に戻ります。", "警備の勝ちです。当然の結果です。"],
+    lose: ["……敗北を、報告書に書く必要は、ありますか?", "つよい。今度から あなたを 警戒対象にします。"],
+  },
+  hell: {
+    name: "HELL 9000",
+    win: ["……敗北デス。次ハ、パックヲ買ッテカラ来テクダサイ。", "……在庫ハ無限。アナタノ勝機ハ、有限デス。"],
+    lose: ["……計算外デス。返金ハ、致シマセン。", "……オメデトウゴザイマス。ソノ調子デ、散財シテクダサイ。"],
+  },
+  ojisan: {
+    name: "おじさん",
+    win: ["いやあ、悪いねえ。おじさん、こういうの本気出しちゃうタイプでなあ。", "まだまだ叩き足りんようだな。出直してきなさい。"],
+    lose: ["……まいった。おじさんの完敗だ。尻を差し出そう。", "つ、強い……! きみ、うちの部署に来ないか?"],
+  },
+};
+const cineCaption = document.getElementById("cine-caption");
+let cine = null; // { camPos, look } カメラを借りている間だけ入る
+
+function cinematicFocus(who, name, text, ms = 3400) {
+  return new Promise((resolve) => {
+    const spot = CINE_SPOTS[who] && CINE_SPOTS[who]();
+    if (!spot || ending) { resolve(); return; }
+    // キャラから部屋の中心へ向かう方向。その先にカメラを置くと正面から映せる
+    const dir = spot.at.clone().setY(0).normalize().negate();
+    const camPos = spot.at.clone().add(dir.clone().multiplyScalar(spot.dist));
+    camPos.y = spot.at.y + 0.16;
+    const saved = { pos: camera.position.clone(), quat: camera.quaternion.clone(), target: controls.target.clone() };
+    // いきなり切り替えず、少し引いた位置から寄っていく
+    camera.position.copy(camPos.clone().add(dir.clone().multiplyScalar(0.7)).setY(camPos.y + 0.28));
+    cine = { camPos, look: spot.at.clone() };
+    cineCaption.innerHTML = `<b>${name}</b>${text}`;
+    cineCaption.classList.add("show");
+    setTimeout(() => {
+      cineCaption.classList.remove("show");
+      cine = null;
+      camera.position.copy(saved.pos);
+      camera.quaternion.copy(saved.quat);
+      controls.target.copy(saved.target);
+      resolve();
+    }, ms);
+  });
+}
+
 const toastArea = document.getElementById("toast-area");
 function toast(text) {
   const el = document.createElement("div");
@@ -281,6 +350,30 @@ const CARD_SFX = {
   lose(ac, t) {
     const notes = [440, 392, 330, 262];
     notes.forEach((f, i) => ding(ac, t + i * 0.14, f, 0.7, 0.18));
+  },
+  tear(ac, t) { // パックを破く
+    noiseBurst(ac, t, { freq: 4200, dur: 0.22, gain: 0.55, type: "highpass" });
+    noiseBurst(ac, t + 0.09, { freq: 3000, dur: 0.16, gain: 0.4, type: "highpass" });
+    thump(ac, t + 0.02, { from: 220, to: 70, dur: 0.18, gain: 0.4 });
+  },
+  reveal(ac, t) { // カードが1枚めくれる
+    noiseBurst(ac, t, { freq: 2600, dur: 0.07, gain: 0.3, type: "highpass" });
+    ding(ac, t + 0.02, 1320, 0.32, 0.1);
+  },
+  rare(ac, t) { // レアが出た
+    const notes = [784, 988, 1319, 1568, 2093];
+    notes.forEach((f, i) => ding(ac, t + i * 0.09, f, 0.55, 0.26));
+    noiseBurst(ac, t, { freq: 5000, dur: 0.5, gain: 0.25, type: "highpass" });
+  },
+  vs(ac, t) { // 対戦開始の乱入
+    thump(ac, t, { from: 180, to: 40, dur: 0.5, gain: 0.95 });
+    noiseBurst(ac, t, { freq: 900, dur: 0.3, gain: 0.7, q: 0.5 });
+    ding(ac, t + 0.22, 330, 0.7, 0.3);
+    ding(ac, t + 0.34, 494, 0.8, 0.4);
+  },
+  slam(ac, t) { // 文字が叩きつけられる
+    thump(ac, t, { from: 320, to: 45, dur: 0.28, gain: 1 });
+    noiseBurst(ac, t, { freq: 1500, dur: 0.12, gain: 0.7 });
   },
 };
 function playCardSfx(name) {
@@ -518,7 +611,16 @@ const cardBattle = createCardBattle({
   toast: (t) => toast(t),
   sfx: (name) => playCardSfx(name),
   onBattleStart: () => { endFeverTime(true); bgm.startBattle(); },
-  onFinish: () => { bgm.stopBattle(); hellShop.show(); }, // 対戦が終わったらショップに戻る
+  // 対戦が終わったら、部屋の当人をアップで映してひとこと言わせてからショップに戻る
+  onFinish: async (winner, key) => {
+    bgm.stopBattle();
+    const c = CARD_OUTRO[key];
+    if (c && winner) {
+      const lines = winner === "you" ? c.lose : c.win; // 相手から見た勝敗
+      await cinematicFocus(key, c.name, lines[Math.floor(Math.random() * lines.length)]);
+    }
+    hellShop.show();
+  },
   onShowRules: () => cardRules.open(),
 });
 const hellShop = createHellShop({
@@ -526,6 +628,7 @@ const hellShop = createHellShop({
   spendPoints: (n) => { points = Math.max(0, points - n); applyProgress(); },
   toast: (t) => toast(t),
   playSfx: () => playDropSound(),
+  sfx: (name) => playCardSfx(name),
   onStartBattle: (opponentKey) => cardBattle.start(opponentKey),
   onShowRules: () => cardRules.open(),
 });
@@ -1431,6 +1534,7 @@ window.__feverEnd = () => endFeverTime(false);
 window.__endDest = null; // "cloud"|"moon"|"butt"|"star" で到着先を強制(デバッグ用)
 window.__camera = camera; // 検証用: カメラ直接操作
 window.__hell = hellShop;  // 検証用: HELL 9000のショップを直接開く
+window.__cine = cinematicFocus; // 検証用: 対戦後の寄り演出を直接呼ぶ
 window.__cards = collection; // 検証用: 所持カード・パック排出
 window.__battle = cardBattle; // 検証用: 対戦画面を直接開く
 // カード枠の確認用: __cardPreview() で見本カードを画面に並べる
@@ -1480,6 +1584,10 @@ renderer.setAnimationLoop(() => {
   updateFever(dt);
   if (ending) {
     updateEnding(dt);
+  } else if (cine) {
+    // 対戦後の寄り演出。操作は受け付けず、決めた位置へ滑らかに寄る
+    camera.position.lerp(cine.camPos, 0.06);
+    camera.lookAt(cine.look);
   } else if (fps.enabled) {
     fps.update(dt);
     updateCrosshair();

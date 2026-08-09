@@ -1022,3 +1022,8 @@ export const GACHA_POOL = {
   ],
   rare: ['nijiiroboshi', 'oshiriseijin', 'berserker', 'negai', 'tenshi'],
 };
+
+// レアブースターの共通枠。スタートデッキで配られる11種は出さず、
+// ガチャ限定の15種だけを対象にする(高い金を払って手持ちと同じ物が出ないように)
+const STARTER_IDS = new Set(STARTER_DECK.map(([id]) => id));
+GACHA_POOL.premium = GACHA_POOL.common.filter((id) => !STARTER_IDS.has(id));
