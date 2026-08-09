@@ -530,9 +530,12 @@
   }
 
   /* 寄り演出/乱入演出の間はHUDを引っこめて、画をきれいに見せる */
+  /* オーバーレイ表示中は照準を消す(カード画面の真ん中に十字が残るため) */
+  body.overlay-busy #aim-dot, body.overlay-busy .fpsc-crosshair { display: none !important; }
+
   body.cine-on #title-bar, body.cine-on #slap-counter, body.cine-on #controls,
   body.cine-on #zukan-btn, body.cine-on #settings-btn, body.cine-on #help-btn,
-  body.cine-on #spank-btn, body.cine-on #aim-dot,
+  body.cine-on #spank-btn, body.cine-on #aim-dot, body.cine-on .fpsc-crosshair,
   body.cine-on #bubble, body.cine-on #hoshi-bubble, body.cine-on #carrie-bubble {
     opacity: 0; transition: opacity .25s; pointer-events: none;
   }

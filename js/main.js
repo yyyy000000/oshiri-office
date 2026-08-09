@@ -220,6 +220,9 @@ function cinematicFocus(who, name, text, ms = 3400, speed = 0.06) {
     // いきなり切り替えず、少し引いた位置から寄っていく
     camera.position.copy(camPos.clone().add(dir.clone().multiplyScalar(0.7)).setY(camPos.y + 0.28));
     const token = ++cineToken; // 後から呼ばれた演出が古い後片付けに壊されないように
+    // おじさんは進行度に応じて巨大化し、机まわりの被写体に被る。主役でない間は隠す
+    const hideOjisan = who !== "ojisan";
+    if (hideOjisan) ojisan.group.visible = false;
     cine = { camPos, look: spot.at.clone(), speed, follow: spot.follow, dist: spot.dist };
     document.body.classList.add("cine-on");
 
@@ -228,9 +231,10 @@ function cinematicFocus(who, name, text, ms = 3400, speed = 0.06) {
       cineCaption.classList.add("show");
     }
     setTimeout(() => {
-      if (token !== cineToken) { resolve(); return; } // すでに次の演出が始まっている
+      if (token !== cineToken) { if (hideOjisan) ojisan.group.visible = true; resolve(); return; }
       cineCaption.classList.remove("show");
       document.body.classList.remove("cine-on");
+      if (hideOjisan) ojisan.group.visible = true;
       cine = null;
       camera.position.copy(saved.pos);
       camera.quaternion.copy(saved.quat);
@@ -656,6 +660,7 @@ function syncStickVisibility() {
   if (busy === stickHidden) return;
   stickHidden = busy;
   fps.setUiHidden(busy);
+  document.body.classList.toggle("overlay-busy", busy); // 照準もしまう
 }
 
 const cardRules = createCardRules();
@@ -1441,7 +1446,8 @@ function beginGame(mode) {
     fps.enable();
   } else {
     controls.enabled = true;
-    aimDot.classList.add("show"); // 神様モードにも照準を出す(Space/スパンキングボタン用)
+    // 神様モードでは照準を出さない(マウスで直接クリックするため邪魔になる)。
+    // Spaceキーとスパンキングボタンは、変わらず画面中央を叩く
   }
   // スパンキングボタンはタッチ端末のみ。FPS・神様モードの両方で使える
   if ("ontouchstart" in window) spankBtn.classList.add("show");
