@@ -236,7 +236,7 @@ export const CARDS = {
     owner: 'kuma',
     flavor: '黄金に輝く毛皮。その中身は、ただのクマである。',
     faces: [
-      { text: 'ねむけ — 何も起きない', fx: [{ t: 'none' }] },
+      { text: 'きんのゆめ — カードを1枚引く', fx: [{ t: 'draw', n: 1 }] },
       { text: 'ゴールドひっかき — 相手モンスター1体に25ダメージ', fx: [{ t: 'damage', n: 25 }] },
       { text: 'きんのオーラ — 自分のモンスター全員を15回復', fx: [{ t: 'healAll', n: 15, attr: null }] },
       {
@@ -662,7 +662,7 @@ export const CARDS = {
       { text: 'かたもみ — 自分のモンスター1体を20回復', fx: [{ t: 'heal', n: 20 }] },
       { text: 'ぜんしんコース — オカルト属性の自分のモンスター全員を30回復', fx: [{ t: 'healAll', n: 30, attr: 'occult' }] },
       { text: 'ボキボキ — 自分のモンスター1体を40回復', fx: [{ t: 'heal', n: 40 }] },
-      { text: 'まとめてもむ — 自分のモンスター全員を20回復', fx: [{ t: 'healAll', n: 20, attr: null }] },
+      { text: 'よやくのでんわ — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
       { text: 'つよもみ — 相手モンスター1体に30ダメージ', fx: [{ t: 'damage', n: 30 }] },
       { text: 'こつばんきょうせい — 自分のモンスター1体をHP全回復', fx: [{ t: 'healFull' }] },
     ],
@@ -769,7 +769,7 @@ export const CARDS = {
     owner: null,
     flavor: 'なめる以外の解決手段を、持ち合わせていない。',
     faces: [
-      { text: 'よだれ — 何も起きない', fx: [{ t: 'none' }] },
+      { text: 'においをかぎとる — カードを1枚引く', fx: [{ t: 'draw', n: 1 }] },
       { text: 'ひとなめ — 相手モンスター1体に25ダメージ', fx: [{ t: 'damage', n: 25 }] },
       { text: 'きずをなめる — 自分のモンスター1体を25回復', fx: [{ t: 'heal', n: 25 }] },
       { text: 'ねっとりロング — パワー属性の相手モンスター1体に60ダメージ', fx: [{ t: 'damageByAttr', attr: 'power', scope: 'one', n: 60 }] },
@@ -789,7 +789,7 @@ export const CARDS = {
     owner: null,
     flavor: '捨てるぞ。ほんとに捨てるぞ。……もう捨てた。',
     faces: [
-      { text: 'かたづけようとする — 何も起きない', fx: [{ t: 'none' }] },
+      { text: 'かたづけをはじめる — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
       { text: 'ゴミぶくろでなぐる — 相手モンスター1体に25ダメージ', fx: [{ t: 'damage', n: 25 }] },
       { text: 'これいる? — 相手の手札を1枚トラッシュ', fx: [{ t: 'discardOpponentHand', n: 1 }] },
       { text: 'せいりせいとん — メカ属性の自分のモンスター全員を25回復', fx: [{ t: 'healAll', n: 25, attr: 'mecha' }] },

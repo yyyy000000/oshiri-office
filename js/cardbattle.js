@@ -34,7 +34,7 @@ export function createCardBattle(deps) {
   const els = {
     foeName: $("bt-foe-name"), foeSt: $("bt-foe-st"), youSt: $("bt-you-st"),
     turn: $("bt-turn"), foeField: $("bt-foe-field"), youField: $("bt-you-field"),
-    hand: $("bt-hand"), foeHand: $("bt-foe-hand"), log: $("bt-log"), dice: $("bt-dice"),
+    hand: $("bt-hand"), foeHand: $("bt-foe-hand"), log: $("bt-log"),
     youTrash: $("bt-you-trash"), foeTrash: $("bt-foe-trash"),
     youDeck: $("bt-you-deck"), foeDeck: $("bt-foe-deck"),
     prompt: $("bt-prompt"), banner: $("bt-banner"), turnBanner: $("bt-turnbanner"),
@@ -224,10 +224,11 @@ export function createCardBattle(deps) {
     const card = renderCard(CARDS[cardId], cardId);
     inner.appendChild(card);
     overlay.appendChild(wrap);
+    els.prompt.classList.add("low"); // 中央はカードに譲る
     stageEl = wrap;
     stageCardEl = card;
-    // 画面に収まるよう縮める
-    const sc = Math.min(1, (innerHeight - 130) / 502, (innerWidth - 30) / 340);
+    // 画面に収まるよう縮める(下に逃がした操作パネルのぶんも空ける)
+    const sc = Math.min(1, (innerHeight - 240) / 502, (innerWidth - 30) / 340);
     inner.style.transform = `scale(${sc.toFixed(3)})`;
     // 元のカードの位置から飛んでくる
     if (fromEl) {
@@ -246,13 +247,12 @@ export function createCardBattle(deps) {
       stageHidden = fromEl;
     }
     // サイコロをステージ上へ移す
-    inner.appendChild(els.dice);
     return card;
   }
 
   function closeStage() {
+    els.prompt.classList.remove("low");
     if (!stageEl) return;
-    document.querySelector(".bt-dicebox").appendChild(els.dice); // サイコロを元に戻す
     stageEl.remove();
     if (stageHidden) { stageHidden.style.visibility = ""; stageHidden = null; }
     stageEl = null; stageCardEl = null; stageKey = null;
@@ -405,7 +405,7 @@ export function createCardBattle(deps) {
     // 中央のカード選択は recover の選択待ちのあいだだけ出す
     if (!s.prompt || s.prompt.kind !== "recover") closePickRow();
     if (s.over) return;
-    if (busy) { els.prompt.appendChild(el(`<span class="msg" style="opacity:.6">…</span>`)); return; }
+    if (busy) return; // 演出中は空にしておく(空のパネルはCSSで消える)
     if (s.awaitingAiTurn) { els.prompt.appendChild(el(`<span class="msg">相手のターン…</span>`)); return; }
     const q = s.prompt;
     if (!q) return;
@@ -599,15 +599,10 @@ export function createCardBattle(deps) {
   /** サイコロを回してから face で止める(自分・相手で共通) */
   async function spinDice(face) {
     sfx("dice");
-    els.dice.classList.add("rolling");
-    const spin = setInterval(() => {
-      const n = 1 + Math.floor(Math.random() * 6);
-      els.dice.className = "bt-dice rolling pip-" + n;
-      stageHighlight(n, "spin");
-    }, 65);
+    // カード内の6面をランダムに光らせ続けて「回っている」を表す
+    const spin = setInterval(() => stageHighlight(1 + Math.floor(Math.random() * 6), "spin"), 65);
     await wait(DUR.diceSpin);
     clearInterval(spin);
-    els.dice.className = "bt-dice landed pip-" + face;
     sfx("land");
   }
 
@@ -620,16 +615,10 @@ export function createCardBattle(deps) {
     if (monId) openStage(monId, cardEl(q.monsterUid), "mon" + q.monsterUid);
     // 先に回してから、止める瞬間に出目を確定させる
     sfx("dice");
-    els.dice.classList.add("rolling");
-    const spin = setInterval(() => {
-      const n = 1 + Math.floor(Math.random() * 6);
-      els.dice.className = "bt-dice rolling pip-" + n;
-      stageHighlight(n, "spin");
-    }, 65);
+    const spin = setInterval(() => stageHighlight(1 + Math.floor(Math.random() * 6), "spin"), 65);
     await wait(DUR.diceSpin);
     clearInterval(spin);
     const face = battle.roll();
-    els.dice.className = "bt-dice landed pip-" + face;
     sfx("land");
     stageHighlight(face, "lock"); // カード内の該当テキストだけを強調する
     // ここでは閉じない。続く roll イベントの再生が同じステージを使い回す
@@ -780,7 +769,6 @@ export function createCardBattle(deps) {
           await wait(500); // 誰が振るのかを見せる間
           openStage(ev.id, cardEl(ev.uid), "mon" + ev.uid);
           if (ev.side === "foe") await spinDice(ev.face);
-          else els.dice.className = "bt-dice landed pip-" + ev.face;
           stageHighlight(ev.face, "lock");
         }
         banner(`🎲 <b>${ev.face}</b> — ${nameOf(ev.id)}`, ev.text);
@@ -797,7 +785,6 @@ export function createCardBattle(deps) {
         actingUid = ev.uid;
         render();
         openStage(ev.id, cardEl(ev.uid), "mon" + ev.uid);
-        els.dice.className = "bt-dice landed pip-" + ev.face;
         stageHighlight(ev.face, "lock");
         banner(`✨ 出目を <b>${ev.face}</b> に選んだ`, ev.text);
         pushLog(`${nameOf(ev.id)}の出目を${ev.face}に選択`);

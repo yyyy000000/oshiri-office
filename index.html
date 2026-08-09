@@ -981,19 +981,6 @@
     25% { opacity: 1; transform: translateY(-50%) scale(1) }
     75% { opacity: 1 } 100% { opacity: 0; transform: translateY(-50%) scale(.9) }
   }
-  .bt-dicebox { flex: none; display: flex; align-items: center; justify-content: center; }
-  .bt-dice {
-    width: 64px; height: 64px; border-radius: 12px; background-color: #fdfaf2;
-    border: 2px solid #6b3f1d; box-shadow: 0 6px 18px rgba(0,0,0,.55);
-    background-repeat: no-repeat; --d: #5a3315; --r: 6.8px; transition: transform .2s;
-  }
-  .bt-dice.rolling { animation: diceShake .1s linear infinite; }
-  .bt-dice.landed { animation: diceLand .5s cubic-bezier(.2,1.5,.4,1); }
-  @keyframes diceShake {
-    0% { transform: rotate(-12deg) scale(1) } 50% { transform: rotate(12deg) scale(1.09) }
-    100% { transform: rotate(-12deg) scale(1) }
-  }
-  @keyframes diceLand { 0% { transform: scale(1.5) } 100% { transform: scale(1) } }
   /* ロール中はカードそのものを画面中央にせり出させ、カード内の行を強調する */
   .bt-stage {
     position: fixed; left: 0; right: 0; top: 0; bottom: 62px; z-index: 6;
@@ -1005,10 +992,6 @@
   .bt-stage-inner { position: relative; transform-origin: center; }
   .bt-stage .pcard { box-shadow: 0 14px 50px rgba(0,0,0,.75), 0 0 30px rgba(127,227,255,.35); }
   /* せり出したカードの上に乗るサイコロ */
-  .bt-stage .bt-dice {
-    position: absolute; right: -26px; top: -18px; z-index: 2;
-    width: 74px; height: 74px; --r: 7.6px;
-  }
   /* カード内の6面テキストの強調 */
   .pcard-face { transition: background .2s, opacity .2s; }
   .pcard-face.spin { background: rgba(255,255,255,.55); }
@@ -1146,12 +1129,22 @@
     border: 1px solid rgba(190,175,255,.55); box-shadow: 0 5px 16px rgba(0,0,0,.65);
   }
 
+  /* 次に何をすべきかを見落とさないよう、操作パネルは画面中央に浮かせる */
   .bt-prompt {
-    flex: none; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    padding: 9px 12px; background: rgba(0,0,0,.55); border-top: 1px solid rgba(255,255,255,.14);
-    font-size: 13px; min-height: 52px;
+    position: fixed; left: 50%; top: 60%; z-index: 9;
+    transform: translate(-50%, -50%);
+    display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
+    width: max-content; max-width: min(560px, 92vw); padding: 14px 20px; border-radius: 14px;
+    background: rgba(8,14,24,.93); border: 1px solid rgba(255,215,110,.45);
+    box-shadow: 0 12px 40px rgba(0,0,0,.7);
+    font-size: 13.5px; text-align: center;
+    animation: promptIn .22s ease-out;
   }
-  .bt-prompt .msg { flex: 1; min-width: 160px; }
+  .bt-prompt:empty { display: none; }
+  /* カードが中央にせり出している間は、隠さないよう下に逃がす */
+  .bt-prompt.low { top: auto; bottom: 14px; transform: translateX(-50%); }
+  .bt-prompt .msg { flex: 1 1 100%; min-width: 0; line-height: 1.5; }
+  @keyframes promptIn { from { opacity: 0; transform: translate(-50%, calc(-50% + 10px)); } }
   .bt-act {
     padding: 9px 18px; border-radius: 8px; cursor: pointer; font-family: inherit;
     font-size: 13px; font-weight: bold; color: #08131f;
@@ -1219,12 +1212,11 @@
     .bt-card-name { height: 24px; font-size: 10px; }
     .bt-foehand { min-height: 26px; padding: 2px 8px; }
     .bt-back { width: 20px; height: 27px; }
-    .bt-dice { width: 54px; height: 54px; --r: 5.8px; }
     .bt-deck { width: 48px; height: 66px; margin: 4px 6px; }
     .bt-deck .n { font-size: 13px; }
     .bt-hand .pcard-mini { width: 74px; height: 98px; }
     .bt-hand .pcard-mini .pcard-art { height: 46px; }
-    .bt-prompt { padding: 7px 12px; min-height: 44px; }
+    .bt-prompt { padding: 10px 14px; font-size: 12.5px; }
     .bt-banner { font-size: 14px; padding: 7px 20px; }
     .bt-facerow { font-size: 9.5px; padding: 1px 3px; }
     .bt-facelist { padding: 4px 6px; }
@@ -1389,7 +1381,6 @@
     </div>
     <div class="bt-mid">
       <div class="bt-turnbanner" id="bt-turnbanner"></div>
-      <div class="bt-dicebox"><div class="bt-dice pip-1" id="bt-dice"></div></div>
       <div class="bt-banner" id="bt-banner"></div>
       <div class="bt-loglines" id="bt-log"></div>
     </div>
