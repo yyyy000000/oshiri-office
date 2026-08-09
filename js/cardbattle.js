@@ -34,7 +34,9 @@ export function createCardBattle(deps) {
   const els = {
     foeName: $("bt-foe-name"), foeSt: $("bt-foe-st"), youSt: $("bt-you-st"),
     turn: $("bt-turn"), foeField: $("bt-foe-field"), youField: $("bt-you-field"),
-    hand: $("bt-hand"), foeHand: $("bt-foe-hand"), log: $("bt-log"),
+    hand: $("bt-hand"), foeHand: $("bt-foe-hand"),
+    moreL: $("bt-more-l"), moreR: $("bt-more-r"),
+    logView: $("bt-logview"), logList: $("bt-loglist"),
     youTrash: $("bt-you-trash"), foeTrash: $("bt-foe-trash"),
     youDeck: $("bt-you-deck"), foeDeck: $("bt-foe-deck"),
     prompt: $("bt-prompt"), banner: $("bt-banner"), turnBanner: $("bt-turnbanner"),
@@ -54,6 +56,11 @@ export function createCardBattle(deps) {
     if (deps.toggleSound) deps.toggleSound();
     refreshSound();
   });
+  $("bt-history").addEventListener("click", (e) => { e.stopPropagation(); openLog(); });
+  $("bt-log-close").addEventListener("click", (e) => { e.stopPropagation(); els.logView.classList.remove("show"); });
+  // 手札を横スクロールしたら、画面外にまだカードがあるかの表示を更新する
+  els.hand.addEventListener("scroll", updateHandArrows, { passive: true });
+  addEventListener("resize", updateHandArrows);
   els.youTrash.addEventListener("click", () => showTrash("you"));
   els.foeTrash.addEventListener("click", () => showTrash("foe"));
 
@@ -134,7 +141,8 @@ export function createCardBattle(deps) {
     // 前の対戦の演出が残っていたら片付ける(連続で開始した時の取りこぼし防止)
     overlay.querySelectorAll(".bt-intro, .bt-flip, .bt-result, .bt-eventpop").forEach((e) => e.remove());
     oppKey = opponentKey;
-    els.log.textContent = "";
+    logLines.length = 0;
+    els.logView.classList.remove("show");
     els.banner.className = "bt-banner";
     closeStage();
     const meta0 = OPPONENTS.find((o) => o.key === opponentKey);
@@ -192,10 +200,35 @@ export function createCardBattle(deps) {
     void els.banner.offsetWidth; // アニメーションを再生し直す
     els.banner.className = "bt-banner show";
   }
-  function pushLog(t) {
-    logLines.push(t.replace(/<[^>]+>/g, ""));
-    while (logLines.length > 3) logLines.shift();
-    els.log.textContent = logLines.join("　/　");
+  /** 行動履歴に1行足す(中央には出さない。📋ボタンで見る) */
+  function pushLog(t, side) {
+    logLines.push({ t: t.replace(/<[^>]+>/g, ""), side: side || "" });
+    while (logLines.length > 120) logLines.shift();
+    if (els.logView.classList.contains("show")) renderLog();
+  }
+  function renderLog() {
+    const atBottom = els.logList.scrollTop + els.logList.clientHeight >= els.logList.scrollHeight - 20;
+    els.logList.innerHTML = "";
+    for (const l of logLines) {
+      const d = el(`<div class="${l.side}"></div>`);
+      d.textContent = l.t;
+      els.logList.appendChild(d);
+    }
+    // 開いたまま進行しても、いちばん新しい行が見えるようにする
+    if (atBottom) els.logList.scrollTop = els.logList.scrollHeight;
+  }
+  function openLog() {
+    els.logView.classList.add("show");
+    renderLog();
+    els.logList.scrollTop = els.logList.scrollHeight; // 最新を見せる
+  }
+
+  /** 手札が画面外まで続いているとき、その側に矢印を出す */
+  function updateHandArrows() {
+    const h = els.hand;
+    const over = h.scrollWidth - h.clientWidth;
+    els.moreL.classList.toggle("show", over > 4 && h.scrollLeft > 4);
+    els.moreR.classList.toggle("show", over > 4 && h.scrollLeft < over - 4);
   }
   const cardEl = (uid) => overlay.querySelector(`.bt-card[data-uid="${uid}"]`);
 
@@ -203,6 +236,7 @@ export function createCardBattle(deps) {
   // 選択中のカードやロール中のモンスターを実物大で見せ、6面テキストを直接強調する。
   let stageEl = null;
   let stageCardEl = null;
+  let stageDice = null;   // せり出したカードの右上に出すサイコロ
   let stageKey = null;   // いま出しているカードの識別(同じなら出し直さない)
   let stageHidden = null; // 元の場所で隠しているDOM
 
@@ -215,6 +249,9 @@ export function createCardBattle(deps) {
     const inner = wrap.firstElementChild;
     const card = renderCard(CARDS[cardId], cardId);
     inner.appendChild(card);
+    // 攻撃ロール用のサイコロ。カードの右上に重ねる
+    stageDice = el(`<div class="bt-dice pip-1"></div>`);
+    inner.appendChild(stageDice);
     overlay.appendChild(wrap);
     els.prompt.classList.add("low"); // 中央はカードに譲る
     stageEl = wrap;
@@ -247,7 +284,7 @@ export function createCardBattle(deps) {
     if (!stageEl) return;
     stageEl.remove();
     if (stageHidden) { stageHidden.style.visibility = ""; stageHidden = null; }
-    stageEl = null; stageCardEl = null; stageKey = null;
+    stageEl = null; stageCardEl = null; stageDice = null; stageKey = null;
   }
 
   /** ステージ上のカードの6面のうち1つを光らせる。mode: "spin" | "lock" */
@@ -331,6 +368,7 @@ export function createCardBattle(deps) {
     markPickable(s);
     renderHand(s);
     renderPrompt(s);
+    requestAnimationFrame(updateHandArrows); // 並べ終わってから幅を測る
   }
 
   function markPickable(s) {
@@ -369,7 +407,7 @@ export function createCardBattle(deps) {
       b.style.animationDelay = i * 0.03 + "s";
       els.foeHand.appendChild(b);
     }
-    els.foeHand.appendChild(el(`<span class="cnt">手札 ${n}枚</span>`));
+
   }
 
   function renderHand(s) {
@@ -594,10 +632,15 @@ export function createCardBattle(deps) {
   /** サイコロを回してから face で止める(自分・相手で共通) */
   async function spinDice(face) {
     sfx("dice");
-    // カード内の6面をランダムに光らせ続けて「回っている」を表す
-    const spin = setInterval(() => stageHighlight(1 + Math.floor(Math.random() * 6), "spin"), 65);
+    // カード右上のサイコロを回しつつ、6面の該当行も一緒に光らせる
+    const spin = setInterval(() => {
+      const n = 1 + Math.floor(Math.random() * 6);
+      if (stageDice) stageDice.className = "bt-dice rolling pip-" + n;
+      stageHighlight(n, "spin");
+    }, 65);
     await wait(DUR.diceSpin);
     clearInterval(spin);
+    if (stageDice) stageDice.className = "bt-dice landed pip-" + face;
     sfx("land");
   }
 
@@ -610,10 +653,15 @@ export function createCardBattle(deps) {
     if (monId) openStage(monId, cardEl(q.monsterUid), "mon" + q.monsterUid);
     // 先に回してから、止める瞬間に出目を確定させる
     sfx("dice");
-    const spin = setInterval(() => stageHighlight(1 + Math.floor(Math.random() * 6), "spin"), 65);
+    const spin = setInterval(() => {
+      const n = 1 + Math.floor(Math.random() * 6);
+      if (stageDice) stageDice.className = "bt-dice rolling pip-" + n;
+      stageHighlight(n, "spin");
+    }, 65);
     await wait(DUR.diceSpin);
     clearInterval(spin);
     const face = battle.roll();
+    if (stageDice) stageDice.className = "bt-dice landed pip-" + face;
     sfx("land");
     stageHighlight(face, "lock"); // カード内の該当テキストだけを強調する
     // ここでは閉じない。続く roll イベントの再生が同じステージを使い回す
@@ -736,7 +784,7 @@ export function createCardBattle(deps) {
         closeStage();
         els.banner.className = "bt-banner"; // ターン表示と重ならないよう他は消す
         els.banner.innerHTML = "";
-        pushLog(`${who}のターン`);
+        pushLog(`${who}のターン`, ev.side);
         await wait(DUR.turnStart);
         return;
 
@@ -750,7 +798,7 @@ export function createCardBattle(deps) {
         if (c) c.classList.add("entering");
         sfx("play");
         banner(`${who}は <b>${nameOf(ev.id)}</b> を出した`, ev.swapped != null ? "交換して場に出した" : "このターンは召喚酔いで振れない");
-        pushLog(`${who}が${nameOf(ev.id)}を出した`);
+        pushLog(`${who}が${nameOf(ev.id)}を出した`, ev.side);
         await wait(DUR.play);
         return;
       }
@@ -764,10 +812,11 @@ export function createCardBattle(deps) {
           await wait(500); // 誰が振るのかを見せる間
           openStage(ev.id, cardEl(ev.uid), "mon" + ev.uid);
           if (ev.side === "foe") await spinDice(ev.face);
+          else if (stageDice) stageDice.className = "bt-dice landed pip-" + ev.face;
           stageHighlight(ev.face, "lock");
         }
         banner(`🎲 <b>${ev.face}</b> — ${nameOf(ev.id)}`, ev.text);
-        pushLog(`${nameOf(ev.id)}→${ev.face} ${ev.text}`);
+        pushLog(`${nameOf(ev.id)}→${ev.face} ${ev.text}`, ev.side);
         await wait(already ? 700 : DUR.roll); // 既に見せた分は短くする
         closeStage();
         doneMons.add(ev.uid); // このモンスターは行動済み
@@ -780,9 +829,10 @@ export function createCardBattle(deps) {
         actingUid = ev.uid;
         render();
         openStage(ev.id, cardEl(ev.uid), "mon" + ev.uid);
+        if (stageDice) stageDice.className = "bt-dice landed pip-" + ev.face;
         stageHighlight(ev.face, "lock");
         banner(`✨ 出目を <b>${ev.face}</b> に選んだ`, ev.text);
-        pushLog(`${nameOf(ev.id)}の出目を${ev.face}に選択`);
+        pushLog(`${nameOf(ev.id)}の出目を${ev.face}に選択`, ev.side);
         await wait(DUR.chooseFace);
         closeStage();
         return;
@@ -848,7 +898,7 @@ export function createCardBattle(deps) {
         overlay.appendChild(pop);
         sfx("event");
         banner(`${who}は <b>${nameOf(ev.id)}</b> を使った`, def.text);
-        pushLog(`${who}が${nameOf(ev.id)}を使用: ${def.text}`);
+        pushLog(`${who}が${nameOf(ev.id)}を使用: ${def.text}`, ev.side);
         await wait(Math.max(0, ms - DUR.popOut));
         pop.classList.add("out");
         await wait(DUR.popOut);
@@ -889,7 +939,7 @@ export function createCardBattle(deps) {
           renderFoeHand(foeHandLimit);
         }
         banner(`🗑 ${who}の手札から <b>${nameOf(ev.id)}</b> がトラッシュへ`);
-        pushLog(`${who}の手札から${nameOf(ev.id)}が落ちた`);
+        pushLog(`${who}の手札から${nameOf(ev.id)}が落ちた`, ev.side);
         await wait(DUR.discard);
         return;
       }
@@ -910,14 +960,14 @@ export function createCardBattle(deps) {
           if (ev.side === "you") { if (handLimit == null) return; handLimit++; renderHand(battle.state); }
           else { if (foeHandLimit == null) return; foeHandLimit++; renderFoeHand(foeHandLimit); }
         });
-        pushLog(`${who}が${ev.n}枚引いた`);
+        pushLog(`${who}が${ev.n}枚引いた`, ev.side);
         await wait(Math.max(DUR.draw, ms));
         return;
       }
 
       case "noDraw": {
         banner("ドローなし", `手札が${DRAW_LIMIT + 1}枚以上なのでドローしない`);
-        pushLog(`${who}は手札${ev.n}枚でドローなし`);
+        pushLog(`${who}は手札${ev.n}枚でドローなし`, ev.side);
         await wait(DUR.noDraw);
         return;
       }
