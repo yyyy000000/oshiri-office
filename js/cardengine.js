@@ -1036,7 +1036,8 @@ function snapMonster(p, m) {
     maxHp: m.maxHp,
     attr: m.def.attr,
     sick: m.sickTurn === p.turnNo, // 召喚酔い
-    skip: m.skipTurn === p.turnNo, // かくほ等でロール封じ
+    skip: m.skipTurn === p.turnNo, // かくほ等で、いま振れない
+    skipSoon: m.skipTurn > p.turnNo, // 次の自分のターンに振れない(予告)
     canRoll: canRoll(p, m),
   };
 }

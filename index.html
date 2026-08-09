@@ -713,6 +713,9 @@
     background: rgba(20,40,70,.85); border: 1px solid rgba(160,200,255,.5);
     font-size: 9px; letter-spacing: .5px;
   }
+  /* 行動停止は召喚酔いと別の色にして、見分けられるようにする */
+  .bt-sick.stop { background: rgba(80,20,60,.9); border-color: rgba(255,150,210,.65); color: #ffd7ee; }
+  .bt-sick.stop.soon { background: rgba(70,50,10,.9); border-color: rgba(255,210,120,.6); color: #ffe9a8; }
   /* 被弾・回復・撃破 */
   .bt-card.hit { animation: btHit .42s ease-out; }
   @keyframes btHit {
