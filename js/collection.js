@@ -22,19 +22,19 @@ let misc = Object.assign({ starterBought: false, pity: 0 }, load(KEY_MISC, {}));
 // ---------- パックの定義 ----------
 export const PACKS = {
   starter: {
-    id: "starter", name: "スターターパック", sub: "デッキ1個ぶん・15枚",
+    id: "starter", name: "スターターパック", sub: "デッキ1個ぶん・15枚。",
     price: 0, once: true, // 無料。カードゲームの入り口なので、ポイント0でも始められる
     desc: "対戦に必要な15枚が入った基本デッキ。<b>無料・生涯1回だけ</b>受け取れる。",
   },
   normal: {
-    id: "normal", name: "夜明けのお尻", sub: "ノーマルブースター・3枚",
+    id: "normal", name: "夜明けのお尻", sub: "ノーマルブースター・3枚入り。",
     price: 20000, cards: 3, rarePerPack: 0.01,
-    desc: "共通カードが3枚。<b>ごくまれに</b>レアが混じる。",
+    desc: "<b>ごくまれに</b>レアが混ジリマス。",
   },
   rare: {
-    id: "rare", name: "お尻星の覇者", sub: "レアブースター・3枚",
+    id: "rare", name: "お尻星の覇者", sub: "レアブースター・3枚入り。",
     price: 100000, cards: 3, rarePerPack: 0.2, pityAt: 10,
-    desc: "共通カードが3枚。<b>レアが出やすい</b>。ガチャ限定のカードしか入っていない。",
+    desc: "<b>レアが出ヤスイデス</b>。",
   },
 };
 

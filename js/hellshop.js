@@ -100,7 +100,7 @@ export function createHellShop(deps) {
     const afford = deps.getPoints() >= price;
     const b = el(
       `<button class="hell-btn" ${sold || !afford ? "disabled" : ""}>` +
-      `<span>${p.name}<small>${p.sub} — ${p.desc}</small></span>` +
+      `<span>${p.name}<small>${p.sub}${p.desc}</small></span>` +
       `<span class="hell-cost ${afford ? "" : "short"}">` +
       `${sold ? "受取済み" : price > 0 ? price.toLocaleString() + " pt" : "むりょう"}</span></button>`
     );
