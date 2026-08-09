@@ -73,6 +73,7 @@ export function createCardBattle(deps) {
   let skipNow = null;      // 演出の早送り
   let skipLayer = null;
   let pickRow = null;      // 中央に並べたカード選択(トラッシュから戻すときなど)
+  let slideTimers = [];    // 配布・ドロー演出のタイマー(開始/終了で止める)
   const logLines = [];
 
   const el = (html) => { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; };
@@ -115,6 +116,7 @@ export function createCardBattle(deps) {
   }
 
   async function start(opponentKey, seed) {
+    clearSlideTimers();
     closePickRow();
     // 前の対戦の演出が残っていたら片付ける(連続で開始した時の取りこぼし防止)
     overlay.querySelectorAll(".bt-intro, .bt-flip, .bt-result, .bt-eventpop").forEach((e) => e.remove());
@@ -144,6 +146,7 @@ export function createCardBattle(deps) {
   }
 
   function finish(winner) {
+    clearSlideTimers();
     closePickRow();
     closeStage();
     overlay.classList.remove("show");
@@ -886,8 +889,9 @@ export function createCardBattle(deps) {
         sfx("draw");
         // スライドが着地したところで手札に1枚ずつ現れる
         const ms = flyFromDeck(ev.side, ev.n, 0, () => {
-          if (ev.side === "you") { handLimit++; renderHand(battle.state); }
-          else { foeHandLimit++; renderFoeHand(foeHandLimit); }
+          if (!battle) return;
+          if (ev.side === "you") { if (handLimit == null) return; handLimit++; renderHand(battle.state); }
+          else { if (foeHandLimit == null) return; foeHandLimit++; renderFoeHand(foeHandLimit); }
         });
         pushLog(`${who}が${ev.n}枚引いた`);
         await wait(Math.max(DUR.draw, ms));
@@ -908,8 +912,14 @@ export function createCardBattle(deps) {
         foeHandLimit = 0;
         render();
         sfx("draw");
-        const a = flyFromDeck("foe", INITIAL_HAND, 0, () => { foeHandLimit++; renderFoeHand(foeHandLimit); sfx("draw"); });
-        const b = flyFromDeck("you", INITIAL_HAND, 130, () => { handLimit++; renderHand(battle.state); });
+        const a = flyFromDeck("foe", INITIAL_HAND, 0, () => {
+          if (foeHandLimit == null) return; // 早送りで演出を追い越した分は捨てる
+          foeHandLimit++; renderFoeHand(foeHandLimit); sfx("draw");
+        });
+        const b = flyFromDeck("you", INITIAL_HAND, 130, () => {
+          if (handLimit == null || !battle) return;
+          handLimit++; renderHand(battle.state);
+        });
         await wait(Math.max(a, b) + 250);
         return;
       }
@@ -1054,6 +1064,11 @@ export function createCardBattle(deps) {
     overlay.appendChild(box);
     pickRow = box;
   }
+  function clearSlideTimers() {
+    for (const t of slideTimers) clearTimeout(t);
+    slideTimers = [];
+    for (const g of document.querySelectorAll(".bt-slide")) g.remove();
+  }
   function closePickRow() {
     if (pickRow) { pickRow.remove(); pickRow = null; }
   }
@@ -1085,6 +1100,8 @@ export function createCardBattle(deps) {
    * @returns 全部終わるまでの時間(ms)
    */
   function flyFromDeck(side, n, offset = 0, onLand) {
+    // 早送りや投了で取り残されたタイマーが後から悪さをしないよう控えておく
+    const keep = (t) => { slideTimers.push(t); return t; };
     const deck = side === "you" ? els.youDeck : els.foeDeck;
     const target = side === "you" ? els.hand : els.foeHand;
     const dr = deck.getBoundingClientRect();
@@ -1093,9 +1110,9 @@ export function createCardBattle(deps) {
     const slide = 190;  // 束から抜き出すまで
     const move = 340;   // 手札へ滑り込むまで
     for (let i = 0; i < n; i++) {
-      setTimeout(() => {
+      keep(setTimeout(() => {
         deck.classList.add("draw");
-        setTimeout(() => deck.classList.remove("draw"), 300);
+        keep(setTimeout(() => deck.classList.remove("draw"), 300));
         const g = el(`<div class="bt-slide"></div>`);
         g.style.left = dr.left + "px";
         g.style.top = dr.top + "px";
@@ -1109,15 +1126,15 @@ export function createCardBattle(deps) {
           g.style.transform = `translate(${outDx}px, -5px)`;
         });
         // ② そのまま手札へ滑り込む
-        setTimeout(() => {
+        keep(setTimeout(() => {
           const dx = tr.left + tr.width * (side === "you" ? 0.66 : 0.5) - dr.left;
           const dy = tr.top + tr.height * 0.5 - (dr.top + dr.height * 0.5);
           g.style.transition = `transform ${move}ms cubic-bezier(.4,0,.3,1), opacity ${move}ms ease-in`;
           g.style.transform = `translate(${dx}px, ${dy}px) scale(.82)`;
           g.style.opacity = "0.2";
-          setTimeout(() => { g.remove(); if (onLand) onLand(); }, move + 30);
-        }, slide);
-      }, offset + i * step);
+          keep(setTimeout(() => { g.remove(); if (onLand) onLand(); }, move + 30));
+        }, slide));
+      }, offset + i * step));
     }
     return offset + (n - 1) * step + slide + move + 60;
   }
