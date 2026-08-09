@@ -12,6 +12,7 @@ import { maybeSlapVoice, screamVoice, setVoicesEnabled } from "./voices.js";
 import { getReply, getSlapLine, getStageLine, getEndingLine, ENDING_TEXTS, getCostumeEndLine } from "./dialog.js";
 import { renderCard, SAMPLE_CARDS } from "./cards.js";
 import { createHellShop } from "./hellshop.js";
+import { OPPONENTS } from "./carddata.js";
 import * as collection from "./collection.js";
 import { createCardBattle } from "./cardbattle.js";
 import { createCardRules } from "./cardrules.js";
@@ -1400,6 +1401,7 @@ function updateEnding(dt) {
       `<span>👋 <b>${slapCount.toLocaleString()}</b> 発</span>` +
       `<span>🏆 <b>${TOTAL_POINTS.toLocaleString()}</b> pt</span>` +
       `<span>⏱ <b>${Math.floor(sec / 60)}</b> 分 <b>${sec % 60}</b> 秒</span>` +
+      `<span>⚔️ <b>${cardWinCount()}</b> / ${OPPONENTS.length} 人</span>` +
       `</div>` +
       `<div class="end-cards">` +
       mkCard("🎁", "アイテム", got.items.length, SLAP_ITEMS.length) +
@@ -1409,6 +1411,11 @@ function updateEnding(dt) {
       `<div class="end-big">${petCount.toLocaleString()}<small> 回</small></div>` +
       `<div class="end-note">${petNote}</div></div>` +
       `</div>` +
+      `<div class="end-section-title">⚔️ カードバトルの戦績</div>` +
+      `<div class="end-clicks">${OPPONENTS.map((o) => {
+        const w = collection.winCount(o.key);
+        return `<span>${o.label} <b>${w ? w + "勝" : "—"}</b></span>`;
+      }).join("")}</div>` +
       `<div class="end-section-title">👆 クリック探索のきろく</div>` +
       `<div class="end-clicks">${clickRows}</div>`;
     // 結果画面の下からゲーム中UIが透けないよう隠す
@@ -1528,6 +1535,11 @@ if (!("ontouchstart" in window)) {
 applySettings();
 
 // ---------- 図鑑(コレクション+きろく) ----------
+/** カードバトルで1勝以上している相手の人数 */
+function cardWinCount() {
+  return OPPONENTS.filter((o) => collection.winCount(o.key) > 0).length;
+}
+
 const zukanOverlay = document.getElementById("zukan-overlay");
 const zukanContent = document.getElementById("zukan-content");
 const zkTabCol = document.getElementById("zk-tab-col");
@@ -1546,11 +1558,21 @@ function renderZukan() {
     zukanContent.innerHTML =
       `<div class="zk-section-title">🎁 アイテム(${gotItems.size}/${SLAP_ITEMS.length})</div><div class="zk-grid">${row(SLAP_ITEMS, gotItems, (x) => x.name)}</div>` +
       `<div class="zk-section-title">👗 衣装(${gotCos.size}/${COSTUMES.length})</div><div class="zk-grid">${row(COSTUMES, gotCos, (x) => x.name)}</div>` +
-      `<div class="zk-section-title">🎵 BGM(${gotBgm.size}/${TRACKS.length})</div><div class="zk-grid">${row(TRACKS, gotBgm, (x) => x.title)}</div>`;
+      `<div class="zk-section-title">🎵 BGM(${gotBgm.size}/${TRACKS.length})</div><div class="zk-grid">${row(TRACKS, gotBgm, (x) => x.title)}</div>` +
+      `<div class="zk-section-title">⚔️ カードバトル勝利(${cardWinCount()}/${OPPONENTS.length})</div>` +
+      `<div class="zk-grid">${OPPONENTS.map((o) => {
+        const w = collection.winCount(o.key);
+        return `<span class="zk${w ? "" : " zk-miss"}">${w ? o.label : "???"}</span>`;
+      }).join("")}</div>`;
   } else {
     const rows = Object.keys(CLICK_NAMES).map((id) => `<span>${CLICK_NAMES[id]} <b>×${clicks[id] || 0}</b></span>`).join("");
+    const battleRows = OPPONENTS.map((o) => {
+      const w = collection.winCount(o.key);
+      return `<span>${o.label} <b>${w ? w + "勝" : "—"}</b></span>`;
+    }).join("");
     zukanContent.innerHTML =
       `<div class="zk-section-title">今回のプレイ</div><div class="zk-rec"><span>ポイント <b>${points.toLocaleString()}</b></span><span>叩いた数 <b>${slapCount}</b></span></div>` +
+      `<div class="zk-section-title">⚔️ カードバトル(${cardWinCount()}/${OPPONENTS.length}人に勝利)</div><div class="zk-rec">${battleRows}</div>` +
       `<div class="zk-section-title">つうさん</div><div class="zk-rec"><span>🐻 なでなで <b>×${petCount}</b></span>${rows}</div>`;
   }
   zkTabCol.classList.toggle("active", zkTab === "col");
