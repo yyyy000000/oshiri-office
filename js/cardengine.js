@@ -76,6 +76,7 @@ export function makeRng(seed) {
 
 export const MAX_TURNS = 200; // 打ち切り(引き分け)
 export const INITIAL_HAND = 4; // 初期手札(手札の上限は設けていない)
+export const DRAW_LIMIT = 5;   // ターン開始時、手札がこの枚数以下ならドローする
 export const MAX_ROLLS_PER_TURN = 10; // 「もう一度振る」連鎖のフェイルセーフ
 const MAX_LOG = 300;
 
@@ -958,7 +959,9 @@ function* rollPhase(g, p, opp) {
 function* takeTurn(g, p, opp) {
   p.turnNo++;
   emit(g, { t: 'turnStart', side: p.side, turn: g.turns });
-  drawCards(g, p, 1); // ①
+  // ① 手札がDRAW_LIMIT枚以下のときだけドロー(手札が膨らみすぎるのを防ぐ)
+  if (p.hand.length <= DRAW_LIMIT) drawCards(g, p, 1);
+  else emit(g, { t: 'noDraw', side: p.side, n: p.hand.length });
   const res = yield* playPhase(g, p); // ②③
   if (res === 'lose') return 'lose';
   yield* rollPhase(g, p, opp); // ④

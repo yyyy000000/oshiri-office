@@ -8,7 +8,7 @@
 //  - 出目のテキストは中央のバナーに大きく出す(ログを読まなくても分かるように)
 //  - 演出中に画面をタップすると早送りできる
 import { CARDS, OPPONENTS } from "./carddata.js";
-import { createBattle, INITIAL_HAND } from "./cardengine.js";
+import { createBattle, INITIAL_HAND, DRAW_LIMIT } from "./cardengine.js";
 import { renderCard } from "./cards.js";
 import * as col from "./collection.js";
 
@@ -19,6 +19,7 @@ const DUR = {
   turnStart: 1500, play: 1000, roll: 2200, damage: 1400, heal: 1200, draw: 550,
   useEvent: 1900, bounce: 1300, trash: 900, discard: 1000, skipRoll: 1300,
   recover: 1300, chooseFace: 1800, mulligan: 1200, over: 900, turnEnd: 150,
+  noDraw: 1300,    // 手札が多くてドローが起きなかった時の説明
   ko: 1200,        // 撃破の追い演出
   aiThink: 900,    // 相手のターンに入る前の間
   diceSpin: 900,   // ダイスが回っている時間
@@ -37,6 +38,7 @@ export function createCardBattle(deps) {
     prompt: $("bt-prompt"), banner: $("bt-banner"), turnBanner: $("bt-turnbanner"),
   };
   $("bt-quit").addEventListener("click", () => { if (battle) finish(null); });
+  $("bt-rules").addEventListener("click", (e) => { e.stopPropagation(); deps.onShowRules(); });
   els.youTrash.addEventListener("click", () => showTrash("you"));
   els.foeTrash.addEventListener("click", () => showTrash("foe"));
 
@@ -853,6 +855,13 @@ export function createCardBattle(deps) {
         });
         pushLog(`${who}が${ev.n}枚引いた`);
         await wait(Math.max(DUR.draw, ms));
+        return;
+      }
+
+      case "noDraw": {
+        banner("ドローなし", `手札が${DRAW_LIMIT + 1}枚以上なのでドローしない`);
+        pushLog(`${who}は手札${ev.n}枚でドローなし`);
+        await wait(DUR.noDraw);
         return;
       }
 

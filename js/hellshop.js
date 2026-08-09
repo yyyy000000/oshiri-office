@@ -84,6 +84,10 @@ export function createHellShop(deps) {
     fight.addEventListener("click", screenOpponents);
     menu.appendChild(fight);
 
+    const rules = el(`<button class="hell-btn">📜 ルールを読む<small>おしりバトルダイスの遊び方</small></button>`);
+    rules.addEventListener("click", () => deps.onShowRules());
+    menu.appendChild(rules);
+
     setBody(line, menu);
   }
 

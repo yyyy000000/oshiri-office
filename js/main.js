@@ -14,6 +14,7 @@ import { renderCard, SAMPLE_CARDS } from "./cards.js";
 import { createHellShop } from "./hellshop.js";
 import * as collection from "./collection.js";
 import { createCardBattle } from "./cardbattle.js";
+import { createCardRules } from "./cardrules.js";
 import { createEndingFx, PLATFORM_TOP_Y } from "./ending.js";
 
 const TOTAL_POINTS = 1000000;
@@ -512,11 +513,13 @@ applyProgress();
 checkUnlocks(false);
 
 // HELL 9000のショップ。ポイントを消費してカードパックを買う
+const cardRules = createCardRules();
 const cardBattle = createCardBattle({
   toast: (t) => toast(t),
   sfx: (name) => playCardSfx(name),
   onBattleStart: () => { endFeverTime(true); bgm.startBattle(); },
   onFinish: () => { bgm.stopBattle(); hellShop.show(); }, // 対戦が終わったらショップに戻る
+  onShowRules: () => cardRules.open(),
 });
 const hellShop = createHellShop({
   getPoints: () => points,
@@ -524,6 +527,7 @@ const hellShop = createHellShop({
   toast: (t) => toast(t),
   playSfx: () => playDropSound(),
   onStartBattle: (opponentKey) => cardBattle.start(opponentKey),
+  onShowRules: () => cardRules.open(),
 });
 
 function flashStage() {

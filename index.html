@@ -466,6 +466,46 @@
     .hell-slot { width: calc(50% - 4px); }
   }
 
+  /* ===== ルール表示(HELLのメニューと対戦画面の両方から開く) ===== */
+  #rules-overlay {
+    position: fixed; inset: 0; z-index: 32; display: none;
+    align-items: center; justify-content: center; padding: 16px;
+    background: rgba(4,8,14,.92);
+  }
+  #rules-overlay.show { display: flex; }
+  #rules-panel {
+    width: min(680px, 100%); max-height: 92vh; display: flex; flex-direction: column;
+    border-radius: 14px; overflow: hidden; color: #e8f2ff;
+    font-family: "Hiragino Sans", sans-serif;
+    background: linear-gradient(180deg, #1a1430, #0b0913);
+    border: 1px solid rgba(190,175,255,.4);
+    box-shadow: 0 12px 50px rgba(0,0,0,.75);
+  }
+  #rules-head {
+    flex: none; display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+    background: rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.12);
+  }
+  #rules-title { font-size: 15px; font-weight: bold; letter-spacing: .04em; }
+  #rules-close {
+    margin-left: auto; width: 32px; height: 32px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08);
+    color: #fff; font-size: 17px; cursor: pointer; font-family: inherit;
+  }
+  #rules-body { padding: 6px 18px 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .rules-sec { margin-top: 18px; }
+  .rules-sec h3 {
+    margin: 0 0 8px; font-size: 13px; letter-spacing: .1em; color: #c7b6ff;
+    border-left: 3px solid #7a5cff; padding-left: 8px;
+  }
+  .rules-sec p { margin: 0 0 7px; font-size: 13.5px; line-height: 1.75; opacity: .92; }
+  .rules-sec ol { margin: 0; padding-left: 1.35em; }
+  .rules-sec ol li { font-size: 13.5px; line-height: 1.75; margin-bottom: 5px; opacity: .92; }
+  .rules-sec b { color: #ffe27a; font-weight: bold; }
+  @media (max-width: 560px) {
+    #rules-body { padding: 4px 14px 16px; }
+    .rules-sec p, .rules-sec ol li { font-size: 13px; }
+  }
+
   /* ===== 対戦画面(おしりバトルダイス) =====
      ポケポケ風: 盤面は実物のカードを並べ、1イベントずつ演出を挟んで進める。 */
   #battle-overlay {
@@ -1047,6 +1087,7 @@
       <span class="who" id="bt-foe-name">相手</span>
       <span class="st" id="bt-foe-st"></span>
       <span class="turn" id="bt-turn"></span>
+      <button class="bt-quit" id="bt-rules" title="ルールを読む">📜 ルール</button>
       <button class="bt-quit" id="bt-quit">投了してもどる</button>
     </div>
     <div class="bt-handrow foe">
@@ -1088,6 +1129,16 @@
         <button id="hell-close" title="閉じる">×</button>
       </div>
       <div id="hell-body"></div>
+    </div>
+  </div>
+
+  <div id="rules-overlay">
+    <div id="rules-panel">
+      <div id="rules-head">
+        <div id="rules-title">おしりバトルダイス — ルール</div>
+        <button id="rules-close" title="閉じる">×</button>
+      </div>
+      <div id="rules-body"></div>
     </div>
   </div>
   <div id="zukan-overlay">
