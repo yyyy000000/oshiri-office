@@ -66,6 +66,7 @@ export async function playPackOpen(o) {
   const rare = ids.filter((id) => CARDS[id] && CARDS[id].rarity === "rare");
   pack.classList.add("gone");
   await wait(220);
+  pack.remove(); // 透明なまま残すと、出てくるカードが中央からずれる
 
   // --- カードが1枚ずつめくれて出てくる ---
   const row = el(`<div class="pk-cards"></div>`);

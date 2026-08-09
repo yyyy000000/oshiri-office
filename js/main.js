@@ -648,6 +648,16 @@ applyProgress();
 checkUnlocks(false);
 
 // HELL 9000のショップ。ポイントを消費してカードパックを買う
+// HELLのショップやカード対戦を開いている間は、スマホの仮想スティックを引っこめる
+// (画面下のボタンに重なって押せなくなるため)
+let stickHidden = false;
+function syncStickVisibility() {
+  const busy = !!(hellShop.isOpen || cardBattle.isOpen || cardRules.isOpen);
+  if (busy === stickHidden) return;
+  stickHidden = busy;
+  fps.setUiHidden(busy);
+}
+
 const cardRules = createCardRules();
 const cardBattle = createCardBattle({
   toast: (t) => toast(t),
@@ -665,6 +675,8 @@ const cardBattle = createCardBattle({
   },
   onShowRules: () => cardRules.open(),
   onIntro: (key, label) => cinematicIntro(key, label),
+  isSoundOn: () => !soundMuted,
+  toggleSound: () => setSoundMuted(!soundMuted),
 });
 const hellShop = createHellShop({
   getPoints: () => points,
@@ -1455,6 +1467,31 @@ function applySettings() {
   fps.setSensitivity({ look: settings.look, stick: settings.stick, move: settings.move });
 }
 function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+
+// 対戦画面の🔊ボタン用。BGMと効果音をまとめて消す(消す前の音量は覚えておく)
+let soundMuted = settings.bgm === 0 && settings.sfx === 0;
+let soundBefore = { bgm: settings.bgm || 1, sfx: settings.sfx || 1 };
+function setSoundMuted(on) {
+  if (on) {
+    soundBefore = { bgm: settings.bgm, sfx: settings.sfx };
+    settings.bgm = 0;
+    settings.sfx = 0;
+  } else {
+    settings.bgm = soundBefore.bgm || 1;
+    settings.sfx = soundBefore.sfx || 1;
+  }
+  soundMuted = on;
+  applySettings();
+  saveSettings();
+  // 設定パネルのスライダーも合わせる
+  for (const [id, key] of [["set-bgm", "bgm"], ["set-sfx", "sfx"]]) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.value = Math.round(settings[key] * 100);
+    const val = document.getElementById(id + "-val");
+    if (val) val.textContent = el.value;
+  }
+}
 const settingsOverlay = document.getElementById("settings-overlay");
 document.getElementById("settings-btn").addEventListener("click", () => settingsOverlay.classList.add("show"));
 document.getElementById("settings-close").addEventListener("click", () => settingsOverlay.classList.remove("show"));
@@ -1646,5 +1683,6 @@ renderer.setAnimationLoop(() => {
     controls.update();
   }
   updateBubblePos();
+  syncStickVisibility(); // オーバーレイ中は仮想スティックを引っこめる
   renderer.render(scene, camera);
 });

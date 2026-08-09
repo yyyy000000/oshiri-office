@@ -41,6 +41,19 @@ export function createCardBattle(deps) {
   };
   $("bt-quit").addEventListener("click", () => { if (battle) finish(null); });
   $("bt-rules").addEventListener("click", (e) => { e.stopPropagation(); deps.onShowRules(); });
+  // 音のON/OFF(設定パネルのBGM・効果音をまとめて切り替える)
+  const soundBtn = $("bt-sound");
+  function refreshSound() {
+    const on = deps.isSoundOn ? deps.isSoundOn() : true;
+    soundBtn.textContent = on ? "🔊" : "🔇";
+    soundBtn.title = on ? "音を消す" : "音を出す";
+    soundBtn.classList.toggle("off", !on);
+  }
+  soundBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (deps.toggleSound) deps.toggleSound();
+    refreshSound();
+  });
   els.youTrash.addEventListener("click", () => showTrash("you"));
   els.foeTrash.addEventListener("click", () => showTrash("foe"));
 
@@ -130,6 +143,7 @@ export function createCardBattle(deps) {
     // 乱入演出は3D空間側で出す。対戦画面はそのあとに開く
     if (deps.onIntro) await deps.onIntro(opponentKey, meta0 ? meta0.label : opponentKey);
     overlay.classList.add("show");
+    refreshSound();
     const first = await coinFlip();
     // seed は検証用(省略時は毎回ランダム)
     battle = createBattle({ playerDeck: col.getDeck() || [], opponentKey, seed, firstPlayer: first });
@@ -299,8 +313,11 @@ export function createCardBattle(deps) {
     const s = battle.state;
     const meta = OPPONENTS.find((o) => o.key === s.opponentKey);
     els.foeName.textContent = meta ? meta.label : s.opponentKey;
-    els.foeSt.textContent = `山札${s.foe.deckCount} / トラッシュ${s.foe.trashCount}`;
-    els.youSt.textContent = `山札${s.you.deckCount} / トラッシュ${s.you.trashCount}`;
+    // 手札の枚数も並べる(演出中は見せている枚数に合わせる)
+    const foeHandN = foeHandLimit == null ? s.foe.handCount : foeHandLimit;
+    const youHandN = handLimit == null ? s.you.hand.length : Math.min(handLimit, s.you.hand.length);
+    els.foeSt.textContent = `手札${foeHandN} / 山札${s.foe.deckCount} / トラッシュ${s.foe.trashCount}`;
+    els.youSt.textContent = `手札${youHandN} / 山札${s.you.deckCount} / トラッシュ${s.you.trashCount}`;
     els.turn.textContent = `${s.turn}ターン目`;
     renderFoeHand(foeHandLimit == null ? s.foe.handCount : foeHandLimit);
     for (const [el2, n] of [[els.youTrash, s.you.trashCount], [els.foeTrash, s.foe.trashCount]]) {

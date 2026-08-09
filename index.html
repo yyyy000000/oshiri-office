@@ -749,6 +749,8 @@
     padding: 4px 10px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 11px;
     background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.24); color: #fff;
   }
+  .bt-quit.bt-icon { padding: 4px 8px; font-size: 14px; line-height: 1.1; }
+  .bt-quit.bt-icon.off { opacity: .5; }
   /* 相手の手札は裏面で枚数ぶん並べる(少し重ねて場所を取らない) */
   .bt-foehand {
     flex: none; display: flex; justify-content: center; align-items: center;
@@ -1376,6 +1378,7 @@
       <span class="who" id="bt-foe-name">相手</span>
       <span class="st" id="bt-foe-st"></span>
       <span class="turn" id="bt-turn"></span>
+      <button class="bt-quit bt-icon" id="bt-sound" title="音を消す">🔊</button>
       <button class="bt-quit" id="bt-rules" title="ルールを読む">📜 ルール</button>
       <button class="bt-quit" id="bt-quit">投了してもどる</button>
     </div>

@@ -145,6 +145,7 @@ export function createFPSControls(camera, domElement) {
   // Virtual stick (movement + rotate)
   // ---------------------------------------------------------------------
 
+  let uiHidden = false;
   let stickTouchId = null;
   let stickCenter = { x: 0, y: 0 };
   let stickVec = { x: 0, y: 0 }; // normalized -1..1
@@ -472,7 +473,7 @@ export function createFPSControls(camera, domElement) {
     crosshair.classList.remove("fpsc-hot");
 
     if (isTouchDevice) {
-      stickOuter.style.display = "block";
+      stickOuter.style.display = uiHidden ? "none" : "block";
       domElement.style.touchAction = "none"; // スワイプ中のスクロール/バウンス防止
     }
 
@@ -508,12 +509,21 @@ export function createFPSControls(camera, domElement) {
     }
   }
 
+  /** オーバーレイ表示中など、一時的にスティックを隠す(操作も止める) */
+  function setUiHidden(hidden) {
+    uiHidden = !!hidden;
+    // クラス側の既定が display:none なので、戻すときは block を明示する
+    stickOuter.style.display = uiHidden || !enabled || !isTouchDevice ? "none" : "block";
+    if (uiHidden) stickReset();
+  }
+
   return {
     enable,
     disable,
     update,
     setInRange,
     setSensitivity,
+    setUiHidden,
     get enabled() {
       return enabled;
     },
