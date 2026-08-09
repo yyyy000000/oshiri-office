@@ -202,6 +202,7 @@ const CARD_OUTRO = {
   },
 };
 const cineCaption = document.getElementById("cine-caption");
+let cineToken = 0; // 演出の世代番号(重なった時に古い後片付けを無視する)
 let cine = null; // { camPos, look } カメラを借りている間だけ入る
 
 /** 部屋の当人にカメラを寄せる。text を省くとセリフ枠は出さない(対戦開始の乱入用) */
@@ -218,6 +219,7 @@ function cinematicFocus(who, name, text, ms = 3400, speed = 0.06) {
     const saved = { pos: camera.position.clone(), quat: camera.quaternion.clone(), target: controls.target.clone() };
     // いきなり切り替えず、少し引いた位置から寄っていく
     camera.position.copy(camPos.clone().add(dir.clone().multiplyScalar(0.7)).setY(camPos.y + 0.28));
+    const token = ++cineToken; // 後から呼ばれた演出が古い後片付けに壊されないように
     cine = { camPos, look: spot.at.clone(), speed, follow: spot.follow, dist: spot.dist };
     document.body.classList.add("cine-on");
 
@@ -226,6 +228,7 @@ function cinematicFocus(who, name, text, ms = 3400, speed = 0.06) {
       cineCaption.classList.add("show");
     }
     setTimeout(() => {
+      if (token !== cineToken) { resolve(); return; } // すでに次の演出が始まっている
       cineCaption.classList.remove("show");
       document.body.classList.remove("cine-on");
       cine = null;
