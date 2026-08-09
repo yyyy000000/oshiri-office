@@ -512,6 +512,14 @@
     .hell-slot { width: calc(50% - 4px); }
   }
 
+  /* 寄り演出/乱入演出の間はHUDを引っこめて、画をきれいに見せる */
+  body.cine-on #title-bar, body.cine-on #slap-counter, body.cine-on #controls,
+  body.cine-on #zukan-btn, body.cine-on #settings-btn, body.cine-on #help-btn,
+  body.cine-on #spank-btn, body.cine-on #aim-dot,
+  body.cine-on #bubble, body.cine-on #hoshi-bubble, body.cine-on #carrie-bubble {
+    opacity: 0; transition: opacity .25s; pointer-events: none;
+  }
+
   /* ===== 対戦後の寄り演出のセリフ(映画の字幕風) ===== */
   #cine-caption {
     position: fixed; left: 50%; bottom: 12%; z-index: 27; display: none;
@@ -525,30 +533,30 @@
   #cine-caption b { display: block; font-size: 12px; letter-spacing: 2px; color: #ffd76e; margin-bottom: 4px; }
   @keyframes cineIn { from { opacity: 0; transform: translate(-50%, 14px); } }
 
-  /* ===== 対戦開始の乱入演出(ストリートファイター風) ===== */
+  /* ===== 対戦開始の乱入演出(ストリートファイター風) =====
+     背景は3D空間そのもの。カメラが相手キャラに寄っている上に文字を重ねる */
   .bt-intro {
-    position: absolute; inset: 0; z-index: 20; overflow: hidden;
-    display: flex; align-items: center; justify-content: center;
-    background: #05070d;
+    position: fixed; inset: 0; z-index: 24; overflow: hidden; pointer-events: none;
+    background: radial-gradient(ellipse at 50% 45%, transparent 34%, rgba(3,5,10,.72) 88%);
   }
-  /* 背後を斜めに走る帯 */
+  /* 画面を斜めに走り抜ける帯(通過したら消える) */
   .bt-intro .band {
-    position: absolute; left: -30%; width: 160%; height: 26%;
+    position: absolute; left: -30%; width: 160%; height: 22%;
     background: linear-gradient(90deg, #ff2e4d, #ff8a3d);
     transform: skewY(-9deg); opacity: .9;
   }
-  .bt-intro .band.b1 { top: 18%; animation: introBand .42s cubic-bezier(.15,.9,.2,1) backwards; }
-  .bt-intro .band.b2 { top: 56%; background: linear-gradient(90deg, #2f7bff, #7a3dff);
-    animation: introBand .42s .07s cubic-bezier(.15,.9,.2,1) backwards; animation-direction: reverse; }
-  @keyframes introBand { from { transform: skewY(-9deg) translateX(-120%); } }
-  .bt-intro .portrait {
-    position: relative; z-index: 2; width: min(340px, 62vw); border-radius: 12px; overflow: hidden;
-    border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(0,0,0,.55), 0 20px 60px rgba(0,0,0,.8);
-    animation: introSlam .38s cubic-bezier(.2,1.5,.35,1) backwards;
+  .bt-intro .band.b1 { top: 20%; animation: introSweep .75s cubic-bezier(.2,.85,.25,1) forwards; }
+  .bt-intro .band.b2 { top: 58%; background: linear-gradient(90deg, #2f7bff, #7a3dff);
+    animation: introSweepBack .75s .08s cubic-bezier(.2,.85,.25,1) forwards; }
+  @keyframes introSweep {
+    0% { transform: skewY(-9deg) translateX(-130%); }
+    55% { transform: skewY(-9deg) translateX(0); opacity: .9; }
+    100% { transform: skewY(-9deg) translateX(130%); opacity: 0; }
   }
-  .bt-intro .portrait img { display: block; width: 100%; }
-  @keyframes introSlam {
-    from { transform: translateX(38%) scale(1.5) rotate(6deg); opacity: 0; filter: blur(6px); }
+  @keyframes introSweepBack {
+    0% { transform: skewY(-9deg) translateX(130%); }
+    55% { transform: skewY(-9deg) translateX(0); opacity: .9; }
+    100% { transform: skewY(-9deg) translateX(-130%); opacity: 0; }
   }
   .bt-intro .who {
     position: absolute; z-index: 3; left: 0; right: 0; top: 12%; text-align: center;

@@ -80,32 +80,6 @@ export function createCardBattle(deps) {
   const nameOf = (id) => (CARDS[id] ? CARDS[id].name : id);
 
   // ---------- 起動と終了 ----------
-  // 乱入演出に使う顔(そのキャラの固有モンスターのイラストを流用する)
-  const PORTRAIT = { hoshi: "hoshi", kuma: "kuma", carry: "carry", hell: "gacha", ojisan: "ojisan" };
-
-  /** 対戦開始の乱入演出。相手の顔と BATTLE START を叩きつける */
-  function intro(opponentKey, label) {
-    return new Promise((resolve) => {
-      const art = PORTRAIT[opponentKey] || "ojisan";
-      const box = el(
-        `<div class="bt-intro">` +
-        `<div class="band b1"></div><div class="band b2"></div>` +
-        `<div class="portrait"><img alt="" src="assets/cards/${art}.jpeg"></div>` +
-        `<div class="who">${label}</div>` +
-        `</div>`
-      );
-      overlay.appendChild(box);
-      sfx("vs");
-      setTimeout(() => {
-        box.appendChild(el(`<div class="shock"></div>`));
-        box.appendChild(el(`<div class="vs">BATTLE START</div>`));
-        sfx("slam");
-      }, 620);
-      setTimeout(() => box.classList.add("out"), 1750);
-      setTimeout(() => { box.remove(); resolve(); }, 2080);
-    });
-  }
-
   /**
    * 対戦前の先攻決め。伏せた2枚から1枚選ばせる(中身は「先攻」「後攻」)。
    * @returns {Promise<'you'|'foe'>}
@@ -150,9 +124,10 @@ export function createCardBattle(deps) {
     closeStage();
     const meta0 = OPPONENTS.find((o) => o.key === opponentKey);
     els.foeName.textContent = meta0 ? meta0.label : opponentKey;
-    overlay.classList.add("show");
     if (deps.onBattleStart) deps.onBattleStart();
-    await intro(opponentKey, meta0 ? meta0.label : opponentKey);
+    // 乱入演出は3D空間側で出す。対戦画面はそのあとに開く
+    if (deps.onIntro) await deps.onIntro(opponentKey, meta0 ? meta0.label : opponentKey);
+    overlay.classList.add("show");
     const first = await coinFlip();
     // seed は検証用(省略時は毎回ランダム)
     battle = createBattle({ playerDeck: col.getDeck() || [], opponentKey, seed, firstPlayer: first });

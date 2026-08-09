@@ -160,7 +160,18 @@ const CINE_SPOTS = {
   },
   carry: () => ({ at: new THREE.Vector3(2.5, 1.55, 2.3), dist: 1.25 }),
   hell: () => ({ at: new THREE.Vector3(2.45, 1.05, -1.5), dist: 1.15 }),
-  ojisan: () => ({ at: ojisan.headPos().clone(), dist: 1.05 }),
+  // おじさんは歩き回るので、演出の間だけ進行度0にして机の前に座らせる(cinematicFocus内)。
+  // 座り位置は固定なので、そこを正面から映せばよい
+  // おじさんは歩き回るので毎フレーム追いかける。向きは他のキャラと同じく
+  // 「部屋の中心側から映す」に統一(本人の向き基準だと後ろ姿になりやすい)
+  ojisan: () => ({
+    at: ojisan.headPos().clone(),
+    dist: 1.9,
+    follow: () => ({
+      at: ojisan.headPos().clone(),
+      front: ojisan.headPos().clone().setY(0).normalize().negate(),
+    }),
+  }),
 };
 // 対戦後のひとこと。win = そのキャラが勝った時 / lose = 負けた時
 const CARD_OUTRO = {
@@ -193,22 +204,30 @@ const CARD_OUTRO = {
 const cineCaption = document.getElementById("cine-caption");
 let cine = null; // { camPos, look } カメラを借りている間だけ入る
 
-function cinematicFocus(who, name, text, ms = 3400) {
+/** 部屋の当人にカメラを寄せる。text を省くとセリフ枠は出さない(対戦開始の乱入用) */
+function cinematicFocus(who, name, text, ms = 3400, speed = 0.06) {
   return new Promise((resolve) => {
+    // おじさんは徘徊するので、演出の間だけ進行度0に落として机の前に座らせる
     const spot = CINE_SPOTS[who] && CINE_SPOTS[who]();
     if (!spot || ending) { resolve(); return; }
-    // キャラから部屋の中心へ向かう方向。その先にカメラを置くと正面から映せる
-    const dir = spot.at.clone().setY(0).normalize().negate();
+    // 既定はキャラから部屋の中心へ向かう方向。その先にカメラを置くと正面から映せる。
+    // front 指定があれば、本人の正面を優先する
+    const dir = spot.front ? spot.front.clone().normalize() : spot.at.clone().setY(0).normalize().negate();
     const camPos = spot.at.clone().add(dir.clone().multiplyScalar(spot.dist));
     camPos.y = spot.at.y + 0.16;
     const saved = { pos: camera.position.clone(), quat: camera.quaternion.clone(), target: controls.target.clone() };
     // いきなり切り替えず、少し引いた位置から寄っていく
     camera.position.copy(camPos.clone().add(dir.clone().multiplyScalar(0.7)).setY(camPos.y + 0.28));
-    cine = { camPos, look: spot.at.clone() };
-    cineCaption.innerHTML = `<b>${name}</b>${text}`;
-    cineCaption.classList.add("show");
+    cine = { camPos, look: spot.at.clone(), speed, follow: spot.follow, dist: spot.dist };
+    document.body.classList.add("cine-on");
+
+    if (text) {
+      cineCaption.innerHTML = `<b>${name}</b>${text}`;
+      cineCaption.classList.add("show");
+    }
     setTimeout(() => {
       cineCaption.classList.remove("show");
+      document.body.classList.remove("cine-on");
       cine = null;
       camera.position.copy(saved.pos);
       camera.quaternion.copy(saved.quat);
@@ -216,6 +235,26 @@ function cinematicFocus(who, name, text, ms = 3400) {
       resolve();
     }, ms);
   });
+}
+
+/**
+ * 対戦開始の乱入演出。カード絵ではなく、部屋にいる本人を3Dで寄って映し、
+ * その上に名前と BATTLE START を叩きつける。
+ */
+function cinematicIntro(who, label) {
+  const box = document.createElement("div");
+  box.className = "bt-intro";
+  box.innerHTML =
+    `<div class="band b1"></div><div class="band b2"></div><div class="who">${label}</div>`;
+  document.body.appendChild(box);
+  playCardSfx("vs");
+  setTimeout(() => {
+    box.insertAdjacentHTML("beforeend", `<div class="shock"></div><div class="vs">BATTLE START</div>`);
+    playCardSfx("slam");
+  }, 700);
+  setTimeout(() => box.classList.add("out"), 1900);
+  setTimeout(() => box.remove(), 2260);
+  return cinematicFocus(who, null, null, 2260, 0.2); // 文字が出るまでに寄り切る速さ
 }
 
 const toastArea = document.getElementById("toast-area");
@@ -622,6 +661,7 @@ const cardBattle = createCardBattle({
     hellShop.show();
   },
   onShowRules: () => cardRules.open(),
+  onIntro: (key, label) => cinematicIntro(key, label),
 });
 const hellShop = createHellShop({
   getPoints: () => points,
@@ -1535,6 +1575,7 @@ window.__endDest = null; // "cloud"|"moon"|"butt"|"star" で到着先を強制(�
 window.__camera = camera; // 検証用: カメラ直接操作
 window.__hell = hellShop;  // 検証用: HELL 9000のショップを直接開く
 window.__cine = cinematicFocus; // 検証用: 対戦後の寄り演出を直接呼ぶ
+window.__intro = cinematicIntro; // 検証用: 対戦開始の乱入演出を直接呼ぶ
 window.__cards = collection; // 検証用: 所持カード・パック排出
 window.__battle = cardBattle; // 検証用: 対戦画面を直接開く
 // カード枠の確認用: __cardPreview() で見本カードを画面に並べる
@@ -1585,8 +1626,15 @@ renderer.setAnimationLoop(() => {
   if (ending) {
     updateEnding(dt);
   } else if (cine) {
-    // 対戦後の寄り演出。操作は受け付けず、決めた位置へ滑らかに寄る
-    camera.position.lerp(cine.camPos, 0.06);
+    // 寄り演出。操作は受け付けず、決めた位置へ滑らかに寄る
+    if (cine.follow) {
+      // 歩き回るキャラは毎フレーム狙いを取り直して、必ず画に収める
+      const f = cine.follow();
+      cine.look.copy(f.at);
+      cine.camPos.copy(f.at).add(f.front.clone().normalize().multiplyScalar(cine.dist));
+      cine.camPos.y = f.at.y + 0.05;
+    }
+    camera.position.lerp(cine.camPos, cine.speed);
     camera.lookAt(cine.look);
   } else if (fps.enabled) {
     fps.update(dt);
