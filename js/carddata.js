@@ -89,8 +89,8 @@ export const CARDS = {
       { text: 'ガムテープほきょう — 自分のモンスター1体を20回復', fx: [{ t: 'heal', n: 20 }] },
       { text: 'たいあたり — 相手モンスター1体に35ダメージ', fx: [{ t: 'damage', n: 35 }] },
       {
-        text: 'ダンボールプレス — 相手モンスター1体に50ダメージ。自分のモンスター1体に10ダメージ',
-        fx: [{ t: 'damage', n: 50 }, { t: 'selfDamage', n: 10, to: 'choose' }],
+        text: 'ダンボールプレス — 相手モンスター1体に50ダメージ。自分に10ダメージ',
+        fx: [{ t: 'damage', n: 50 }, { t: 'selfDamage', n: 10, to: 'source' }],
       },
     ],
   },

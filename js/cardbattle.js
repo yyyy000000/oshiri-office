@@ -17,9 +17,10 @@ const $ = (id) => document.getElementById(id);
 // 各イベントの見せ場の長さ(ms)。短すぎると何が起きたか読めない
 const DUR = {
   turnStart: 1500, play: 1000, roll: 2200, damage: 1400, heal: 1200, draw: 550,
-  useEvent: 1900, bounce: 1300, trash: 900, discard: 1000, skipRoll: 1300,
+  useEvent: 1900, foeEvent: 2000, bounce: 1300, trash: 900, discard: 1000, skipRoll: 1300,
   recover: 1300, chooseFace: 1800, mulligan: 1200, over: 900, turnEnd: 150,
   noDraw: 1300,    // 手札が多くてドローが起きなかった時の説明
+  flip: 1500,      // 先攻決めのカードをめくってから対戦が始まるまで
   ko: 1200,        // 撃破の追い演出
   aiThink: 900,    // 相手のターンに入る前の間
   diceSpin: 900,   // ダイスが回っている時間
@@ -67,8 +68,8 @@ export function createCardBattle(deps) {
   // 演出が追いつくまで表示しておくHP(uid → hp)。エンジンは先に減らしているため
   let hpOverride = new Map();
   let skipNow = null;      // 演出の早送り
-  let nextNow = null;      // 「次へ」待ちの解放
   let skipLayer = null;
+  let pickRow = null;      // 中央に並べたカード選択(トラッシュから戻すときなど)
   const logLines = [];
 
   const el = (html) => { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; };
@@ -76,28 +77,66 @@ export function createCardBattle(deps) {
   const nameOf = (id) => (CARDS[id] ? CARDS[id].name : id);
 
   // ---------- 起動と終了 ----------
-  function start(opponentKey, seed) {
-    if (nextNow) nextNow();
+  /**
+   * 対戦前の先攻決め。伏せた2枚から1枚選ばせる(中身は「先攻」「後攻」)。
+   * @returns {Promise<'you'|'foe'>}
+   */
+  function coinFlip() {
+    return new Promise((resolve) => {
+      const youFirst = Math.random() < 0.5; // 左のカードが「先攻」かどうか
+      const box = el(
+        `<div class="bt-flip"><h3>先攻・後攻を決めます</h3>` +
+        `<p class="sub">伏せられた2枚から1枚選んでください</p>` +
+        `<div class="row"></div></div>`
+      );
+      const row = box.querySelector(".row");
+      const faces = [youFirst ? "先攻" : "後攻", youFirst ? "後攻" : "先攻"];
+      let done = false;
+      faces.forEach((label, i) => {
+        const c = el(`<div class="bt-flipcard"><div class="in"><div class="bk"></div>` +
+          `<div class="fr">${label}</div></div></div>`);
+        c.addEventListener("click", () => {
+          if (done) return;
+          done = true;
+          sfx("play");
+          c.classList.add("open", "chosen");
+          // もう1枚も遅れて開いて、外れの中身を見せる
+          setTimeout(() => { for (const o of row.children) o.classList.add("open"); }, 450);
+          box.querySelector("h3").textContent = label === "先攻" ? "あなたの先攻!" : "あいての先攻!";
+          setTimeout(() => { box.remove(); resolve(label === "先攻" ? "you" : "foe"); }, DUR.flip);
+        });
+        row.appendChild(c);
+      });
+      overlay.appendChild(box);
+    });
+  }
+
+  async function start(opponentKey, seed) {
+    closePickRow();
     oppKey = opponentKey;
+    els.log.textContent = "";
+    els.banner.className = "bt-banner";
+    closeStage();
+    const meta0 = OPPONENTS.find((o) => o.key === opponentKey);
+    els.foeName.textContent = meta0 ? meta0.label : opponentKey;
+    overlay.classList.add("show");
+    if (deps.onBattleStart) deps.onBattleStart();
+    const first = await coinFlip();
     // seed は検証用(省略時は毎回ランダム)
-    battle = createBattle({ playerDeck: col.getDeck() || [], opponentKey, seed });
+    battle = createBattle({ playerDeck: col.getDeck() || [], opponentKey, seed, firstPlayer: first });
     selected.clear(); pendingPlay = null; pendingPick = null; actingUid = null; busy = false; logLines.length = 0;
     doneMons = new Set();
     sickCleared = new Set();
     handLimit = null; foeHandLimit = null; handGhosts = [];
     hiddenMons = new Set(); ghostMons = []; prevField = { you: [], foe: [] };
     hpOverride = new Map();
-    els.log.textContent = "";
-    els.banner.className = "bt-banner";
-    closeStage();
-    overlay.classList.add("show");
-    if (deps.onBattleStart) deps.onBattleStart();
+    pushLog(first === "you" ? "あなたの先攻" : "あいての先攻");
     render();
     run();
   }
 
   function finish(winner) {
-    if (nextNow) nextNow();
+    closePickRow();
     closeStage();
     overlay.classList.remove("show");
     const had = !!battle;
@@ -122,28 +161,6 @@ export function createCardBattle(deps) {
       overlay.appendChild(skipLayer);
     } else if (!on && skipLayer) { skipLayer.remove(); skipLayer = null; }
   }
-  /**
-   * 操作バーに「次へ」を出して、押されるまで演出を止める。
-   * 早送りレイヤは一時的に外す(ボタンが押せなくなるため)。
-   */
-  function waitForNext(msgText, label) {
-    return new Promise((resolve) => {
-      const hadSkip = !!skipLayer;
-      if (skipLayer) { skipLayer.remove(); skipLayer = null; }
-      els.prompt.innerHTML = "";
-      els.prompt.appendChild(el(`<span class="msg">${msgText}</span>`));
-      const done = () => {
-        nextNow = null;
-        if (hadSkip && busy) setBusy(true); // 早送りレイヤを戻す
-        resolve();
-      };
-      nextNow = done;
-      const b = el(`<button class="bt-act big">${label || "次へ ▶"}</button>`);
-      b.addEventListener("click", done, { once: true });
-      els.prompt.appendChild(b);
-    });
-  }
-
   function banner(text, sub) {
     els.banner.innerHTML = text + (sub ? `<span class="sub">${sub}</span>` : "");
     els.banner.className = "bt-banner";
@@ -249,8 +266,14 @@ export function createCardBattle(deps) {
   function renderField(box, list, side) {
     box.innerHTML = "";
     const shown = list.filter((m) => !hiddenMons.has(m.uid));
-    const ghosts = ghostMons.filter((g) => g.side === side).map((g) => g.m);
-    const all = shown.concat(ghosts);
+    // 撃破/バウンス待ちのモンスターは、演出が終わるまで**元の位置**に戻す。
+    // 末尾に足すと、1体目が倒れたときに残った2体目が左へ飛んで見える
+    const all = shown.slice();
+    for (const g of ghostMons) {
+      if (g.side !== side) continue;
+      const at = g.at == null ? all.length : Math.min(g.at, all.length);
+      all.splice(at, 0, g.m);
+    }
     if (!all.length) { box.appendChild(el(`<div class="bt-empty">場にモンスターがいない</div>`)); return; }
     for (const m of all) box.appendChild(fieldCard(m, side));
   }
@@ -341,6 +364,8 @@ export function createCardBattle(deps) {
   // ---------- 選択待ちの表示 ----------
   function renderPrompt(s) {
     els.prompt.innerHTML = "";
+    // 中央のカード選択は recover の選択待ちのあいだだけ出す
+    if (!s.prompt || s.prompt.kind !== "recover") closePickRow();
     if (s.over) return;
     if (busy) { els.prompt.appendChild(el(`<span class="msg" style="opacity:.6">…</span>`)); return; }
     if (s.awaitingAiTurn) { els.prompt.appendChild(el(`<span class="msg">相手のターン…</span>`)); return; }
@@ -369,7 +394,11 @@ export function createCardBattle(deps) {
     // 何も選びかけていない選択待ちでは、せり出したカードを片付ける
     if (q && q.kind !== "roll" && q.kind !== "useEvent" && pendingPick == null && !busy) closeStage();
     if (pendingPlay != null) {
-      msg("場が埋まっています。<b>どのモンスターと交換しますか?</b>(戻したモンスターはHPが減ったまま手札に戻ります)");
+      const full = s.you.field.length >= 2;
+      msg(full
+        ? "場が埋まっています。<b>どのモンスターと交換しますか?</b>(戻したモンスターはHPが減ったまま手札に戻ります)"
+        : "<b>交換もできます。</b>入れ替えたいモンスターをタップ(戻したモンスターはHPが減ったまま手札に戻ります)");
+      if (!full) act("そのまま出す", () => { const u = pendingPlay; pendingPlay = null; answer(u); });
       act("やめる", () => { pendingPlay = null; render(); }, "ghost");
       return;
     }
@@ -429,14 +458,18 @@ export function createCardBattle(deps) {
         break;
       }
       case "recover": {
-        msg(`トラッシュから最大${q.max}枚まで手札に戻せます`);
-        const box = el(`<div class="bt-faces"></div>`);
-        for (const uid of q.options) {
-          const b = el(`<button class="bt-act ghost">${nameOf(trashIdOf(uid))}</button>`);
-          b.addEventListener("click", () => answer([uid]));
-          box.appendChild(b);
+        // 1回目のタップでカードを大きく見せ、2回目(決定)で確定する
+        if (pendingPick != null) {
+          closePickRow();
+          const id = trashIdOf(pendingPick);
+          openStage(id, null, "rec" + pendingPick);
+          msg(`<b>${nameOf(id)}</b> を手札に戻しますか?`);
+          act("これで決定", () => { const u = pendingPick; pendingPick = null; answer([u]); });
+          act("選び直す", () => { pendingPick = null; closeStage(); render(); }, "ghost");
+          return;
         }
-        els.prompt.appendChild(box);
+        showPickRow(q.options, "トラッシュから手札に戻すカードを選ぶ");
+        msg(`トラッシュから最大${q.max}枚まで手札に戻せます(カードをタップ)`);
         break;
       }
       default: msg("…");
@@ -473,9 +506,8 @@ export function createCardBattle(deps) {
         return;
       }
       pendingPick = null;
-      if (battle.state.you.field.length >= 2 && q.canSwap && q.canSwap.length) {
-        pendingPlay = card.uid; render();
-      } else answer(card.uid);
+      if (q.canSwap && q.canSwap.length) { pendingPlay = card.uid; render(); }
+      else answer(card.uid);
     } else if (q.kind === "useEvent") {
       if (selected.has(card.uid)) {
         selected.delete(card.uid); // もう一度タップで選択解除
@@ -490,10 +522,9 @@ export function createCardBattle(deps) {
   }
 
   function onConfirmPlay(uid) {
-    if (battle.state.you.field.length >= 2) {
-      const q = battle.state.prompt;
-      if (q && q.canSwap && q.canSwap.length) { pendingPlay = uid; render(); return; }
-    }
+    // 場に1体でも居れば交換を選べる(2体目として出すか、入れ替えるか)
+    const q = battle.state.prompt;
+    if (q && q.canSwap && q.canSwap.length) { pendingPlay = uid; render(); return; }
     answer(uid);
   }
 
@@ -645,9 +676,10 @@ export function createCardBattle(deps) {
     for (const lv of leaving) {
       const cur = (lv.side === "you" ? s0.you.field : s0.foe.field).find((m) => m.uid === lv.uid);
       if (cur) continue; // まだ場にいるなら復元不要
-      const old = (prevField[lv.side] || []).find((m) => m.uid === lv.uid);
-      if (old) ghostMons.push({ side: lv.side, m: old });
+      const at = (prevField[lv.side] || []).findIndex((m) => m.uid === lv.uid);
+      if (at >= 0) ghostMons.push({ side: lv.side, at, m: prevField[lv.side][at] });
     }
+    ghostMons.sort((a, b) => a.at - b.at); // 元の並び順どおりに差し戻す
     const foeAdds = pendingHandAdds(evs, "foe");
     const foeDrops = evs.filter((e) => e.t === "discard" && e.side === "foe").length;
     foeHandLimit = Math.max(0, s0.foe.handCount - foeAdds + foeDrops);
@@ -792,14 +824,8 @@ export function createCardBattle(deps) {
         sfx("event");
         banner(`${who}は <b>${nameOf(ev.id)}</b> を使った`, def.text);
         pushLog(`${who}が${nameOf(ev.id)}を使用: ${def.text}`);
-        if (ev.side === "foe") {
-          // 相手のイベントは見落としやすいので、押すまで止める。
-          // 効果の発動(後続のイベント)もここで待たされる
-          pop.classList.add("hold");
-          await waitForNext(`相手が <b>${nameOf(ev.id)}</b> を使いました。効果: ${def.text}`);
-        } else {
-          await wait(DUR.useEvent);
-        }
+        // 相手のイベントは見落としやすいので、少し長めに出してから効果を発動する
+        await wait(ev.side === "foe" ? DUR.foeEvent : DUR.useEvent);
         pop.remove();
         return;
       }
@@ -973,6 +999,33 @@ export function createCardBattle(deps) {
   }
 
   // トラッシュの中身を一覧表示(カードをタップすると詳細)
+  /** トラッシュから戻すカードなどを、画面中央にカードのまま並べて選ばせる */
+  function showPickRow(uids, title) {
+    if (pickRow && pickRow.dataset.key === uids.join(",")) return; // 出しっぱなしでよい
+    closePickRow();
+    const box = el(`<div class="bt-trashlist bt-pickrow"><h3>${title}</h3></div>`);
+    box.dataset.key = uids.join(",");
+    const grid = el(`<div class="grid"></div>`);
+    for (const uid of uids) {
+      const id = trashIdOf(uid);
+      if (!CARDS[id]) continue;
+      const mini = renderCard(CARDS[id], id, { mini: true });
+      mini.title = CARDS[id].name;
+      mini.addEventListener("click", (e) => {
+        e.stopPropagation();
+        pendingPick = uid;
+        render();
+      });
+      grid.appendChild(mini);
+    }
+    box.appendChild(grid);
+    overlay.appendChild(box);
+    pickRow = box;
+  }
+  function closePickRow() {
+    if (pickRow) { pickRow.remove(); pickRow = null; }
+  }
+
   function showTrash(side) {
     if (!battle) return;
     const s = battle.state;

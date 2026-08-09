@@ -164,6 +164,14 @@ export function createHellShop(deps) {
     setBody(line, wrap, backBtn(screenShop));
   }
 
+  /** カード1枚を大きく表示する(デッキ構築の🔍から) */
+  function showCard(id) {
+    const box = el(`<div class="hell-zoomview"></div>`);
+    box.appendChild(renderCard(CARDS[id], id));
+    box.addEventListener("click", () => box.remove());
+    overlay.appendChild(box);
+  }
+
   // ---------- デッキ構築 ----------
   let draft = null;
   function screenDeck() {
@@ -204,9 +212,12 @@ export function createHellShop(deps) {
     for (const id of ids) {
       const def = CARDS[id];
       const n = draft.get(id) || 0;
+      const isMon = def.kind === "monster";
       const slot = el(
-        `<div class="hell-slot ${n ? "in" : ""}"><span class="n">${n}/${col.ownedCount(id)}</span>` +
-        `${def.name}<span class="k">${def.kind === "monster" ? "モンスター" : "イベント"}</span></div>`
+        `<div class="hell-slot ${isMon ? "mon" : "ev"} ${n ? "in" : ""}">` +
+        `<button class="hell-zoom" title="カードを大きく見る">🔍</button>` +
+        `<span class="n">${n}/${col.ownedCount(id)}</span>` +
+        `${def.name}<span class="k">${isMon ? "👾 モンスター" : "📜 イベント"}</span></div>`
       );
       const add = () => { if ((draft.get(id) || 0) < col.ownedCount(id)) { draft.set(id, (draft.get(id) || 0) + 1); renderDeck(); } };
       const sub = () => { const c = draft.get(id) || 0; if (c > 0) { draft.set(id, c - 1); renderDeck(); } };
@@ -216,6 +227,10 @@ export function createHellShop(deps) {
       slot.addEventListener("pointerdown", () => { held = setTimeout(sub, 450); });
       for (const ev2 of ["pointerup", "pointerleave", "pointercancel"])
         slot.addEventListener(ev2, () => clearTimeout(held));
+      // 🔍 は枚数を増やさずにカードだけ見せる
+      const zoom = slot.querySelector(".hell-zoom");
+      zoom.addEventListener("click", (e) => { e.stopPropagation(); showCard(id); });
+      zoom.addEventListener("pointerdown", (e) => { e.stopPropagation(); });
       grid.appendChild(slot);
     }
     setBody(bar, grid, backBtn(screenMenu));
@@ -230,16 +245,20 @@ export function createHellShop(deps) {
         : "……対戦相手ヲ、選択シテクダサイ。"}</div>`
     );
     const menu = el(`<div class="hell-menu"></div>`);
-    for (const o of OPPONENTS) {
+    // 1つ下の難易度に1勝するまで挑戦できない(星は最初から開いている)
+    OPPONENTS.forEach((o, i) => {
       const w = col.winCount(o.key);
+      const prev = OPPONENTS[i - 1];
+      const locked = !!prev && col.winCount(prev.key) === 0;
       const b = el(
-        `<button class="hell-btn" ${errs.length ? "disabled" : ""}>` +
-        `<span>${"★".repeat(o.difficulty)}<span style="opacity:.3">${"★".repeat(5 - o.difficulty)}</span> ${o.label}` +
-        `<small>${w ? `${w}勝` : "未対戦"}</small></span></button>`
+        `<button class="hell-btn" ${errs.length || locked ? "disabled" : ""}>` +
+        `<span>${locked ? "🔒 " : ""}${"★".repeat(o.difficulty)}` +
+        `<span style="opacity:.3">${"★".repeat(5 - o.difficulty)}</span> ${o.label}` +
+        `<small>${locked ? `${prev.label}に1勝すると挑戦できます` : w ? `${w}勝` : "未対戦"}</small></span></button>`
       );
-      b.addEventListener("click", () => { close(); deps.onStartBattle(o.key); });
+      if (!locked) b.addEventListener("click", () => { close(); deps.onStartBattle(o.key); });
       menu.appendChild(b);
-    }
+    });
     setBody(line, menu, backBtn(screenMenu));
   }
 

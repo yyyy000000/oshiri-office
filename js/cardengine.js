@@ -659,6 +659,11 @@ function* execEffect(g, me, opp, e, ctx) {
         damageMonster(g, me, ctx.local.rerolled, e.n);
         return;
       }
+      // to:'source' は振った本人が受ける(選ばせない)
+      if (e.to === 'source' && ctx.source && ctx.source.hp > 0 && me.field.includes(ctx.source)) {
+        damageMonster(g, me, ctx.source, e.n);
+        return;
+      }
       const cands = me.field.filter((m) => m.hp > 0);
       const t = yield* askTarget(g, me, cands, 'selfDamage', () => aiPickSelfDamageTarget(cands, e.n));
       if (!t) return;
@@ -992,7 +997,8 @@ function* gameFlow(g) {
   emit(g, { t: 'mulligan' });
 
   // 初期配置は廃止。第1ターンの「場が空なら出す」から始まる
-  const first = g.rng.int(2);
+  // 先攻は開始時のカード選択(UI側)で決まる。指定が無ければ乱数
+  const first = g.forcedFirst === 'you' ? 0 : g.forcedFirst === 'foe' ? 1 : g.rng.int(2);
   let cur = first;
   g.firstPlayer = first === 0 ? 'you' : 'foe';
 
@@ -1083,6 +1089,7 @@ export function createBattle(opts = {}) {
     actingSide: 'you',
     lastFace: 0,
     firstPlayer: null,
+    forcedFirst: opts.firstPlayer === 'you' || opts.firstPlayer === 'foe' ? opts.firstPlayer : null,
     opponentKey: oppKey,
   };
 

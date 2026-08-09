@@ -458,9 +458,24 @@
     background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.16);
     font-size: 11px; line-height: 1.35;
   }
-  .hell-slot.in { border-color: #7fe3ff; background: rgba(80,170,230,.22); }
+  .hell-slot { position: relative; padding-right: 26px; }
+  /* モンスターとイベントを色で分ける */
+  .hell-slot.mon { border-left: 4px solid #ff9a6e; }
+  .hell-slot.ev  { border-left: 4px solid #8fb4ff; }
+  .hell-slot.mon.in { border-color: #ff9a6e; background: rgba(230,120,70,.24); }
+  .hell-slot.ev.in  { border-color: #8fb4ff; background: rgba(90,130,230,.24); }
   .hell-slot .n { float: right; font-weight: bold; color: #ffd76e; }
   .hell-slot .k { display: block; font-size: 9.5px; opacity: .6; margin-top: 2px; }
+  .hell-zoom {
+    position: absolute; right: 3px; bottom: 3px; width: 22px; height: 22px; padding: 0;
+    border-radius: 6px; cursor: pointer; font-size: 11px; line-height: 1;
+    background: rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.28); color: #fff;
+  }
+  .hell-zoom:hover { background: rgba(255,255,255,.22); }
+  .hell-zoomview {
+    position: fixed; inset: 0; z-index: 30; display: flex; align-items: center;
+    justify-content: center; background: rgba(4,8,14,.9); cursor: zoom-out;
+  }
   @media (max-width: 760px) {
     #hell-body { padding: 14px 12px; }
     .hell-slot { width: calc(50% - 4px); }
@@ -587,6 +602,55 @@
   .bt-trashlist .grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
   .bt-trashlist .pcard-mini { cursor: pointer; }
   .bt-trashlist .pcard-mini:hover { box-shadow: 0 0 0 2px #ffd76e; }
+  /* 選択用は盤面を隠しきらず、中央だけ暗くする */
+  .bt-pickrow {
+    inset: auto 0 116px; justify-content: flex-end; padding: 14px;
+    background: linear-gradient(180deg, rgba(6,10,18,0), rgba(6,10,18,.93) 22%);
+  }
+  .bt-pickrow h3 { font-size: 13px; letter-spacing: 1px; color: #ffd76e; }
+
+  /* --- 先攻決め(伏せた2枚から1枚選ぶ) --- */
+  .bt-flip {
+    position: absolute; inset: 0; z-index: 12; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 6px;
+    background: rgba(6,10,18,.95);
+  }
+  .bt-flip h3 { font-size: 19px; letter-spacing: 3px; }
+  .bt-flip .sub { font-size: 12px; opacity: .65; margin-bottom: 14px; }
+  .bt-flip .row { display: flex; gap: 22px; }
+  .bt-flipcard { width: 132px; height: 184px; perspective: 800px; cursor: pointer; }
+  .bt-flipcard .in {
+    position: relative; width: 100%; height: 100%; transition: transform .5s ease;
+    transform-style: preserve-3d;
+  }
+  .bt-flipcard.open .in { transform: rotateY(180deg); }
+  .bt-flipcard .bk, .bt-flipcard .fr {
+    position: absolute; inset: 0; border-radius: 10px; backface-visibility: hidden;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid rgba(255,215,110,.5); box-shadow: 0 6px 18px rgba(0,0,0,.6);
+  }
+  /* 裏面はおしり。2つの円と、短い縦の割れ目で描く */
+  .bt-flipcard .bk {
+    background-color: #2a1a4a;
+    background-image:
+      linear-gradient(rgba(150,70,60,.6), rgba(150,70,60,.6)),
+      radial-gradient(circle 28px at 32% 54%, #ffc7bb 0 96%, transparent 97%),
+      radial-gradient(circle 28px at 68% 54%, #ffc7bb 0 96%, transparent 97%),
+      linear-gradient(160deg, #6b4a9c, #2a1a4a 72%);
+    background-size: 3px 38px, 100% 100%, 100% 100%, 100% 100%;
+    background-position: 50% 54%, 0 0, 0 0, 0 0;
+    background-repeat: no-repeat;
+  }
+  .bt-flipcard .fr {
+    transform: rotateY(180deg); font-size: 26px; font-weight: bold; letter-spacing: 4px;
+    color: #22160b; background: linear-gradient(160deg, #ffe9a8, #f0bf5c);
+  }
+  .bt-flipcard:not(.open):hover .in { transform: translateY(-8px); }
+  .bt-flipcard.chosen .fr { box-shadow: 0 0 0 3px #fff, 0 6px 22px rgba(255,220,120,.65); }
+  @media (max-width: 560px) {
+    .bt-flipcard { width: 108px; height: 150px; }
+    .bt-flip .row { gap: 16px; }
+  }
 
   /* --- 盤面のカード --- */
   .bt-card {
