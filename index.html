@@ -1111,6 +1111,22 @@
   .bt-logview .lines div.you { border-left: 3px solid #ffd76e; }
   .bt-logview .lines div.foe { border-left: 3px solid #7fb0ff; }
   /* イベントカードを中央に大きく出す */
+  /* 判定ダイス(イベントの「サイコロを振って○○なら」)を画面中央で振る */
+  .bt-dicecheck {
+    position: fixed; left: 0; right: 0; top: 0; bottom: 62px; z-index: 6;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(4,8,14,.6); pointer-events: none;
+    animation: btStageIn .2s ease-out;
+  }
+  /* 中央のバナー文と重ならないよう、サイコロは少し上に出す */
+  .bt-dicecheck .bt-dice { width: 96px; height: 96px; --r: 10px; transform: translateY(-110px); }
+  .bt-dicecheck .bt-dice.rolling { animation: diceCheckShake .1s linear infinite; }
+  .bt-dicecheck .bt-dice.landed { animation: diceCheckLand .5s cubic-bezier(.2,1.5,.4,1); }
+  @keyframes diceCheckShake {
+    0% { transform: translateY(-110px) rotate(-12deg) } 50% { transform: translateY(-110px) rotate(12deg) scale(1.09) }
+    100% { transform: translateY(-110px) rotate(-12deg) }
+  }
+  @keyframes diceCheckLand { 0% { transform: translateY(-110px) scale(1.5) } 100% { transform: translateY(-110px) scale(1) } }
   .bt-eventpop {
     position: absolute; left: 50%; top: 50%; z-index: 6; pointer-events: none;
     transform: translate(-50%, -50%);

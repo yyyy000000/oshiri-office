@@ -218,6 +218,27 @@ function canRoll(p, m) {
   return m.hp > 0 && m.sickTurn !== p.turnNo && m.skipTurn !== p.turnNo;
 }
 
+// --- 判定ダイス ({t:'dice'} 用。「サイコロを振って○○なら」の○○の部分) ---
+//     cond: 'even' | 'odd' | 出目の配列 ([1] や [5,6])
+function diceCondList(cond) {
+  return Array.isArray(cond) ? cond : [cond];
+}
+function diceCondLabel(cond) {
+  if (cond === 'even') return '偶数';
+  if (cond === 'odd') return '奇数';
+  return diceCondList(cond).join('か');
+}
+function diceCondOk(cond, face) {
+  if (cond === 'even') return face % 2 === 0;
+  if (cond === 'odd') return face % 2 === 1;
+  return diceCondList(cond).includes(face);
+}
+/** 成功率。AIの評価で「期待値としてどれくらい効くか」に掛ける */
+function diceCondChance(cond) {
+  if (cond === 'even' || cond === 'odd') return 0.5;
+  return diceCondList(cond).length / 6;
+}
+
 // --- 面の期待値 (AIの判断材料。カードデータから静的に算出) ---
 const FACE_INFO_CACHE = new Map();
 function monsterInfo(def) {
@@ -227,11 +248,15 @@ function monsterInfo(def) {
   let dmgSum = 0;
   for (const face of def.faces) {
     let hasUtil = false;
-    for (const e of face.fx) {
-      if (e.t === 'draw' || e.t === 'useEvent' || e.t === 'recover') hasUtil = true;
-      if (e.t === 'damage' || e.t === 'damageByAttr') dmgSum += e.n;
-      if (e.t === 'damageAll') dmgSum += e.n;
-    }
+    const scan = (fx, w) => {
+      for (const e of fx) {
+        if (e.t === 'dice') { scan(e.then, w * diceCondChance(e.cond)); continue; }
+        if (e.t === 'draw' || e.t === 'useEvent' || e.t === 'recover') hasUtil = true;
+        if (e.t === 'damage' || e.t === 'damageByAttr') dmgSum += e.n * w;
+        if (e.t === 'damageAll') dmgSum += e.n * w;
+      }
+    };
+    scan(face.fx, 1);
     if (hasUtil) util++;
   }
   info = { util, avgDmg: dmgSum / 6 };
@@ -287,6 +312,8 @@ function logLine(g, ev) {
       return `${who(g, ev.side)}: ${nameOf(ev.id)} → ${ev.face} 「${ev.text}」`;
     case 'chooseFace':
       return `${who(g, ev.side)}: ${nameOf(ev.id)} の出目 ${ev.face} を選んだ`;
+    case 'diceCheck':
+      return `  判定 🎲${ev.face} (${ev.label}なら成功) → ${ev.ok ? '成功' : '失敗'}`;
     case 'damage':
       return `  ${nameOf(ev.id)} に ${ev.n} ダメージ (HP ${ev.hp})`;
     case 'heal':
@@ -398,33 +425,37 @@ function aiRollOrder(g, p) {
 // ---------------------------------------------------------------------------
 
 function summarizeEvent(def) {
-  let single = 0;
-  let all = 0;
-  let heal = 0;
-  let healAll = 0;
-  let draw = 0;
-  let bounce = false;
-  let discard = 0;
-  let recoverKind = null;
-  let reroll = false;
-  let dbl = false;
-  let selfDmg = 0;
-  for (const e of def.fx) {
-    if (e.t === 'damage') single += e.n;
-    else if (e.t === 'damageByAttr') e.scope === 'all' ? (all += e.n) : (single += e.n);
-    else if (e.t === 'damageAll') all += e.n;
-    else if (e.t === 'heal') heal += e.n;
-    else if (e.t === 'healAll') healAll += e.n;
-    else if (e.t === 'healFull') heal += 999;
-    else if (e.t === 'draw') draw += e.n;
-    else if (e.t === 'bounce') bounce = true;
-    else if (e.t === 'discardOpponentHand') discard += e.n;
-    else if (e.t === 'recover') recoverKind = e.kind;
-    else if (e.t === 'reroll') reroll = true;
-    else if (e.t === 'doubleDamage') dbl = true;
-    else if (e.t === 'selfDamage') selfDmg += e.n;
+  const s = {
+    single: 0, all: 0, heal: 0, healAll: 0, draw: 0, bounce: false,
+    discard: 0, selfDiscard: 0, recoverKind: null, reroll: false, dbl: false, selfDmg: 0,
+  };
+  accumEventFx(s, def.fx, 1);
+  return s;
+}
+
+/** w は判定ダイスの成功率。当たらないかもしれない効果は期待値に落として数える */
+function accumEventFx(s, fx, w) {
+  for (const e of fx) {
+    if (e.t === 'dice') {
+      accumEventFx(s, e.then, w * diceCondChance(e.cond));
+      continue;
+    }
+    if (e.t === 'damage') s.single += e.n * w;
+    else if (e.t === 'damageByAttr') e.scope === 'all' ? (s.all += e.n * w) : (s.single += e.n * w);
+    else if (e.t === 'damageAll') s.all += e.n * w;
+    else if (e.t === 'heal') s.heal += e.n * w;
+    else if (e.t === 'healAll') s.healAll += e.n * w;
+    else if (e.t === 'healFull') s.heal += 999 * w;
+    else if (e.t === 'draw') s.draw += e.n * w;
+    else if (e.t === 'bounce') s.bounce = true;
+    else if (e.t === 'discardOpponentHand') s.discard += e.n * w;
+    else if (e.t === 'discardOwnHand') s.selfDiscard += e.n * w;
+    else if (e.t === 'recover') s.recoverKind = e.kind;
+    else if (e.t === 'reroll') s.reroll = true;
+    else if (e.t === 'doubleDamage') s.dbl = true;
+    else if (e.t === 'selfDamage') s.selfDmg += e.n * w;
+    else if (e.t === 'selfDamageAll') s.selfDmg += e.n * w;
   }
-  return { single, all, heal, healAll, draw, bounce, discard, recoverKind, reroll, dbl, selfDmg };
 }
 
 function eventScore(g, me, opp, inst) {
@@ -457,6 +488,7 @@ function eventScore(g, me, opp, inst) {
   score += Math.min(s.heal + s.healAll * myMons.length, wounded) * 1.5;
   if (s.bounce && oppMons.length) score += 250 + (oppMons.length === 1 ? 250 : 0);
   score += s.discard * Math.min(60, opp.hand.length * 20);
+  score -= s.selfDiscard * Math.min(60, me.hand.length * 20); // 自分の手札も捨てるなら差し引く
   if (s.recoverKind) {
     const has = me.trash.some((c) => (s.recoverKind === 'monster' ? c.def.kind === 'monster' : c.def.kind === 'event'));
     score += has ? 400 : -500;
@@ -492,6 +524,15 @@ function faceScore(g, me, opp, fx) {
   let s = 0;
   for (const e of fx) {
     switch (e.t) {
+      case 'dice':
+        s += faceScore(g, me, opp, e.then) * diceCondChance(e.cond);
+        break;
+      case 'selfDamageAll':
+        s -= e.n * mine.length;
+        break;
+      case 'discardOwnHand':
+        s -= e.n * 8;
+        break;
       case 'damage':
         s += e.n + (weakest && e.n >= weakest.hp ? 30 : 0);
         break;
@@ -583,6 +624,17 @@ function healMonster(g, owner, m, n) {
   }
 }
 
+/** 指定した側の手札から n 枚ランダムにトラッシュ */
+function discardHand(g, p, n) {
+  for (let i = 0; i < n; i++) {
+    if (!p.hand.length) return;
+    const idx = g.rng.int(p.hand.length);
+    const c = p.hand.splice(idx, 1)[0];
+    p.trash.push(c);
+    emit(g, { t: 'discard', side: p.side, uid: c.uid, id: c.def.id });
+  }
+}
+
 function dmgMul(me, ctx) {
   // 「このターン、自分のモンスターが与えるダメージが2倍」= モンスターの面によるダメージのみ
   return ctx.fromMonster && me.doubleDamageTurn === me.turnNo ? 2 : 1;
@@ -599,6 +651,16 @@ function* execEffect(g, me, opp, e, ctx) {
   switch (e.t) {
     case 'none':
       return;
+
+    // 「サイコロを振って○○なら〜」。当たったときだけ then の効果を実行する。
+    // これは判定用のダイスなので turnCtx.rolls には数えない(モンスターのロールではない)
+    case 'dice': {
+      const face = g.rng.d6();
+      const ok = diceCondOk(e.cond, face);
+      emit(g, { t: 'diceCheck', side: me.side, face, ok, label: diceCondLabel(e.cond) });
+      if (ok) yield* execEffects(g, me, opp, e.then, ctx);
+      return;
+    }
 
     case 'damage': {
       const n = e.n * dmgMul(me, ctx);
@@ -671,6 +733,11 @@ function* execEffect(g, me, opp, e, ctx) {
       return;
     }
 
+    case 'selfDamageAll': {
+      for (const m of me.field.slice()) if (m.hp > 0) damageMonster(g, me, m, e.n);
+      return;
+    }
+
     case 'draw':
       drawCards(g, me, e.n);
       return;
@@ -717,29 +784,36 @@ function* execEffect(g, me, opp, e, ctx) {
     }
 
     case 'discardOpponentHand': {
-      for (let i = 0; i < e.n; i++) {
-        if (!opp.hand.length) return;
-        const idx = g.rng.int(opp.hand.length);
-        const c = opp.hand.splice(idx, 1)[0];
-        opp.trash.push(c);
-        emit(g, { t: 'discard', side: opp.side, uid: c.uid, id: c.def.id });
-      }
+      discardHand(g, opp, e.n);
+      return;
+    }
+
+    // 自分の手札も巻き込むタイプ(ひじょうベル)
+    case 'discardOwnHand': {
+      discardHand(g, me, e.n);
       return;
     }
 
     case 'reroll': {
-      let target = null;
-      if (e.target === 'self') {
-        target = ctx.source && ctx.source.hp > 0 && me.field.includes(ctx.source) ? ctx.source : null;
-      } else {
-        const cands = me.field.filter((m) => canRoll(me, m));
-        target = yield* askTarget(g, me, cands, 'reroll', () => aiPickRerollTarget(g, me, cands));
-      }
-      if (!target) return;
-      if (ctx.local) ctx.local.rerolled = target;
-      const face = yield* rollMonster(g, me, opp, target, ctx.turnCtx);
-      if (e.chainOn6 && face === 6 && target.hp > 0 && me.field.includes(target)) {
-        yield* rollMonster(g, me, opp, target, ctx.turnCtx);
+      // count で「自分2体をもう一度振る」まで対応する(同じモンスターは選び直さない)
+      const times = e.count || 1;
+      const used = [];
+      for (let i = 0; i < times; i++) {
+        let target = null;
+        if (e.target === 'self') {
+          target = ctx.source && ctx.source.hp > 0 && me.field.includes(ctx.source) ? ctx.source : null;
+        } else {
+          const cands = me.field.filter((m) => canRoll(me, m) && !used.includes(m));
+          target = yield* askTarget(g, me, cands, 'reroll', () => aiPickRerollTarget(g, me, cands));
+        }
+        if (!target) return; // 振れる相手が尽きたら残りは不発
+        used.push(target);
+        if (ctx.local) ctx.local.rerolled = target;
+        const face = yield* rollMonster(g, me, opp, target, ctx.turnCtx);
+        if (e.chainOn6 && face === 6 && target.hp > 0 && me.field.includes(target)) {
+          yield* rollMonster(g, me, opp, target, ctx.turnCtx);
+        }
+        if (e.target === 'self') return; // self は1体しかいない
       }
       return;
     }
@@ -754,10 +828,13 @@ function* execEffect(g, me, opp, e, ctx) {
     }
 
     case 'bounce': {
-      const cands = opp.field.filter((m) => m.hp > 0);
-      const t = yield* askTarget(g, me, cands, 'bounce', () => aiPickBounceTarget(g, me, cands));
-      if (!t) return;
-      returnToHand(g, opp, t, 'bounce'); // HPは減ったまま手札へ
+      const times = e.n || 1;
+      for (let i = 0; i < times; i++) {
+        const cands = opp.field.filter((m) => m.hp > 0);
+        const t = yield* askTarget(g, me, cands, 'bounce', () => aiPickBounceTarget(g, me, cands));
+        if (!t) return;
+        returnToHand(g, opp, t, 'bounce'); // HPは減ったまま手札へ
+      }
       return;
     }
 

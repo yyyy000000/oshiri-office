@@ -20,6 +20,7 @@ const DUR = {
   turnStart: 1500, play: 1000, roll: 2200, damage: 1400, heal: 1200, draw: 550,
   useEvent: 1900, foeEvent: 2500, popOut: 320, bounce: 1300, trash: 900, discard: 1000, skipRoll: 1300,
   recover: 1300, chooseFace: 1800, mulligan: 1200, over: 900, turnEnd: 150,
+  diceCheck: 1500, // 判定ダイスの結果を見せる間
   noDraw: 1300,    // 手札が多くてドローが起きなかった時の説明
   flip: 1500,      // 先攻決めのカードをめくってから対戦が始まるまで
   ko: 1200,        // 撃破の追い演出
@@ -242,6 +243,23 @@ export function createCardBattle(deps) {
   let stageKey = null;   // いま出しているカードの識別(同じなら出し直さない)
   let stageHidden = null; // 元の場所で隠しているDOM
 
+  /** uidから場/手札のカード実体を探す(現在HP表示用) */
+  function instOf(uid) {
+    if (!battle) return null;
+    const s = battle.state;
+    return [...s.you.field, ...s.foe.field, ...s.you.hand].find((x) => x.uid === uid) || null;
+  }
+  /** せり出し/詳細カードのHP表記を「HP 現在 / 最大」にする */
+  function patchHp(cardDom, uid) {
+    const m = instOf(uid); // 盤面スナップショットの要素({uid,id,hp,maxHp?}。defは持たない)
+    const def = m && CARDS[m.id];
+    if (!def || def.kind !== "monster" || m.hp == null) return;
+    const hp = hpOverride.has(uid) ? hpOverride.get(uid) : m.hp;
+    const max = m.maxHp != null ? m.maxHp : def.hp;
+    const tag = cardDom.querySelector(".pcard-hp");
+    if (tag) tag.textContent = `HP ${hp} / ${max}`;
+  }
+
   function openStage(cardId, fromEl, key) {
     const k = key != null ? key : cardId;
     if (stageEl && stageKey === k) return stageCardEl;
@@ -250,6 +268,9 @@ export function createCardBattle(deps) {
     const wrap = el(`<div class="bt-stage"><div class="bt-stage-inner"></div></div>`);
     const inner = wrap.firstElementChild;
     const card = renderCard(CARDS[cardId], cardId);
+    // 場・手札のモンスターは定義の最大HPではなく現在HPを「HP 20 / 45」で見せる
+    const km = /^(mon|hand)(\d+)$/.exec(k);
+    if (km) patchHp(card, Number(km[2]));
     inner.appendChild(card);
     // 攻撃ロール用のサイコロ。カードの右上に重ねる
     stageDice = el(`<div class="bt-dice pip-1"></div>`);
@@ -516,9 +537,11 @@ export function createCardBattle(deps) {
           ? `<b>${nameOf(s.you.hand.find((x) => x.uid === last).id)}</b> を使いますか?` +
             `(別の手札をタップすると選び替えられます)`
           : `イベントカードを最大${q.max}枚まで使えます(手札をタップすると効果が出ます)`);
-        act(`使う (${selected.size})`, () => answer(selected.size ? [...selected] : null)).disabled = selected.size === 0;
-        if (selected.size) act("選び直す", () => { selected.clear(); closeStage(); render(); }, "ghost");
-        if (q.canSkip !== false) act("使わない", () => answer(null), "ghost");
+        // カードを選んだ時だけ「使う/選び直す」を出す。未選択のうちは「使う」ボタン自体を出さない
+        if (selected.size) {
+          act(`使う (${selected.size})`, () => answer([...selected]));
+          act("選び直す", () => { selected.clear(); closeStage(); render(); }, "ghost");
+        } else if (q.canSkip !== false) act("使わない", () => answer(null), "ghost");
         break;
       }
       case "pickTarget": msg(targetMsg(q) + "(カードをタップ)"); break;
@@ -573,7 +596,7 @@ export function createCardBattle(deps) {
   function onHandClick(card, isPickable) {
     if (busy || !battle) return;
     const q = battle.state.prompt;
-    if (!q || !isPickable) { showDetail(card.id); return; }
+    if (!q || !isPickable) { showDetail(card.id, card.uid); return; }
     if (q.kind === "playMonster") {
       // 1回目のタップで6面を見せ、同じカードをもう一度タップすると場に出す
       if (pendingPick !== card.uid) {
@@ -619,7 +642,7 @@ export function createCardBattle(deps) {
       render();
       return;
     }
-    showDetail(monIdOf(uid));
+    showDetail(monIdOf(uid), uid);
   }
 
   function answer(v) {
@@ -872,6 +895,26 @@ export function createCardBattle(deps) {
         await wait(DUR.chooseFace);
         closeStage();
         return;
+
+      case "diceCheck": {
+        // 判定ダイス(イベントの「サイコロを振って○○なら」)。画面中央で振って見せる
+        const wrap = el(`<div class="bt-dicecheck"><div class="bt-dice pip-1"></div></div>`);
+        overlay.appendChild(wrap);
+        const dice = wrap.firstChild;
+        sfx("dice");
+        const spin = setInterval(() => {
+          dice.className = "bt-dice rolling pip-" + (1 + Math.floor(Math.random() * 6));
+        }, 65);
+        await wait(DUR.diceSpin);
+        clearInterval(spin);
+        dice.className = "bt-dice landed pip-" + ev.face;
+        sfx("land");
+        banner(`🎲 <b>${ev.face}</b> — ${ev.label}なら成功`, ev.ok ? "✅ 成功!" : "❌ 失敗…");
+        pushLog(`判定🎲${ev.face}(${ev.label}で成功)→${ev.ok ? "成功" : "失敗"}`, ev.side);
+        await wait(DUR.diceCheck);
+        wrap.remove();
+        return;
+      }
 
       case "damage": {
         hpOverride.set(ev.uid, ev.hp); // ここで初めてHPが減る
@@ -1271,10 +1314,12 @@ export function createCardBattle(deps) {
     }, 560);
   }
 
-  function showDetail(id) {
+  function showDetail(id, uid) {
     if (!CARDS[id]) return;
     const w = el(`<div class="bt-result"></div>`);
-    w.appendChild(renderCard(CARDS[id], id));
+    const card = renderCard(CARDS[id], id);
+    if (uid != null) patchHp(card, uid); // 場のモンスターは現在HPも見せる
+    w.appendChild(card);
     w.addEventListener("click", () => w.remove());
     overlay.appendChild(w);
   }

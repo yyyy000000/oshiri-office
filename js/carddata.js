@@ -7,6 +7,8 @@
 //
 // 効果オブジェクト(fx)の語彙 ※sim の E.xxx() が生成する形と完全に一致させること
 //   { t:'none' }
+//   { t:'dice', cond, then:[fx] }              サイコロを振って cond なら then を実行
+//                                              (cond: 'even' | 'odd' | 出目の配列 [1] など)
 //   { t:'damage', n }                          相手モンスター1体に N ダメージ
 //   { t:'damageAll', n }                       相手モンスター全員に N ダメージ
 //   { t:'damageByAttr', attr, scope, n }       ○○属性の相手1体/全員に N ダメージ
@@ -14,12 +16,14 @@
 //   { t:'healAll', n, attr }                   自分のモンスター全員を N 回復(attrはスコープ)
 //   { t:'healFull' }                           自分のモンスター1体をHP全回復
 //   { t:'selfDamage', n, to }                  反動(to: 'choose' | 'rerolled')
+//   { t:'selfDamageAll', n }                   自分のモンスター全員に N ダメージ(反動)
 //   { t:'draw', n }                            カードを N 枚引く
 //   { t:'useEvent', n }                        イベントカードを N 枚使う
 //   { t:'discardOpponentHand', n }             相手の手札を N 枚ランダムにトラッシュ
-//   { t:'reroll', target, chainOn6 }           もう一度振る(target: 'self' | 'choose')
+//   { t:'discardOwnHand', n }                  自分の手札を N 枚ランダムにトラッシュ
+//   { t:'reroll', target, chainOn6, count? }   もう一度振る(target: 'self' | 'choose'。countで複数体)
 //   { t:'skipRoll' }                           相手モンスター1体は次のターン振れない
-//   { t:'bounce' }                             相手モンスター1体を持ち主の手札に戻す
+//   { t:'bounce', n? }                         相手モンスター N 体(省略時1)を持ち主の手札に戻す
 //   { t:'recover', kind, n }                   トラッシュから monster/event を N 枚回収
 //   { t:'doubleDamage' }                       このターンのダメージ2倍(現行カードでは未使用)
 //   { t:'chooseFace' }                         選択ロール
@@ -190,8 +194,8 @@ export const CARDS = {
     rarity: 'unique',
     owner: 'hoshi',
     flavor: '星が振るう杖。当たれば、ただでは済まない。',
-    text: '相手モンスター1体に70ダメージ',
-    fx: [{ t: 'damage', n: 70 }],
+    text: 'サイコロを振って偶数なら、相手モンスター1体に70ダメージ',
+    fx: [{ t: 'dice', cond: 'even', then: [{ t: 'damage', n: 70 }] }],
   },
   akutai: {
     id: 'akutai',
@@ -201,8 +205,8 @@ export const CARDS = {
     rarity: 'unique',
     owner: 'hoshi',
     flavor: 'その一言は短く、鋭く、そして無慈悲である。',
-    text: '相手の手札を2枚ランダムにトラッシュ',
-    fx: [{ t: 'discardOpponentHand', n: 2 }],
+    text: '相手の手札を1枚ランダムにトラッシュ',
+    fx: [{ t: 'discardOpponentHand', n: 1 }],
   },
 
   // =========================================================================
@@ -269,8 +273,8 @@ export const CARDS = {
     rarity: 'unique',
     owner: 'kuma',
     flavor: 'なでられたクマは、少しだけ強くなるのだという。',
-    text: '自分のモンスター1体を35回復。カードを1枚引く',
-    fx: [{ t: 'heal', n: 35 }, { t: 'draw', n: 1 }],
+    text: '自分のモンスター1体を10回復。カードを1枚引く',
+    fx: [{ t: 'heal', n: 10 }, { t: 'draw', n: 1 }],
   },
 
   // =========================================================================
@@ -394,8 +398,8 @@ export const CARDS = {
     rarity: 'unique',
     owner: 'hell',
     flavor: 'たった百円が、運命の歯車をひとつ回す。',
-    text: 'カードを3枚引く',
-    fx: [{ t: 'draw', n: 3 }],
+    text: 'サイコロを振って奇数なら、カードを3枚引く',
+    fx: [{ t: 'dice', cond: 'odd', then: [{ t: 'draw', n: 3 }] }],
   },
   ooatari: {
     id: 'ooatari',
@@ -405,8 +409,8 @@ export const CARDS = {
     rarity: 'unique',
     owner: 'hell',
     flavor: '二度目の幸運は、一度目よりもずっと甘い。',
-    text: '自分のモンスター1体をもう一度振る。その出目が6なら、さらにもう一度振る',
-    fx: [{ t: 'reroll', target: 'choose', chainOn6: true }],
+    text: 'サイコロを振って偶数なら、自分のモンスター2体をもう一度振る',
+    fx: [{ t: 'dice', cond: 'even', then: [{ t: 'reroll', target: 'choose', count: 2 }] }],
   },
 
   // =========================================================================
@@ -462,8 +466,8 @@ export const CARDS = {
     rarity: 'unique',
     owner: 'ojisan',
     flavor: '点火。その行き先は、本人すら知らない。',
-    text: '相手モンスター1体に80ダメージ。自分のモンスター1体に10ダメージ',
-    fx: [{ t: 'damage', n: 80 }, { t: 'selfDamage', n: 10, to: 'choose' }],
+    text: '相手モンスター全員に40ダメージ。自分のモンスター全員に10ダメージ',
+    fx: [{ t: 'damageAll', n: 40 }, { t: 'selfDamageAll', n: 10 }],
   },
   shachiku: {
     id: 'shachiku',
@@ -488,8 +492,8 @@ export const CARDS = {
     rarity: 'common',
     owner: null,
     flavor: 'どこの家にもある、最も身近な凶器。',
-    text: '相手モンスター1体に30ダメージ',
-    fx: [{ t: 'damage', n: 30 }],
+    text: '相手モンスター1体に20ダメージ',
+    fx: [{ t: 'damage', n: 20 }],
   },
   rubberduck: {
     id: 'rubberduck',
@@ -521,8 +525,8 @@ export const CARDS = {
     rarity: 'common',
     owner: null,
     flavor: '時計の針は進む。仕事は減らない。',
-    text: '自分のモンスター1体をもう一度振る。そのモンスターに10ダメージ',
-    fx: [{ t: 'reroll', target: 'choose', chainOn6: false }, { t: 'selfDamage', n: 10, to: 'rerolled' }],
+    text: '自分のモンスター1体をもう一度振る。そのモンスターに20ダメージ',
+    fx: [{ t: 'reroll', target: 'choose', chainOn6: false }, { t: 'selfDamage', n: 20, to: 'rerolled' }],
   },
   bell: {
     id: 'bell',
@@ -532,8 +536,8 @@ export const CARDS = {
     rarity: 'common',
     owner: null,
     flavor: '鳴った瞬間、全員の手がぴたりと止まる。',
-    text: '相手の手札を1枚ランダムにトラッシュ',
-    fx: [{ t: 'discardOpponentHand', n: 1 }],
+    text: 'おたがいの手札を2枚ずつランダムにトラッシュ',
+    fx: [{ t: 'discardOpponentHand', n: 2 }, { t: 'discardOwnHand', n: 2 }],
   },
   recyclebox: {
     id: 'recyclebox',
@@ -854,8 +858,8 @@ export const CARDS = {
     rarity: 'common',
     owner: null,
     flavor: '星の形の器に入っているだけで、味はふつうのプリンである。',
-    text: '自分のモンスター全員を25回復',
-    fx: [{ t: 'healAll', n: 25, attr: null }],
+    text: '自分のモンスター全員を20回復',
+    fx: [{ t: 'healAll', n: 20, attr: null }],
   },
   fax: {
     id: 'fax',
@@ -865,8 +869,8 @@ export const CARDS = {
     rarity: 'common',
     owner: null,
     flavor: '【重要】アカウントが凍結されました。心当たりしかない。',
-    text: 'オカルト属性の相手モンスター全員に45ダメージ',
-    fx: [{ t: 'damageByAttr', attr: 'occult', scope: 'all', n: 45 }],
+    text: 'メカ属性の相手モンスター全員に25ダメージ',
+    fx: [{ t: 'damageByAttr', attr: 'mecha', scope: 'all', n: 25 }],
   },
   yume: {
     id: 'yume',
@@ -876,8 +880,8 @@ export const CARDS = {
     rarity: 'common',
     owner: null,
     flavor: '見たのは昨日。起きるのは明後日。もう間に合わない。',
-    text: '相手モンスター1体を持ち主の手札に戻す。カードを1枚引く',
-    fx: [{ t: 'bounce' }, { t: 'draw', n: 1 }],
+    text: 'サイコロを振って1が出たら、相手モンスター2体を持ち主の手札に戻す',
+    fx: [{ t: 'dice', cond: [1], then: [{ t: 'bounce', n: 2 }] }],
   },
   onaji: {
     id: 'onaji',
@@ -887,8 +891,8 @@ export const CARDS = {
     rarity: 'common',
     owner: null,
     flavor: '鬼道である。たぶん、ぜんぶ妄想である。',
-    text: 'パワー属性の相手モンスター全員に45ダメージ',
-    fx: [{ t: 'damageByAttr', attr: 'power', scope: 'all', n: 45 }],
+    text: 'パワー属性の相手モンスター全員に25ダメージ',
+    fx: [{ t: 'damageByAttr', attr: 'power', scope: 'all', n: 25 }],
   }
 };
 
