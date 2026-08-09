@@ -1419,7 +1419,7 @@ function updateEnding(dt) {
       `<div class="end-section-title">👆 クリック探索のきろく</div>` +
       `<div class="end-clicks">${clickRows}</div>`;
     // 結果画面の下からゲーム中UIが透けないよう隠す
-    for (const id of ["controls", "slap-counter", "slap-tip", "toast-area", "bubble", "hoshi-bubble", "carrie-bubble", "fever-banner", "title-bar", "help-btn", "settings-btn", "zukan-btn"]) {
+    for (const id of ["controls", "slap-counter", "toast-area", "bubble", "hoshi-bubble", "carrie-bubble", "fever-banner", "title-bar", "help-btn", "settings-btn", "zukan-btn"]) {
       const el = document.getElementById(id);
       if (el) el.style.display = "none";
     }

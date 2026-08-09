@@ -51,7 +51,7 @@
   }
 
   #slap-counter {
-    position: fixed; top: 34px; right: 16px; z-index: 5; color: #ffd76e;
+    position: fixed; top: 14px; right: 16px; z-index: 5; color: #ffd76e;
     background: rgba(0,0,0,.45); border-radius: 12px; padding: 8px 14px;
     font-size: 14px; font-weight: bold; pointer-events: none;
     text-shadow: 0 1px 4px rgba(0,0,0,.5); min-width: 210px; text-align: center;
@@ -66,12 +66,6 @@
     transition: width .25s;
   }
   #equip-line { margin-top: 6px; font-size: 12px; color: #ffe9b8; }
-  /* ポイント表示の枠の外・すぐ上に置く */
-  #slap-tip {
-    position: fixed; top: 8px; right: 16px; z-index: 5; pointer-events: none;
-    font-size: 12px; font-weight: bold; color: #ffe9b8;
-    text-shadow: 0 2px 6px rgba(0,0,0,.9);
-  }
 
   #toast-area {
     position: fixed; top: 84px; right: 16px; z-index: 5; display: flex;
@@ -529,7 +523,7 @@
   /* オーバーレイ表示中は照準を消す(カード画面の真ん中に十字が残るため) */
   body.overlay-busy .fpsc-crosshair { display: none !important; }
 
-  body.cine-on #title-bar, body.cine-on #slap-counter, body.cine-on #slap-tip, body.cine-on #controls,
+  body.cine-on #title-bar, body.cine-on #slap-counter, body.cine-on #controls,
   body.cine-on #zukan-btn, body.cine-on #settings-btn, body.cine-on #help-btn,
   body.cine-on #spank-btn, body.cine-on .fpsc-crosshair,
   body.cine-on #bubble, body.cine-on #hoshi-bubble, body.cine-on #carrie-bubble {
@@ -1401,7 +1395,6 @@
     <div id="slap-bar"><div id="slap-bar-fill"></div></div>
     <div id="equip-line">🖐 <span id="equip-name">素手</span>(+<span id="equip-pts">5</span>pt)</div>
   </div>
-  <div id="slap-tip">いろんな物を何回も叩こう!</div>
   <div id="toast-area"></div>
   <button id="spank-btn" title="スパンキング">👋</button>
   <button id="zukan-btn" title="ずかん">📖</button>
@@ -1410,11 +1403,13 @@
   <div id="help-overlay">
     <div id="help-card">
       <h3>あそびかた</h3>
+      おじさんのお尻を叩いてポイントを貯めよう。<br>
+      部屋のいろんな場所も探ってみて。<br>
+      何度も叩くと、なにか出てくるかも…。<br><br>
       <b>PC:</b> W・S 前後 / A・D 左右 / 矢印キーかドラッグで視点 / Space か クリックで叩く<br>
       <b>スマホ:</b> 左スティックで移動・回転 / スワイプで視線 / タップか右下の👋ボタンで叩く<br>
       👋ボタンとSpaceキーは<b>照準(画面中央)</b>を叩きます。神様モードでも使えます。<br>
-      対象には<b>近づかないと</b>叩けません。照準が赤くなったらチャンス!<br>
-      おじさんのお尻を叩いてポイントを貯めよう。部屋のいろんな場所も探ってみて。
+      対象には<b>近づかないと</b>叩けません。照準が赤くなったらチャンス!
       <div class="close-note">画面のどこかをタップで閉じる</div>
     </div>
   </div>
