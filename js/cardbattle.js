@@ -17,7 +17,7 @@ const $ = (id) => document.getElementById(id);
 // 各イベントの見せ場の長さ(ms)。短すぎると何が起きたか読めない
 const DUR = {
   turnStart: 1500, play: 1000, roll: 2200, damage: 1400, heal: 1200, draw: 550,
-  useEvent: 1900, foeEvent: 2000, bounce: 1300, trash: 900, discard: 1000, skipRoll: 1300,
+  useEvent: 1900, foeEvent: 4000, popOut: 320, bounce: 1300, trash: 900, discard: 1000, skipRoll: 1300,
   recover: 1300, chooseFace: 1800, mulligan: 1200, over: 900, turnEnd: 150,
   noDraw: 1300,    // 手札が多くてドローが起きなかった時の説明
   flip: 1500,      // 先攻決めのカードをめくってから対戦が始まるまで
@@ -818,14 +818,19 @@ export function createCardBattle(deps) {
         // 特に相手のイベントは何が起きたのか分からなくなりがちなので、枠に効果を出す
         const def = CARDS[ev.id];
         closeStage();
-        const pop = el(`<div class="bt-eventpop"></div>`);
+        // 相手のイベントは見落としやすいので、長めに出してから効果を発動する
+        const ms = ev.side === "foe" ? DUR.foeEvent : DUR.useEvent;
+        // 出したら消えずに残し、時間いっぱいまで見せてから引っこめる
+        // (以前は1.15s固定のアニメで消えていて、待ち時間より先にカードが消えていた)
+        const pop = el(`<div class="bt-eventpop hold"></div>`);
         pop.appendChild(renderCard(def, ev.id));
         overlay.appendChild(pop);
         sfx("event");
         banner(`${who}は <b>${nameOf(ev.id)}</b> を使った`, def.text);
         pushLog(`${who}が${nameOf(ev.id)}を使用: ${def.text}`);
-        // 相手のイベントは見落としやすいので、少し長めに出してから効果を発動する
-        await wait(ev.side === "foe" ? DUR.foeEvent : DUR.useEvent);
+        await wait(Math.max(0, ms - DUR.popOut));
+        pop.classList.add("out");
+        await wait(DUR.popOut);
         pop.remove();
         return;
       }
