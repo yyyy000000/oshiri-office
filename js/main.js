@@ -1457,6 +1457,11 @@ function beginGame(mode) {
   }
   // スパンキングボタンはタッチ端末のみ。FPS・神様モードの両方で使える
   if ("ontouchstart" in window) spankBtn.classList.add("show");
+  // PC向けの操作説明はモードで内容が違う
+  const keyHint = document.getElementById("key-hint");
+  keyHint.textContent = mode === "fps"
+    ? "W・S 前後 / A・D 左右 / 矢印キーかドラッグで視点 / Space か クリックで叩く"
+    : "ドラッグで視点をまわす / ホイールで寄り引き / クリックで叩く(Spaceは画面中央)";
   say("おお、いらっしゃい。散らかっとるが、まあゆっくりしていきなさい。", 6000);
 }
 // ヘルプ(操作説明のオーバーレイ)
