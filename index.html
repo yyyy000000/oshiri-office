@@ -85,6 +85,8 @@
   #key-hint {
     font-size: 11px; line-height: 1.6; color: rgba(255,255,255,.72);
     text-shadow: 0 1px 3px rgba(0,0,0,.9);
+    /* #controls は質問欄に合わせた幅なので、この行だけは折り返さずはみ出させる */
+    white-space: nowrap;
   }
   @media (max-width: 760px) {
     /* 仮想スティック(左下24〜144px)とスパンキングボタン(右下76〜196px)を避けて上へ。
