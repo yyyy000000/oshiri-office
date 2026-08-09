@@ -146,6 +146,7 @@ export function createFPSControls(camera, domElement) {
   // ---------------------------------------------------------------------
 
   let uiHidden = false;
+  let crosshairForced = false; // 神様モードで照準だけ出しているか
   let stickTouchId = null;
   let stickCenter = { x: 0, y: 0 };
   let stickVec = { x: 0, y: 0 }; // normalized -1..1
@@ -487,7 +488,7 @@ export function createFPSControls(camera, domElement) {
     camera.fov = previousFov;
     camera.updateProjectionMatrix();
 
-    crosshair.style.display = "none";
+    crosshair.style.display = crosshairForced ? "block" : "none";
     crosshair.classList.remove("fpsc-hot");
     stickOuter.style.display = "none";
     domElement.style.touchAction = "";
@@ -509,6 +510,15 @@ export function createFPSControls(camera, domElement) {
     }
   }
 
+  /**
+   * FPSを有効にせず、照準だけ出す(神様モードで使う)。
+   * enable/disable は自前で display を上書きするので、その値も覚えておく。
+   */
+  function setCrosshairVisible(on) {
+    crosshairForced = !!on;
+    crosshair.style.display = enabled || crosshairForced ? "block" : "none";
+  }
+
   /** オーバーレイ表示中など、一時的にスティックを隠す(操作も止める) */
   function setUiHidden(hidden) {
     uiHidden = !!hidden;
@@ -524,6 +534,7 @@ export function createFPSControls(camera, domElement) {
     setInRange,
     setSensitivity,
     setUiHidden,
+    setCrosshairVisible,
     get enabled() {
       return enabled;
     },

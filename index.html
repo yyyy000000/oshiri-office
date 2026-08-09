@@ -257,14 +257,6 @@
   }
   #spank-btn.show { display: block; }
   #spank-btn:active { transform: scale(.92); background: radial-gradient(circle at 38% 32%, rgba(255,160,200,.8), rgba(255,60,120,.7)); }
-  /* 神様モード用の照準(FPSの照準はfpscontrols側が出す) */
-  #aim-dot {
-    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
-    width: 18px; height: 18px; border-radius: 50%; z-index: 8;
-    border: 2px solid rgba(255,255,255,.75); box-shadow: 0 0 6px rgba(0,0,0,.6);
-    pointer-events: none; display: none;
-  }
-  #aim-dot.show { display: block; }
   /* ===== カード(おしりバトルダイス) =====
      枠・文字・アイコンは全てDOM。イラストだけ assets/cards/<id>.jpg を差し込む。 */
   .pcard {
@@ -531,11 +523,11 @@
 
   /* 寄り演出/乱入演出の間はHUDを引っこめて、画をきれいに見せる */
   /* オーバーレイ表示中は照準を消す(カード画面の真ん中に十字が残るため) */
-  body.overlay-busy #aim-dot, body.overlay-busy .fpsc-crosshair { display: none !important; }
+  body.overlay-busy .fpsc-crosshair { display: none !important; }
 
   body.cine-on #title-bar, body.cine-on #slap-counter, body.cine-on #controls,
   body.cine-on #zukan-btn, body.cine-on #settings-btn, body.cine-on #help-btn,
-  body.cine-on #spank-btn, body.cine-on #aim-dot, body.cine-on .fpsc-crosshair,
+  body.cine-on #spank-btn, body.cine-on .fpsc-crosshair,
   body.cine-on #bubble, body.cine-on #hoshi-bubble, body.cine-on #carrie-bubble {
     opacity: 0; transition: opacity .25s; pointer-events: none;
   }
@@ -1407,7 +1399,6 @@
     <div id="equip-line">🖐 <span id="equip-name">素手</span>(+<span id="equip-pts">5</span>pt)</div>
   </div>
   <div id="toast-area"></div>
-  <div id="aim-dot"></div>
   <button id="spank-btn" title="スパンキング">👋</button>
   <button id="zukan-btn" title="ずかん">📖</button>
   <button id="settings-btn" title="せってい">⚙️</button>

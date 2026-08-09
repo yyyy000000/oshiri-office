@@ -1233,7 +1233,6 @@ window.addEventListener("keydown", (e) => {
 });
 // スマホ: スパンキングボタン(画面右下の大きいボタン)。連打できるようpointerdownで反応
 const spankBtn = document.getElementById("spank-btn");
-const aimDot = document.getElementById("aim-dot");
 spankBtn.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   clickAtCrosshair();
@@ -1279,7 +1278,7 @@ function startEnding() {
     fps.disable(); // エンディングはシネマティックカメラに切替
   }
   spankBtn.classList.remove("show");
-  aimDot.classList.remove("show");
+  fps.setCrosshairVisible(false);
   slapCountEl.textContent = TOTAL_POINTS.toLocaleString();
   slapBarFill.style.width = "100%";
   flashStage();
@@ -1446,8 +1445,8 @@ function beginGame(mode) {
     fps.enable();
   } else {
     controls.enabled = true;
-    // 神様モードでは照準を出さない(マウスで直接クリックするため邪魔になる)。
-    // Spaceキーとスパンキングボタンは、変わらず画面中央を叩く
+    // 神様モードでもFPSと同じ照準を出す(Space/スパンキングボタンの狙い先)
+    fps.setCrosshairVisible(true);
   }
   // スパンキングボタンはタッチ端末のみ。FPS・神様モードの両方で使える
   if ("ontouchstart" in window) spankBtn.classList.add("show");
@@ -1576,7 +1575,7 @@ modeGodBtn.addEventListener("click", () => {
 const _center = new THREE.Vector2(0, 0);
 let crosshairTick = 0;
 function updateCrosshair() {
-  if (!fps.enabled || (++crosshairTick % 6) !== 0) return;
+  if ((++crosshairTick % 6) !== 0) return;
   raycaster.setFromCamera(_center, camera);
   const targets = [
     ...ojisan.buttMeshes,
@@ -1586,7 +1585,9 @@ function updateCrosshair() {
     ...items.clickableMeshes(),
   ];
   const hits = raycaster.intersectObjects(targets, true);
-  fps.setInRange(hits.length > 0 && hits[0].distance <= INTERACT_RANGE);
+  // 神様モードは距離制限がないので、当たっていれば光らせる
+  const inRange = hits.length > 0 && (gameMode !== "fps" || hits[0].distance <= INTERACT_RANGE);
+  fps.setInRange(inRange);
 }
 
 // ---------- ループ ----------
@@ -1687,6 +1688,7 @@ renderer.setAnimationLoop(() => {
     updateCrosshair();
   } else {
     controls.update();
+    if (gameMode === "god") updateCrosshair(); // 神様モードも照準の当たり判定を見る
   }
   updateBubblePos();
   syncStickVisibility(); // オーバーレイ中は仮想スティックを引っこめる
