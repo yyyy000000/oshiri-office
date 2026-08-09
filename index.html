@@ -45,7 +45,6 @@
     text-shadow: 0 2px 8px rgba(0,0,0,.6); z-index: 5;
   }
   #title-bar h1 { font-size: 22px; letter-spacing: 2px; }
-  #title-bar p { font-size: 12px; opacity: .8; margin-top: 4px; }
   /* スマホではポイントUIと被るのでタイトルと説明を非表示 */
   @media (max-width: 760px) {
     #title-bar { display: none; }
@@ -67,6 +66,7 @@
     transition: width .25s;
   }
   #equip-line { margin-top: 6px; font-size: 12px; color: #ffe9b8; }
+  #slap-tip { margin-top: 4px; font-size: 11.5px; color: rgba(255,255,255,.72); }
 
   #toast-area {
     position: fixed; top: 84px; right: 16px; z-index: 5; display: flex;
@@ -96,7 +96,7 @@
       background: rgba(255,255,255,.16); color: #fff; font-size: 20px;
       font-family: inherit; cursor: pointer;
     }
-    #controls.collapsed #chat-row, #controls.collapsed #hint { display: none; }
+    #controls.collapsed #chat-row { display: none; }
   }
   #chat-row { display: flex; gap: 6px; }
   #chat-input {
@@ -110,7 +110,6 @@
     font-family: inherit; cursor: pointer; background: #4a90d9; color: #fff; font-weight: bold;
     white-space: nowrap;
   }
-  #hint { color: rgba(255,255,255,.65); font-size: 11px; text-shadow: 0 1px 3px #000; }
 
   #bubble {
     position: fixed; z-index: 6; max-width: 260px; pointer-events: none;
@@ -1391,12 +1390,12 @@
   </div>
   <div id="title-bar">
     <h1>おしりオフィス</h1>
-    <p>ドラッグで視点移動 / おじさんのお尻をクリックで叩けます</p>
   </div>
   <div id="slap-counter">
     👋 スパンキングポイント: <span id="slap-count">0</span> / 1,000,000
     <div id="slap-bar"><div id="slap-bar-fill"></div></div>
     <div id="equip-line">🖐 <span id="equip-name">素手</span>(+<span id="equip-pts">5</span>pt)</div>
+    <div id="slap-tip">いろんな物を何回も叩こう!</div>
   </div>
   <div id="toast-area"></div>
   <button id="spank-btn" title="スパンキング">👋</button>
@@ -1425,7 +1424,6 @@
       <input id="chat-input" type="text" placeholder="おじさんに質問してみよう" maxlength="60">
       <button id="chat-send">送信</button>
     </div>
-    <div id="hint">叩けば叩くほど、何かが起こる…</div>
   </div>
   <div id="settings-overlay">
     <div id="settings-card">
