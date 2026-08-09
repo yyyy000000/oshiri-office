@@ -91,8 +91,8 @@ const MAX_LOG = 300;
 
 export const AI_PROFILES = {
   base: { name: '基本AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.25, lookahead: false },
-  // 星 = 最弱: 順番を選ばない / イベントを温存せずでたらめに使う / 対象もでたらめ
-  hoshi: { name: '星AI', rollOrder: false, targeting: 'random', eventChoice: 'random', swapAt: 0, lookahead: false },
+  // 星 = デッキが最弱なのでAIはまとも(基本AIと同じ。以前のわざと弱いランダム挙動は廃止)
+  hoshi: { name: '星AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.25, lookahead: false },
   // クマ = 脳筋: 順番を選ばない / 常にHP最大を殴る / イベントはダメージ優先
   kuma: { name: 'クマAI', rollOrder: false, targeting: 'highest', eventChoice: 'damage', swapAt: 0, lookahead: false },
   // キャリー = 中堅: 順番と対象は正しく選ぶがイベント選択がダメージ偏重
@@ -379,10 +379,13 @@ function aiPickBounceTarget(g, me, cands) {
   return cands.reduce((a, b) => (b.hp > a.hp ? b : a));
 }
 
-function aiPickSkipTarget(g, me, cands) {
+function aiPickSkipTarget(g, me, opp, cands) {
   if (!cands.length) return null;
-  if (me.ai.targeting === 'random') return g.rng.pick(cands);
-  return cands.reduce((a, b) => (monsterInfo(b.def).avgDmg > monsterInfo(a.def).avgDmg ? b : a));
+  // 既に停止中の相手に重ねがけしない(全員停止中なら仕方なくその中から)
+  const fresh = cands.filter((m) => m.skipTurn !== opp.turnNo + 1);
+  const pool = fresh.length ? fresh : cands;
+  if (me.ai.targeting === 'random') return g.rng.pick(pool);
+  return pool.reduce((a, b) => (monsterInfo(b.def).avgDmg > monsterInfo(a.def).avgDmg ? b : a));
 }
 
 function aiPickHealTarget(cands, amount) {
@@ -428,6 +431,7 @@ function summarizeEvent(def) {
   const s = {
     single: 0, all: 0, heal: 0, healAll: 0, draw: 0, bounce: false,
     discard: 0, selfDiscard: 0, recoverKind: null, reroll: false, dbl: false, selfDmg: 0,
+    skip: 0, choose: 0,
   };
   accumEventFx(s, def.fx, 1);
   return s;
@@ -455,6 +459,8 @@ function accumEventFx(s, fx, w) {
     else if (e.t === 'doubleDamage') s.dbl = true;
     else if (e.t === 'selfDamage') s.selfDmg += e.n * w;
     else if (e.t === 'selfDamageAll') s.selfDmg += e.n * w;
+    else if (e.t === 'skipRoll') s.skip += w;
+    else if (e.t === 'chooseFace') s.choose += w;
   }
 }
 
@@ -465,8 +471,9 @@ function eventScore(g, me, opp, inst) {
   const myMons = me.field.filter((m) => m.hp > 0);
 
   if (style === 'damage') {
-    // ダメージ偏重: 出せるダメージの総量だけを見る
-    return s.single + s.all * Math.max(1, oppMons.length) + (s.bounce ? 20 : 0) + s.draw * 5 + s.heal * 0.2;
+    // ダメージ偏重: 出せるダメージの総量を主に見る(妨害系も少しは数える)
+    return s.single + s.all * Math.max(1, oppMons.length) + (s.bounce ? 20 : 0) + s.draw * 5 + s.heal * 0.2
+      + s.discard * 8 - s.selfDiscard * 4 + s.skip * 15 + s.choose * 20;
   }
 
   let score = 0;
@@ -495,12 +502,80 @@ function eventScore(g, me, opp, inst) {
   }
   if (s.reroll) score += me.field.some((m) => canRoll(me, m)) ? 200 : -500;
   if (s.dbl) score += 150;
+  // 行動停止: 相手の打点が高いほど価値がある(止める対象がいることは fxHasUse が保証)
+  if (s.skip > 0 && oppMons.length) {
+    const worst = oppMons.reduce((a, b) => (monsterInfo(b.def).avgDmg > monsterInfo(a.def).avgDmg ? b : a));
+    score += s.skip * (100 + monsterInfo(worst.def).avgDmg * 10);
+  }
+  // 選択ロール: 自分の場が生きていれば常にそこそこ強い
+  if (s.choose > 0 && myMons.length) score += s.choose * 300;
   score -= s.selfDmg * 2;
   return score;
 }
 
+/**
+ * そのイベントを今使って意味があるか。
+ * 恩恵side(ダメージ/回復/ドロー等)が全て空振りになる状況なら false。
+ * 反動(selfDamage系・自分の手札破壊)はコストなので「使う理由」に数えない
+ */
+function fxHasUse(g, me, opp, fx) {
+  for (const e of fx) {
+    switch (e.t) {
+      case 'dice':
+        if (fxHasUse(g, me, opp, e.then)) return true;
+        break;
+      case 'damage':
+      case 'damageAll':
+      case 'bounce':
+        if (opp.field.some((m) => m.hp > 0)) return true;
+        break;
+      case 'damageByAttr':
+        if (opp.field.some((m) => m.hp > 0 && m.def.attr === e.attr)) return true;
+        break;
+      case 'skipRoll':
+        // 既に次ターン停止中の相手しかいないなら重ねがけは無駄
+        if (opp.field.some((m) => m.hp > 0 && m.skipTurn !== opp.turnNo + 1)) return true;
+        break;
+      case 'heal':
+      case 'healFull':
+        if (me.field.some((m) => m.hp > 0 && m.hp < m.maxHp)) return true;
+        break;
+      case 'healAll':
+        if (me.field.some((m) => m.hp > 0 && m.hp < m.maxHp && (!e.attr || m.def.attr === e.attr))) return true;
+        break;
+      case 'draw':
+        if (me.deck.length > 0) return true;
+        break;
+      case 'discardOpponentHand':
+        if (opp.hand.length > 0) return true;
+        break;
+      case 'recover': {
+        const want = e.kind === 'monster';
+        if (me.trash.some((c) => (want ? c.def.kind === 'monster' : c.def.kind === 'event'))) return true;
+        break;
+      }
+      case 'reroll':
+        if (me.field.some((m) => canRoll(me, m))) return true;
+        break;
+      case 'chooseFace':
+        if (me.field.some((m) => m.hp > 0)) return true;
+        break;
+      case 'useEvent':
+        if (me.hand.some((c) => c.def.kind === 'event')) return true;
+        break;
+      case 'doubleDamage':
+        return true;
+      default:
+        break; // none / selfDamage / selfDamageAll / discardOwnHand は理由にならない
+    }
+  }
+  return false;
+}
+
 function aiChooseEvent(g, me, opp) {
-  const evs = handEvents(me);
+  // 空振りになるイベント(負傷者ゼロでの回復札など)は候補から外す。
+  // 全部空振りなら「1枚も使わない」を選ぶ(← 最弱AI含め全員)
+  const evs = handEvents(me).filter((c) => fxHasUse(g, me, opp, c.def.fx));
   if (!evs.length) return null;
   if (me.ai.eventChoice === 'random') return g.rng.pick(evs);
   let best = evs[0];
@@ -512,7 +587,8 @@ function aiChooseEvent(g, me, opp) {
       bestScore = sc;
     }
   }
-  return best;
+  // 使っても損しかない(相手より自分の手札を余計に捨てる等)なら温存する
+  return bestScore > 0 ? best : null;
 }
 
 /** 「尻に願いを」で選ぶ面を決めるための、面のざっくり評価 */
@@ -820,7 +896,7 @@ function* execEffect(g, me, opp, e, ctx) {
 
     case 'skipRoll': {
       const cands = opp.field.filter((m) => m.hp > 0);
-      const t = yield* askTarget(g, me, cands, 'skipRoll', () => aiPickSkipTarget(g, me, cands));
+      const t = yield* askTarget(g, me, cands, 'skipRoll', () => aiPickSkipTarget(g, me, opp, cands));
       if (!t) return;
       t.skipTurn = opp.turnNo + 1; // 相手の次のターンは振れない
       emit(g, { t: 'skipRoll', side: opp.side, uid: t.uid, id: t.def.id });

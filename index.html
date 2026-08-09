@@ -1120,6 +1120,20 @@
   }
   /* 中央のバナー文と重ならないよう、サイコロは少し上に出す */
   .bt-dicecheck .bt-dice { width: 96px; height: 96px; --r: 10px; transform: translateY(-110px); }
+  /* 判定結果のスタンプ(バナーの下にドンと出す) */
+  .bt-dicecheck .bt-verdict {
+    position: absolute; left: 0; right: 0; top: 50%; text-align: center;
+    font-size: 46px; font-weight: 900; letter-spacing: .08em;
+    text-shadow: 0 4px 18px rgba(0,0,0,.7), 0 0 26px rgba(0,0,0,.5);
+    animation: verdictIn .38s cubic-bezier(.2,1.4,.4,1) both;
+    pointer-events: none;
+  }
+  .bt-dicecheck .bt-verdict.ok { color: #ffd75e; }
+  .bt-dicecheck .bt-verdict.ng { color: #9fb0c2; }
+  @keyframes verdictIn {
+    from { opacity: 0; transform: translateY(46px) scale(2.4); }
+    to { opacity: 1; transform: translateY(46px) scale(1); }
+  }
   .bt-dicecheck .bt-dice.rolling { animation: diceCheckShake .1s linear infinite; }
   .bt-dicecheck .bt-dice.landed { animation: diceCheckLand .5s cubic-bezier(.2,1.5,.4,1); }
   @keyframes diceCheckShake {

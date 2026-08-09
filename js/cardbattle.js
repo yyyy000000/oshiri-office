@@ -20,7 +20,7 @@ const DUR = {
   turnStart: 1500, play: 1000, roll: 2200, damage: 1400, heal: 1200, draw: 550,
   useEvent: 1900, foeEvent: 2500, popOut: 320, bounce: 1300, trash: 900, discard: 1000, skipRoll: 1300,
   recover: 1300, chooseFace: 1800, mulligan: 1200, over: 900, turnEnd: 150,
-  diceCheck: 1500, // 判定ダイスの結果を見せる間
+  diceCheck: 1800, // 判定ダイスの結果(成功/失敗スタンプ)を見せる間
   noDraw: 1300,    // 手札が多くてドローが起きなかった時の説明
   flip: 1500,      // 先攻決めのカードをめくってから対戦が始まるまで
   ko: 1200,        // 撃破の追い演出
@@ -909,7 +909,10 @@ export function createCardBattle(deps) {
         clearInterval(spin);
         dice.className = "bt-dice landed pip-" + ev.face;
         sfx("land");
-        banner(`🎲 <b>${ev.face}</b> — ${ev.label}なら成功`, ev.ok ? "✅ 成功!" : "❌ 失敗…");
+        banner(`🎲 <b>${ev.face}</b> — ${ev.label}なら成功`);
+        // 結果はバナーとは別に、判定スタンプとしてドンと出す
+        wrap.appendChild(el(`<div class="bt-verdict ${ev.ok ? "ok" : "ng"}">${ev.ok ? "✅ 成功!" : "❌ 失敗…"}</div>`));
+        if (ev.ok) sfx("event");
         pushLog(`判定🎲${ev.face}(${ev.label}で成功)→${ev.ok ? "成功" : "失敗"}`, ev.side);
         await wait(DUR.diceCheck);
         wrap.remove();
