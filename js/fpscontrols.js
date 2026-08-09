@@ -215,11 +215,20 @@ export function createFPSControls(camera, domElement) {
   let lookIsDrag = false;
 
   function isUiTarget(t) {
-    return !!(t && t.closest && t.closest("#controls, .fpsc-stick-outer, button, input, #ending, #start-screen"));
+    return !!(
+      t && t.closest &&
+      t.closest(
+        "#controls, .fpsc-stick-outer, button, input, #ending, #start-screen," +
+        // 上に乗るオーバーレイの中では視点を動かさない。
+        // ここを外すと touchmove の preventDefault で手札の横スクロールまで止まる
+        "#battle-overlay, #hell-overlay, #rules-overlay, #zukan-overlay," +
+        "#settings-overlay, #help-overlay, #cine-caption, .bt-intro"
+      )
+    );
   }
 
   function onLookTouchStart(e) {
-    if (!enabled) return;
+    if (!enabled || uiHidden) return;
     if (lookTouchId !== null) return;
     const touch = e.changedTouches[0];
     if (touch.identifier === stickTouchId) return; // スティック操作中の指は無視
