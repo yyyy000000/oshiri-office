@@ -29,12 +29,12 @@ export const PACKS = {
   normal: {
     id: "normal", name: "夜明けのお尻", sub: "ノーマルブースター・3枚",
     price: 20000, cards: 3, rarePerPack: 0.01,
-    desc: "共通カードが3枚。まれにレアが混じる(100パックに1枚ほど)。",
+    desc: "共通カードが3枚。<b>ごくまれに</b>レアが混じる。",
   },
   rare: {
     id: "rare", name: "お尻星の覇者", sub: "レアブースター・3枚",
     price: 100000, cards: 3, rarePerPack: 0.2, pityAt: 10,
-    desc: "レアが出やすい(5パックに1枚ほど)。10パック続けて出なければ<b>次は確定</b>。",
+    desc: "共通カードが3枚。<b>レアが出やすい</b>。ガチャ限定のカードしか入っていない。",
   },
 };
 
