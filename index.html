@@ -985,6 +985,29 @@
   .bt-rewardbtns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
   .bt-rewards .pcard-mini { cursor: pointer; transition: transform .14s; }
   .bt-rewards .pcard-mini:hover { transform: translateY(-8px); box-shadow: 0 0 0 2px #ffd76e; }
+  /* おまけパック(タップして開ける) */
+  .bt-rewardpack { display: flex; justify-content: center; padding: 6px 0 2px; }
+  .bt-packback {
+    width: 150px; height: 208px; border-radius: 12px; cursor: pointer;
+    display: flex; align-items: flex-end; justify-content: center; padding-bottom: 14px;
+    font-size: 11px; letter-spacing: 1px; color: #ffe9a8; text-align: center;
+    background-color: #2a1a4a;
+    background-image:
+      linear-gradient(rgba(150,70,60,.6), rgba(150,70,60,.6)),
+      radial-gradient(circle 30px at 32% 46%, #ffc7bb 0 96%, transparent 97%),
+      radial-gradient(circle 30px at 68% 46%, #ffc7bb 0 96%, transparent 97%),
+      linear-gradient(160deg, #7a5cff, #241640 74%);
+    background-size: 3px 40px, 100% 100%, 100% 100%, 100% 100%;
+    background-position: 50% 46%, 0 0, 0 0, 0 0;
+    background-repeat: no-repeat;
+    border: 2px solid rgba(255,215,110,.6); box-shadow: 0 8px 24px rgba(0,0,0,.6);
+    animation: btPackWiggle 1.5s ease-in-out infinite;
+  }
+  .bt-packback:hover { filter: brightness(1.12); }
+  @keyframes btPackWiggle {
+    0%, 100% { transform: rotate(-2deg) translateY(0) }
+    50% { transform: rotate(2deg) translateY(-6px) }
+  }
 
   @media (max-height: 700px) {
     .bt-field { padding: 4px; }

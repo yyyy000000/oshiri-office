@@ -109,8 +109,8 @@ export function createHellShop(deps) {
   function screenShop() {
     refreshPoints();
     const line = el(
-      `<div class="hell-line">……商品ハ3種類デス。ブースターハ<b>買ウホド値上ガリ</b>シマス` +
-      `(1周ゴトニ戻リマス)。</div>`
+      `<div class="hell-line">……商品ハ3種類デス。価格ハ<b>一定</b>デス。` +
+      `値切ル交渉ニハ、応ジマセン。</div>`
     );
     const packs = el(`<div class="hell-packs"></div>`);
     for (const k of ["starter", "normal", "rare"]) packs.appendChild(packRow(k));

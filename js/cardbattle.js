@@ -989,15 +989,50 @@ export function createCardBattle(deps) {
       ok.addEventListener("click", () => {
         col.grantReward(id);
         deps.toast(`🎴 ${CARDS[id].name} を手に入れた!`);
-        box.remove();
-        overlay.classList.remove("show");
-        if (deps.onFinish) deps.onFinish("you");
+        packStep(); // 続けておまけのパックを開ける
       });
       const re = el(`<button class="bt-act ghost">選び直す</button>`);
       re.addEventListener("click", pickList);
       btns.appendChild(ok);
       btns.appendChild(re);
       box.appendChild(btns);
+    };
+
+    // 固有カードを選んだあと、おまけのパックを開ける
+    const packStep = () => {
+      const kind = col.rewardPack(key);
+      const p = col.PACKS[kind];
+      box.innerHTML = "";
+      box.appendChild(el(`<h2 style="color:#ffd76e">${p.name}</h2>`));
+      box.appendChild(el(`<div class="sub">おまけのパックです。タップして開けてください</div>`));
+      const wrap = el(`<div class="bt-rewardpack"></div>`);
+      const back = el(`<div class="bt-packback"><span>${p.sub}</span></div>`);
+      wrap.appendChild(back);
+      box.appendChild(wrap);
+      const open = () => {
+        const res = col.openRewardPack(kind);
+        sfx("event");
+        box.innerHTML = "";
+        box.appendChild(el(`<h2 style="color:#ffd76e">${p.name}</h2>`));
+        box.appendChild(el(`<div class="sub">${res.cards.length}枚 手に入れた!</div>`));
+        const row = el(`<div class="bt-rewards"></div>`);
+        res.cards.forEach((id, i) => {
+          const card = renderCard(CARDS[id], id, { mini: true });
+          card.title = CARDS[id].name;
+          card.style.animationDelay = i * 0.12 + "s";
+          card.addEventListener("click", () => showDetail(id));
+          row.appendChild(card);
+        });
+        box.appendChild(row);
+        const done = el(`<button class="bt-act big">もどる</button>`);
+        done.addEventListener("click", () => {
+          box.remove();
+          overlay.classList.remove("show");
+          if (deps.onFinish) deps.onFinish("you");
+        });
+        box.appendChild(done);
+      };
+      back.addEventListener("click", open);
     };
 
     pickList();

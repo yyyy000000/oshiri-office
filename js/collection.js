@@ -1,6 +1,6 @@
 // カードの所持数・デッキ・戦績の永続化と、HELL 9000のパック販売。
-// ポイントは毎回0からなので「パックの購入回数」も1周ごとにリセットする(累進価格の対象)。
-// 所持カード・デッキ・戦績・天井カウンタはlocalStorageに保存する。
+// 価格は固定(累進は廃止)。所持カード・デッキ・戦績・天井カウンタ・
+// 未開封パックはlocalStorageに保存する。
 
 import { CARDS, STARTER_DECK, GACHA_POOL } from "./carddata.js";
 
@@ -19,9 +19,6 @@ let deck = load(KEY_DECK, null);
 let wins = load(KEY_WINS, {});
 let misc = Object.assign({ starterBought: false, pity: 0 }, load(KEY_MISC, {}));
 
-// 購入回数は1周ごとにリセット(=保存しない)。累進価格の計算に使う
-const buyCount = { normal: 0, rare: 0 };
-
 // ---------- パックの定義 ----------
 export const PACKS = {
   starter: {
@@ -31,22 +28,18 @@ export const PACKS = {
   },
   normal: {
     id: "normal", name: "夜明けのお尻", sub: "ノーマルブースター・3枚",
-    base: 20000, step: 10000, cap: 100000, cards: 3, rarePerPack: 0.01,
+    price: 20000, cards: 3, rarePerPack: 0.01,
     desc: "共通カードが3枚。まれにレアが混じる(100パックに1枚ほど)。",
   },
   rare: {
     id: "rare", name: "お尻星の覇者", sub: "レアブースター・3枚",
-    base: 100000, step: 50000, cap: 500000, cards: 3, rarePerPack: 0.2, pityAt: 10,
+    price: 100000, cards: 3, rarePerPack: 0.2, pityAt: 10,
     desc: "レアが出やすい(5パックに1枚ほど)。10パック続けて出なければ<b>次は確定</b>。",
   },
 };
 
-/** 今この瞬間の価格(累進。1周ごとにリセット) */
-export function packPrice(kind) {
-  const p = PACKS[kind];
-  if (p.once) return p.price;
-  return Math.min(p.base + p.step * buyCount[kind], p.cap);
-}
+/** パックの価格(固定。買うほど値上がりする累進は廃止した) */
+export function packPrice(kind) { return PACKS[kind].price; }
 
 /** スターターパックは生涯1回だけ */
 export function starterAvailable() { return !misc.starterBought; }
@@ -94,7 +87,6 @@ export function openPack(kind, rnd = Math.random) {
       const isRare = rareHit && i === p.cards - 1; // レアは最後の1枚に置く(開封演出映え)
       cards.push(pickRandom(isRare ? GACHA_POOL.rare : GACHA_POOL.common, rnd));
     }
-    buyCount[kind]++;
   }
   grant(cards);
   return { cost, cards };
@@ -126,6 +118,33 @@ export function validateDeck(list) {
 export function winCount(key) { return wins[key] || 0; }
 export function recordWin(key) { wins[key] = (wins[key] || 0) + 1; save(KEY_WINS, wins); }
 
+/**
+ * 勝利報酬のパック。おじさんはレア確定、それ以外は五分でノーマル/レア。
+ * 開封は報酬画面で行うので、ここでは種類を決めるだけ。
+ */
+export function rewardPack(opponentKey, rnd = Math.random) {
+  if (opponentKey === "ojisan") return "rare";
+  return rnd() < 0.5 ? "rare" : "normal";
+}
+
+/** 勝利報酬のパックを開ける(ポイントは減らさない) */
+export function openRewardPack(kind, rnd = Math.random) {
+  const p = PACKS[kind];
+  const cards = [];
+  let rareHit = rnd() < p.rarePerPack;
+  if (p.pityAt && misc.pity >= p.pityAt) rareHit = true;
+  if (kind === "rare") {
+    misc.pity = rareHit ? 0 : misc.pity + 1;
+    save(KEY_MISC, misc);
+  }
+  for (let i = 0; i < p.cards; i++) {
+    const isRare = rareHit && i === p.cards - 1;
+    cards.push(pickRandom(isRare ? GACHA_POOL.rare : GACHA_POOL.common, rnd));
+  }
+  grant(cards);
+  return { cost: 0, cards };
+}
+
 /** そのキャラに勝ったときに選べる固有カード(4種) */
 export function rewardChoices(opponentKey) {
   return Object.values(CARDS).filter((c) => c.rarity === "unique" && c.owner === opponentKey).map((c) => c.id);
@@ -136,6 +155,5 @@ export function grantReward(id) { grant([id]); }
 export function resetAll() {
   owned = {}; deck = null; wins = {}; misc = { starterBought: false, pity: 0 };
   for (const k of [KEY_CARDS, KEY_DECK, KEY_WINS, KEY_MISC]) localStorage.removeItem(k);
-  buyCount.normal = 0; buyCount.rare = 0;
 }
 export function debugGrant(id, n = 1) { for (let i = 0; i < n; i++) grant([id]); }
