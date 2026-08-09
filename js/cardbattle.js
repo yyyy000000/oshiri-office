@@ -17,7 +17,7 @@ const $ = (id) => document.getElementById(id);
 // 各イベントの見せ場の長さ(ms)。短すぎると何が起きたか読めない
 const DUR = {
   turnStart: 1500, play: 1000, roll: 2200, damage: 1400, heal: 1200, draw: 550,
-  useEvent: 1900, foeEvent: 3000, popOut: 320, bounce: 1300, trash: 900, discard: 1000, skipRoll: 1300,
+  useEvent: 1900, foeEvent: 2500, popOut: 320, bounce: 1300, trash: 900, discard: 1000, skipRoll: 1300,
   recover: 1300, chooseFace: 1800, mulligan: 1200, over: 900, turnEnd: 150,
   noDraw: 1300,    // 手札が多くてドローが起きなかった時の説明
   flip: 1500,      // 先攻決めのカードをめくってから対戦が始まるまで
