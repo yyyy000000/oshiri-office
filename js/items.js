@@ -5,7 +5,7 @@ import { glbProp } from "./glb.js";
 // Data
 // ---------------------------------------------------------------------------
 
-// 叩きアイテム12種。素手/丸めた新聞紙/もふもふクマパンチ/スターロッドは手作りモデル、
+// 叩きアイテム12種。素手/丸めた新聞紙/もふもふクマパンチ/星の本気棒は手作りモデル、
 // それ以外(スリッパ/バゲット/ギター/ビニール傘/フライパン/ラバーダック/トロフィー/
 // マシンガン)はGLBモデル(assets/models/*.glb)を読み込んで使用
 export const SLAP_ITEMS = [
@@ -20,7 +20,7 @@ export const SLAP_ITEMS = [
   { id: "trophy", name: "金のトロフィー", points: 1800, unlock: 100000, sound: "gold" },
   { id: "machinegun", name: "マシンガン", points: 2500, unlock: -1, sound: "gun" },
   { id: "pawpunch", name: "もふもふクマパンチ", points: 5000, unlock: -1, sound: "paw" },
-  { id: "starrod", name: "スターロッド", points: 10000, unlock: -1, sound: "star" },
+  { id: "starrod", name: "星の本気棒", points: 10000, unlock: -1, sound: "star" },
 ];
 
 export const COSTUMES = [

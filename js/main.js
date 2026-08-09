@@ -1012,7 +1012,7 @@ function checkHoshiUnlocks(announce) {
     items.spawn("item", "starrod");
     if (announce) {
       playDropSound();
-      toast("⭐ 隠しアイテム『スターロッド』が棚に出現!(+10000pt)");
+      toast("⭐ 隠しアイテム『星の本気棒』が棚に出現!(+10000pt)");
       sayHoshi("オレ様の力、貸してやるよ。F**k yeah!", 5500);
     }
   }
