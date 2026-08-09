@@ -94,6 +94,8 @@ export function createCardBattle(deps) {
   let skipLayer = null;
   let pickRow = null;      // 中央に並べたカード選択(トラッシュから戻すときなど)
   let slideTimers = [];    // 配布・ドロー演出のタイマー(開始/終了で止める)
+  // 演出が追いつくまで表示しておくトラッシュの枚数(nullなら実数をそのまま出す)
+  let trashLimit = { you: null, foe: null };
   const logLines = [];
 
   const el = (html) => { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; };
@@ -353,11 +355,14 @@ export function createCardBattle(deps) {
     // 手札の枚数も並べる(演出中は見せている枚数に合わせる)
     const foeHandN = foeHandLimit == null ? s.foe.handCount : foeHandLimit;
     const youHandN = handLimit == null ? s.you.hand.length : Math.min(handLimit, s.you.hand.length);
-    els.foeSt.textContent = `手札${foeHandN} / 山札${s.foe.deckCount} / トラッシュ${s.foe.trashCount}`;
-    els.youSt.textContent = `手札${youHandN} / 山札${s.you.deckCount} / トラッシュ${s.you.trashCount}`;
+    // トラッシュも演出が追いつくまでは増やさない
+    const youTrashN = trashLimit.you == null ? s.you.trashCount : trashLimit.you;
+    const foeTrashN = trashLimit.foe == null ? s.foe.trashCount : trashLimit.foe;
+    els.foeSt.textContent = `手札${foeHandN} / 山札${s.foe.deckCount} / トラッシュ${foeTrashN}`;
+    els.youSt.textContent = `手札${youHandN} / 山札${s.you.deckCount} / トラッシュ${youTrashN}`;
     els.turn.textContent = `${s.turn}ターン目`;
     renderFoeHand(foeHandLimit == null ? s.foe.handCount : foeHandLimit);
-    for (const [el2, n] of [[els.youTrash, s.you.trashCount], [els.foeTrash, s.foe.trashCount]]) {
+    for (const [el2, n] of [[els.youTrash, youTrashN], [els.foeTrash, foeTrashN]]) {
       el2.querySelector(".n").textContent = n;
       el2.classList.toggle("empty", n === 0);
     }
@@ -696,6 +701,24 @@ export function createCardBattle(deps) {
     } finally { running = false; }
   }
 
+  /** トラッシュの表示枚数を1つ進める(演出に合わせて増やす) */
+  function bumpTrash(side, n = 1) {
+    if (trashLimit[side] == null) return;
+    trashLimit[side] = Math.max(0, trashLimit[side] + n);
+  }
+
+  /** これから再生するイベントのうち、その側のトラッシュを増減させる合計枚数 */
+  function pendingTrashAdds(evs, side) {
+    let n = 0;
+    for (const ev of evs) {
+      if (ev.t === "recover" && ev.side === side) { n -= 1; continue; }
+      if (ev.side !== side) continue;
+      // 手札から落ちる / 場から落ちる / 使ったイベント は全部トラッシュ行き
+      if (ev.t === "discard" || ev.t === "trash" || ev.t === "useEvent") n += 1;
+    }
+    return n;
+  }
+
   /** これから再生するイベントのうち、その側の手札を増やすものの合計枚数 */
   function pendingHandAdds(evs, side) {
     let n = 0;
@@ -739,9 +762,17 @@ export function createCardBattle(deps) {
     // これから場を離れるモンスターは、その演出まで残しておく
     ghostMons = [];
     const leaving = [];
+    const seenLeaving = new Set();
+    const addLeaving = (side, uid) => {
+      // 交換は bounce と play(swapped) が同じカードを指す。二重に積むと場に2枚出てしまう
+      const k = side + ":" + uid;
+      if (seenLeaving.has(k)) return;
+      seenLeaving.add(k);
+      leaving.push({ side, uid });
+    };
     for (const e of evs) {
-      if (e.t === "trash" || e.t === "bounce") leaving.push({ side: e.side, uid: e.uid });
-      else if (e.t === "play" && e.swapped != null) leaving.push({ side: e.side, uid: e.swapped });
+      if (e.t === "trash" || e.t === "bounce") addLeaving(e.side, e.uid);
+      else if (e.t === "play" && e.swapped != null) addLeaving(e.side, e.swapped);
     }
     for (const lv of leaving) {
       const cur = (lv.side === "you" ? s0.you.field : s0.foe.field).find((m) => m.uid === lv.uid);
@@ -750,6 +781,10 @@ export function createCardBattle(deps) {
       if (at >= 0) ghostMons.push({ side: lv.side, at, m: prevField[lv.side][at] });
     }
     ghostMons.sort((a, b) => a.at - b.at); // 元の並び順どおりに差し戻す
+    trashLimit = {
+      you: Math.max(0, s0.you.trashCount - pendingTrashAdds(evs, "you")),
+      foe: Math.max(0, s0.foe.trashCount - pendingTrashAdds(evs, "foe")),
+    };
     const foeAdds = pendingHandAdds(evs, "foe");
     const foeDrops = evs.filter((e) => e.t === "discard" && e.side === "foe").length;
     foeHandLimit = Math.max(0, s0.foe.handCount - foeAdds + foeDrops);
@@ -764,6 +799,7 @@ export function createCardBattle(deps) {
     hiddenMons = new Set();
     ghostMons = [];
     hpOverride = new Map();
+    trashLimit = { you: null, foe: null };
     render();
     snapField();
     setBusy(false);
@@ -898,6 +934,7 @@ export function createCardBattle(deps) {
         overlay.appendChild(pop);
         sfx("event");
         banner(`${who}は <b>${nameOf(ev.id)}</b> を使った`, def.text);
+        bumpTrash(ev.side); render();
         pushLog(`${who}が${nameOf(ev.id)}を使用: ${def.text}`, ev.side);
         await wait(Math.max(0, ms - DUR.popOut));
         pop.classList.add("out");
@@ -939,6 +976,7 @@ export function createCardBattle(deps) {
           renderFoeHand(foeHandLimit);
         }
         banner(`🗑 ${who}の手札から <b>${nameOf(ev.id)}</b> がトラッシュへ`);
+        bumpTrash(ev.side); render();
         pushLog(`${who}の手札から${nameOf(ev.id)}が落ちた`, ev.side);
         await wait(DUR.discard);
         return;
@@ -948,6 +986,7 @@ export function createCardBattle(deps) {
         if (ev.side === "you") { handLimit++; renderHand(battle.state); }
         else { foeHandLimit++; renderFoeHand(foeHandLimit); }
         banner(`♻️ <b>${nameOf(ev.id)}</b> をトラッシュから手札へ`);
+        bumpTrash(ev.side, -1); render();
         pushLog(`${nameOf(ev.id)}を回収`);
         await wait(DUR.recover);
         return;
@@ -998,6 +1037,7 @@ export function createCardBattle(deps) {
         if (from) from.style.visibility = "hidden";
         await wait(DUR.trash);
         ghostMons = ghostMons.filter((g) => g.m.uid !== ev.uid);
+        bumpTrash(ev.side);
         render();
         return;
       }
