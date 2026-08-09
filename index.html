@@ -489,7 +489,24 @@
     background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.16);
     font-size: 11px; line-height: 1.35;
   }
-  .hell-slot { position: relative; padding-right: 26px; }
+  /* 確定できる状態のボタン(モンスター5/5・イベント10/10) */
+  .hell-btn.hell-ready {
+    background: linear-gradient(135deg, #ff6fa5, #d8317a);
+    border-color: #ffa8c8; color: #fff;
+    box-shadow: 0 0 18px rgba(255,110,165,.5);
+    animation: readyPulse 1.6s ease-in-out infinite;
+  }
+  .hell-btn.hell-ready:hover { filter: brightness(1.08); }
+  @keyframes readyPulse {
+    0%, 100% { box-shadow: 0 0 14px rgba(255,110,165,.4); }
+    50%      { box-shadow: 0 0 26px rgba(255,110,165,.85); }
+  }
+  .hell-slot {
+    position: relative; padding-right: 26px;
+    /* 長押しで−1する操作なので、選択・コピー吹き出し・タップ時のハイライトを止める */
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
   /* モンスターとイベントを色で分ける */
   .hell-slot.mon { border-left: 4px solid #ff9a6e; }
   .hell-slot.ev  { border-left: 4px solid #8fb4ff; }
@@ -781,7 +798,9 @@
   }
   .bt-empty { opacity: .28; font-size: 12px; }
   /* 場とトラッシュ置き場を横並びに */
-  .bt-row { flex: none; position: relative; display: flex; align-items: center; }
+  /* トラッシュ(絶対配置・70px)が収まる高さを常に確保する。
+     場が空のときは行が30pxほどになり、下のバーにかぶってしまうため */
+  .bt-row { flex: none; position: relative; display: flex; align-items: center; min-height: 80px; }
   .bt-row .bt-field { flex: 1; }
   .bt-trash {
     position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
@@ -1290,6 +1309,7 @@
     .bt-field { gap: 10px; }
     .bt-card { width: 104px; height: 140px; }
     .bt-trash { width: 42px; height: 58px; right: 5px; }
+    .bt-row { min-height: 66px; }
     .bt-trash .ic { font-size: 16px; }
     .bt-card-art { height: 78px; }
     .bt-result h2 { font-size: 24px; }

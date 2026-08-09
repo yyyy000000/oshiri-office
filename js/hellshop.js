@@ -215,8 +215,10 @@ export function createHellShop(deps) {
       `<span>イベント <b class="${okEv ? "ok" : "ng"}">${ev}/${col.DECK_EVENTS}</b></span>` +
       `<span style="opacity:.6">タップで+1 / 右クリック・長押しで−1</span></div>`
     );
+    // 5枚+10枚が揃った時だけピンクにして、確定できることを目立たせる
+    const ready = okMon && okEv;
     const save = el(
-      `<button class="hell-btn" style="margin-left:auto" ${okMon && okEv ? "" : "disabled"}>` +
+      `<button class="hell-btn${ready ? " hell-ready" : ""}" style="margin-left:auto" ${ready ? "" : "disabled"}>` +
       `💾 このデッキで確定</button>`
     );
     save.addEventListener("click", () => {
@@ -244,14 +246,19 @@ export function createHellShop(deps) {
       );
       const add = () => { if ((draft.get(id) || 0) < col.ownedCount(id)) { draft.set(id, (draft.get(id) || 0) + 1); renderDeck(); } };
       const sub = () => { const c = draft.get(id) || 0; if (c > 0) { draft.set(id, c - 1); renderDeck(); } };
-      slot.addEventListener("click", add);
       let held = 0;
+      let longFired = false; // 長押しで−1した直後の click は捨てる(+1で相殺されるため)
+      slot.addEventListener("click", () => {
+        if (longFired) { longFired = false; return; }
+        add();
+      });
       // 右クリックは contextmenu で−1する。長押しタイマーも走っていると−2になるので必ず止める
       slot.addEventListener("contextmenu", (e) => { e.preventDefault(); clearTimeout(held); held = 0; sub(); });
       // 長押しの−1は左ボタン(またはタッチ)のときだけ
       slot.addEventListener("pointerdown", (e) => {
         if (e.button !== 0) return;
-        held = setTimeout(sub, 450);
+        longFired = false;
+        held = setTimeout(() => { longFired = true; sub(); }, 450);
       });
       for (const ev2 of ["pointerup", "pointerleave", "pointercancel"])
         slot.addEventListener(ev2, () => clearTimeout(held));
