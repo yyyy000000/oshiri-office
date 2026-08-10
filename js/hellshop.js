@@ -206,7 +206,9 @@ export function createHellShop(deps) {
     for (const [id, n] of draft) (CARDS[id].kind === "monster" ? (mon += n) : (ev += n));
     return { mon, ev };
   }
-  function renderDeck() {
+  function renderDeck(keepScroll) {
+    // カードをタップするたびに再描画するので、スクロール位置を保って戻す
+    const st = keepScroll ? body.scrollTop : 0;
     const { mon, ev } = draftCounts();
     const okMon = mon === col.DECK_MONSTERS, okEv = ev === col.DECK_EVENTS;
     const bar = el(
@@ -244,8 +246,8 @@ export function createHellShop(deps) {
         `<span class="n">${n}/${col.ownedCount(id)}</span>` +
         `${def.name}<span class="k">${isMon ? "👾 モンスター" : "📜 イベント"}</span></div>`
       );
-      const add = () => { if ((draft.get(id) || 0) < col.ownedCount(id)) { draft.set(id, (draft.get(id) || 0) + 1); renderDeck(); } };
-      const sub = () => { const c = draft.get(id) || 0; if (c > 0) { draft.set(id, c - 1); renderDeck(); } };
+      const add = () => { if ((draft.get(id) || 0) < col.ownedCount(id)) { draft.set(id, (draft.get(id) || 0) + 1); renderDeck(true); } };
+      const sub = () => { const c = draft.get(id) || 0; if (c > 0) { draft.set(id, c - 1); renderDeck(true); } };
       let held = 0;
       let longFired = false; // 長押しで−1した直後の click は捨てる(+1で相殺されるため)
       slot.addEventListener("click", () => {
@@ -269,6 +271,7 @@ export function createHellShop(deps) {
       grid.appendChild(slot);
     }
     setBody(bar, grid, backBtn(screenMenu));
+    if (keepScroll) body.scrollTop = st;
   }
 
   // ---------- 対戦相手選択 ----------
@@ -285,11 +288,15 @@ export function createHellShop(deps) {
       const w = col.winCount(o.key);
       const prev = OPPONENTS[i - 1];
       const locked = !!prev && col.winCount(prev.key) === 0;
+      // 隠しボスは解禁まで名前を伏せる
+      const hidden = o.key === "oshiriseijin" && locked;
+      const label = hidden ? "???" : o.label;
+      const prevLabel = prev && (prev.key === "oshiriseijin" && col.winCount("ojisan") === 0 ? "???" : prev.label);
       const b = el(
         `<button class="hell-btn" ${errs.length || locked ? "disabled" : ""}>` +
         `<span>${locked ? "🔒 " : ""}${"★".repeat(o.difficulty)}` +
-        `<span style="opacity:.3">${"★".repeat(5 - o.difficulty)}</span> ${o.label}` +
-        `<small>${locked ? `${prev.label}に1勝すると挑戦できます` : w ? `${w}勝` : "未対戦"}</small></span></button>`
+        `<span style="opacity:.3">${"★".repeat(Math.max(0, 5 - o.difficulty))}</span> ${label}` +
+        `<small>${locked ? `${prevLabel}に1勝すると挑戦できます` : w ? `${w}勝` : "未対戦"}</small></span></button>`
       );
       if (!locked) b.addEventListener("click", () => { close(); deps.onStartBattle(o.key); });
       menu.appendChild(b);

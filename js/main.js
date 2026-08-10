@@ -16,7 +16,7 @@ import { OPPONENTS } from "./carddata.js";
 import * as collection from "./collection.js";
 import { createCardBattle } from "./cardbattle.js";
 import { createCardRules } from "./cardrules.js";
-import { createEndingFx, PLATFORM_TOP_Y } from "./ending.js";
+import { createEndingFx, PLATFORM_TOP_Y, greenifySkin, ALIEN_GREEN } from "./ending.js";
 
 const TOTAL_POINTS = 1000000;
 // ステージ演出の閾値: 序盤はアイテム出現(3,500/8,000/20,000/100,000)に同期
@@ -153,6 +153,50 @@ function updateBubblePos() {
 // ---------- 対戦後の寄り演出 ----------
 // 対戦画面を閉じたあと、部屋にいる当人をアップで映してひとこと言わせる。
 // 専用の画面は作らず、いつもの3D空間のカメラを一時的に借りるだけ。
+// おしり星人は部屋にいないので、演出の間だけ上空に宇宙ステージを仮設して
+// エンディングと同じ緑肌のおじさん星人を立たせる
+let alienStage = null; // { group, api, skinMats }
+function ensureAlienStage() {
+  if (alienStage) return alienStage;
+  const group = new THREE.Group();
+  group.position.set(0, 40, 0); // 部屋のはるか上空。通常カメラからは見えない
+  // 星空(内側を向いた黒球+星の点)
+  group.add(new THREE.Mesh(
+    new THREE.SphereGeometry(14, 24, 16),
+    new THREE.MeshBasicMaterial({ color: 0x04060f, side: THREE.BackSide })
+  ));
+  const starPos = [];
+  for (let i = 0; i < 400; i++) {
+    const v = new THREE.Vector3().randomDirection().multiplyScalar(7 + Math.random() * 6);
+    starPos.push(v.x, v.y, v.z);
+  }
+  const starGeo = new THREE.BufferGeometry();
+  starGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPos, 3));
+  group.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.07 })));
+  // 足場(おじさんの徘徊域 x±1.6 / z-1.9..-0.4 が乗るサイズ・位置)
+  const disk = new THREE.Mesh(
+    new THREE.CylinderGeometry(3.2, 3.5, 0.14, 28),
+    new THREE.MeshStandardMaterial({ color: 0x352a5e, emissive: 0x191040, emissiveIntensity: 0.7, roughness: 0.9 })
+  );
+  disk.position.set(0, -0.07, -1.1);
+  group.add(disk);
+  // 専用の照明(部屋の照明が届かない)
+  const key = new THREE.PointLight(0xffffff, 1.3, 24);
+  key.position.set(1.6, 2.6, 1.8);
+  group.add(key);
+  group.add(new THREE.AmbientLight(0x9aa4ff, 0.55));
+  // 本人(エンディングのおじさん星人と同じ作り)
+  const api = createOjisan(scene);
+  scene.remove(api.group);
+  group.add(api.group);
+  api.setProgress(0.07); // 立って歩き回る進行度(エンディングの星人と同じ)
+  const skinMats = greenifySkin(api);
+  group.visible = false;
+  scene.add(group);
+  alienStage = { group, api, skinMats };
+  return alienStage;
+}
+
 const CINE_SPOTS = {
   hoshi: () => ({ at: hoshi.group.position.clone().setY(hoshi.group.position.y + 0.11), dist: 0.55 }),
   kuma: () => {
@@ -173,6 +217,19 @@ const CINE_SPOTS = {
       front: ojisan.headPos().clone().setY(0).normalize().negate(),
     }),
   }),
+  // 隠しボス: 宇宙ステージを出して、歩き回る星人を正面から追いかける
+  oshiriseijin: () => {
+    const st = ensureAlienStage();
+    st.group.visible = true;
+    st.group.updateMatrixWorld(true);
+    // 頭より少し下(胴)を狙い、距離をとって全身が入るようにする
+    const aim = () => st.api.headPos().clone().add(new THREE.Vector3(0, -0.35, 0));
+    return {
+      at: aim(),
+      dist: 2.8,
+      follow: () => ({ at: aim(), front: new THREE.Vector3(0, 0, 1) }),
+    };
+  },
 };
 // 対戦後のひとこと。win = そのキャラが勝った時 / lose = 負けた時
 const CARD_OUTRO = {
@@ -200,6 +257,12 @@ const CARD_OUTRO = {
     name: "おじさん",
     win: ["いやあ、悪いねえ。おじさん、こういうの本気出しちゃうタイプでなあ。", "まだまだ叩き足りんようだな。出直してきなさい。"],
     lose: ["……まいった。おじさんの完敗だ。尻を差し出そう。", "つ、強い……! きみ、うちの部署に来ないか?"],
+  },
+  // おしり星人はお尻の擬音でしか喋らない
+  oshiriseijin: {
+    name: "おしり星人",
+    win: ["ぷりぷりぃ〜!", "ぶりんっ、ぶりんっ!", "もっちもちぃ。"],
+    lose: ["ぺっちん!?", "ぷすぅ……。", "ぷるぷる……ぺたん。"],
   },
 };
 const cineCaption = document.getElementById("cine-caption");
@@ -236,6 +299,7 @@ function cinematicFocus(who, name, text, ms = 3400, speed = 0.06) {
       cineCaption.classList.remove("show");
       document.body.classList.remove("cine-on");
       if (hideOjisan) ojisan.group.visible = true;
+      if (who === "oshiriseijin" && alienStage) alienStage.group.visible = false; // 宇宙ステージを片付ける
       cine = null;
       camera.position.copy(saved.pos);
       camera.quaternion.copy(saved.quat);
@@ -1126,6 +1190,9 @@ document.addEventListener("click", unlockAudio);
 // クリック/タップ/Shiftキー共通のゲーム内クリック処理(cssX/cssYはCSSピクセル座標)
 function handleGameClick(cssX, cssY) {
   if (!gameMode || ending) return; // スタート画面中は無効
+  // 対戦後の寄り演出中は部屋のクリック無効
+  // (カメラがHELL 9000に寄っている時にタップするとショップが開いてしまう)
+  if (cine) return;
   tapCount++; // 発言クールダウン用(叩く・撫でる・オブジェクトクリック・空振り すべて1タップ)
   pointer.set((cssX / innerWidth) * 2 - 1, -(cssY / innerHeight) * 2 + 1);
   raycaster.setFromCamera(pointer, camera);
@@ -1414,7 +1481,8 @@ function updateEnding(dt) {
       `<div class="end-section-title">⚔️ カードバトルの戦績</div>` +
       `<div class="end-clicks">${OPPONENTS.map((o) => {
         const w = collection.winCount(o.key);
-        return `<span>${o.label} <b>${w ? w + "勝" : "—"}</b></span>`;
+        const name = o.key === "oshiriseijin" && collection.winCount("ojisan") === 0 ? "???" : o.label;
+        return `<span>${name} <b>${w ? w + "勝" : "—"}</b></span>`;
       }).join("")}</div>` +
       `<div class="end-section-title">👆 クリック探索のきろく</div>` +
       `<div class="end-clicks">${clickRows}</div>`;
@@ -1573,7 +1641,9 @@ function renderZukan() {
     const rows = Object.keys(CLICK_NAMES).map((id) => `<span>${CLICK_NAMES[id]} <b>×${clicks[id] || 0}</b></span>`).join("");
     const battleRows = OPPONENTS.map((o) => {
       const w = collection.winCount(o.key);
-      return `<span>${o.label} <b>${w ? w + "勝" : "—"}</b></span>`;
+      // 隠しボスは解禁前(おじさん未勝利)なら名前を伏せる
+      const name = o.key === "oshiriseijin" && collection.winCount("ojisan") === 0 ? "???" : o.label;
+      return `<span>${name} <b>${w ? w + "勝" : "—"}</b></span>`;
     }).join("");
     zukanContent.innerHTML =
       `<div class="zk-section-title">今回のプレイ</div><div class="zk-rec"><span>ポイント <b>${points.toLocaleString()}</b></span><span>叩いた数 <b>${slapCount}</b></span></div>` +
@@ -1651,7 +1721,8 @@ window.__hell = hellShop;  // 検証用: HELL 9000のショップを直接開く
 window.__cine = cinematicFocus; // 検証用: 対戦後の寄り演出を直接呼ぶ
 window.__intro = cinematicIntro; // 検証用: 対戦開始の乱入演出を直接呼ぶ
 window.__cards = collection; // 検証用: 所持カード・パック排出
-window.__battle = cardBattle; // 検証用: 対戦画面を直接開く
+window.__battle = cardBattle; // 検証用: 対戦画面を直接開く。start(key, seed, {playerDeck, opponentDeck})でデッキ強制も可
+window.__btSpeed = (n) => cardBattle.setSpeed(n); // 検証用: 対戦演出をn倍速に(既定1)
 // カード枠の確認用: __cardPreview() で見本カードを画面に並べる
 window.__cardPreview = () => {
   const old = document.getElementById("card-preview");
@@ -1689,6 +1760,11 @@ window.__ff = (sec = 1, steps = 60) => {
 };
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
+  // おしり星人戦の宇宙ステージ(表示中だけ動かし、肌の緑を毎フレーム上書き)
+  if (alienStage && alienStage.group.visible) {
+    alienStage.api.update(clock.elapsedTime, dt);
+    for (const m of alienStage.skinMats) m.color.copy(ALIEN_GREEN);
+  }
   ojisan.update(clock.elapsedTime, dt);
   office.update(clock.elapsedTime, dt);
   items.update(clock.elapsedTime, dt);

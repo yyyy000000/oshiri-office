@@ -79,6 +79,14 @@ export async function playPackOpen(o) {
     slot.querySelector(".pk-front").appendChild(renderCard(def, id, { mini: true }));
     if (o.isNew && o.isNew(id)) slot.appendChild(el(`<span class="pk-new">NEW</span>`));
     if (def.rarity === "rare") slot.classList.add("rare");
+    // めくれたあとはタップで拡大して読める
+    slot.addEventListener("click", () => {
+      if (!slot.classList.contains("flip")) return;
+      const zoom = el(`<div class="hell-zoomview"></div>`);
+      zoom.appendChild(renderCard(def, id));
+      zoom.addEventListener("click", () => zoom.remove());
+      document.body.appendChild(zoom);
+    });
     row.appendChild(slot);
     await wait(120);
     slot.classList.add("in");

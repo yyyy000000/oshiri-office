@@ -8,6 +8,30 @@ import { createHoshi } from "./hoshi.js";
 
 export const PLATFORM_TOP_Y = 60; // 到着面の高さ(おじさんの着地y)
 
+// おじさん星人の緑肌化: 服・髪はそのまま、肌色のマテリアルだけ緑に差し替える。
+// setProgressが顔色をlerpで戻すことがあるため、戻り値のマテリアル一覧を毎フレーム上書きすること。
+// (エンディングと、おしり星人戦の乱入/勝敗演出の両方から使う)
+export const ALIEN_GREEN = new THREE.Color(0x5cb86e);
+const ALIEN_SKIN_REF = new THREE.Color(0xe0a978);
+export function greenifySkin(api) {
+  const mats = [];
+  api.group.traverse((o) => {
+    if (o.isMesh && o.material && !Array.isArray(o.material) && o.material.color) {
+      const c = o.material.color;
+      if (
+        Math.abs(c.r - ALIEN_SKIN_REF.r) < 0.08 &&
+        Math.abs(c.g - ALIEN_SKIN_REF.g) < 0.08 &&
+        Math.abs(c.b - ALIEN_SKIN_REF.b) < 0.08 &&
+        !mats.includes(o.material)
+      ) {
+        mats.push(o.material);
+      }
+    }
+  });
+  for (const m of mats) m.color.copy(ALIEN_GREEN);
+  return mats;
+}
+
 export function createEndingFx(scene) {
   let destGroup = null;
   let clouds = null;
@@ -31,29 +55,6 @@ export function createEndingFx(scene) {
       clouds.add(c);
     }
     scene.add(clouds);
-  }
-
-  // おじさん星人: 服・髪はおじさんと同じ、肌(0xe0a978)だけ緑に。
-  // setProgressが顔色をlerpで戻すことがあるため、マテリアル参照を保持して毎フレーム上書きする
-  const ALIEN_GREEN = new THREE.Color(0x5cb86e);
-  const ALIEN_SKIN_REF = new THREE.Color(0xe0a978);
-  function greenifySkin(api) {
-    const mats = [];
-    api.group.traverse((o) => {
-      if (o.isMesh && o.material && !Array.isArray(o.material) && o.material.color) {
-        const c = o.material.color;
-        if (
-          Math.abs(c.r - ALIEN_SKIN_REF.r) < 0.08 &&
-          Math.abs(c.g - ALIEN_SKIN_REF.g) < 0.08 &&
-          Math.abs(c.b - ALIEN_SKIN_REF.b) < 0.08 &&
-          !mats.includes(o.material)
-        ) {
-          mats.push(o.material);
-        }
-      }
-    });
-    for (const m of mats) m.color.copy(ALIEN_GREEN);
-    return mats;
   }
 
   function buildDest(dest) {

@@ -25,6 +25,7 @@
 //   { t:'skipRoll' }                           相手モンスター1体は次のターン振れない
 //   { t:'bounce', n? }                         相手モンスター N 体(省略時1)を持ち主の手札に戻す
 //   { t:'recover', kind, n }                   トラッシュから monster/event を N 枚回収
+//   { t:'diceHeal', mult, scope? }             サイコロを振って出た目×mult回復(scope:'all'で全員)
 //   { t:'doubleDamage' }                       このターンのダメージ2倍(現行カードでは未使用)
 //   { t:'chooseFace' }                         選択ロール
 
@@ -363,7 +364,7 @@ export const CARDS = {
       { text: 'サービスタイム — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
       { text: 'あたり — カードを2枚引く', fx: [{ t: 'draw', n: 2 }] },
       { text: 'カプセルらんしゃ — 相手モンスター全員に45ダメージ', fx: [{ t: 'damageAll', n: 45 }] },
-      { text: '大あたり — もう一度振る', fx: [{ t: 'reroll', target: 'self', chainOn6: false }] },
+      { text: '大あたり — 相手モンスター全員に20ダメージ。もう一度振る', fx: [{ t: 'damageAll', n: 20 }, { t: 'reroll', target: 'self', chainOn6: false }] },
     ],
   },
   capsule: {
@@ -426,7 +427,7 @@ export const CARDS = {
     owner: 'ojisan',
     flavor: '叩かれるほどに輝きを増す、この部屋の主。',
     faces: [
-      { text: 'からぶり — 何も起きない', fx: [{ t: 'none' }] },
+      { text: 'ちゃをすする — カードを1枚引く', fx: [{ t: 'draw', n: 1 }] },
       { text: 'ビンタ — 相手モンスター1体に35ダメージ', fx: [{ t: 'damage', n: 35 }] },
       { text: 'しりふり — 相手モンスター全員に30ダメージ', fx: [{ t: 'damageAll', n: 30 }] },
       { text: 'ひとやすみ — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
@@ -444,7 +445,7 @@ export const CARDS = {
     owner: 'ojisan',
     flavor: '推進剤は根性。着地の予定は、いまだ未定。',
     faces: [
-      { text: 'カウントダウン — 何も起きない', fx: [{ t: 'none' }] },
+      { text: 'カウントダウン — カードを1枚引く', fx: [{ t: 'draw', n: 1 }] },
       { text: 'ふんしゃ — 相手モンスター1体に35ダメージ', fx: [{ t: 'damage', n: 35 }] },
       { text: 'ねんりょうほきゅう — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
       { text: 'きりもみひこう — 相手モンスター全員に40ダメージ', fx: [{ t: 'damageAll', n: 40 }] },
@@ -477,8 +478,8 @@ export const CARDS = {
     rarity: 'unique',
     owner: 'ojisan',
     flavor: '倒れても立ち上がる。休み方を知らないだけだ。',
-    text: '自分のトラッシュからモンスターカードを1枚選び、手札に戻す。自分のモンスター全員を10回復',
-    fx: [{ t: 'recover', kind: 'monster', n: 1 }, { t: 'healAll', n: 10, attr: null }],
+    text: '自分のトラッシュからモンスターカードを1枚選び、手札に戻す。自分のモンスター全員を20回復',
+    fx: [{ t: 'recover', kind: 'monster', n: 1 }, { t: 'healAll', n: 20, attr: null }],
   },
 
   // =========================================================================
@@ -601,7 +602,7 @@ export const CARDS = {
     kind: 'monster',
     name: 'バーサーカー 覚醒キャリー',
     attr: 'mecha',
-    hp: 75,
+    hp: 80,
     rarity: 'rare',
     owner: null,
     flavor: '規則を忘れた警備員ほど、こわいものはない。',
@@ -613,10 +614,13 @@ export const CARDS = {
       { text: 'ガトリング — 相手モンスター全員に30ダメージ', fx: [{ t: 'damageAll', n: 30 }] },
       { text: 'だんやくそうてん — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
       {
-        text: 'にくだんとつげき — パワー属性の相手モンスター1体に55ダメージ',
-        fx: [{ t: 'damageByAttr', attr: 'power', scope: 'one', n: 55 }],
+        text: 'にくだんとつげき — パワー属性の相手モンスター1体に65ダメージ',
+        fx: [{ t: 'damageByAttr', attr: 'power', scope: 'one', n: 65 }],
       },
-      { text: 'ゼロきょりしゃげき — 相手モンスター1体に50ダメージ', fx: [{ t: 'damage', n: 50 }] },
+      {
+        text: 'れんしゃ — 相手モンスター1体に25ダメージ。もう一度振る',
+        fx: [{ t: 'damage', n: 25 }, { t: 'reroll', target: 'self', chainOn6: false }],
+      },
       {
         text: 'かくせい — もう一度振る。相手モンスター全員に30ダメージ',
         fx: [{ t: 'reroll', target: 'self', chainOn6: false }, { t: 'damageAll', n: 30 }],
@@ -642,8 +646,30 @@ export const CARDS = {
     rarity: 'rare',
     owner: null,
     flavor: '天から差しのべられた、まるくてやさしい救い。',
-    text: '自分のトラッシュからモンスターカードを1枚選び、手札に戻す。自分のモンスター1体を30回復',
-    fx: [{ t: 'recover', kind: 'monster', n: 1 }, { t: 'heal', n: 30 }],
+    text: '自分のトラッシュからモンスターカードとイベントカードを1枚ずつ選び、手札に戻す',
+    fx: [{ t: 'recover', kind: 'monster', n: 1 }, { t: 'recover', kind: 'event', n: 1 }],
+  },
+  oshirinova: {
+    id: 'oshirinova',
+    kind: 'event',
+    name: 'おしりノヴァ',
+    attr: null,
+    rarity: 'rare',
+    owner: null,
+    flavor: '爆ぜる尻は、超新星よりまぶしい。',
+    text: '相手モンスター全員に50ダメージ。自分のモンスター全員に15ダメージ',
+    fx: [{ t: 'damageAll', n: 50 }, { t: 'selfDamageAll', n: 15 }],
+  },
+  namida: {
+    id: 'namida',
+    kind: 'event',
+    name: 'おしりのなみだ',
+    attr: null,
+    rarity: 'rare',
+    owner: null,
+    flavor: '満月がまるいのは、あれが誰かのおしりだからである。',
+    text: 'サイコロを振って、自分のモンスター全員を出た目×15回復',
+    fx: [{ t: 'diceHeal', mult: 15, scope: 'all' }],
   },
 
   // =========================================================================
@@ -972,9 +998,21 @@ export const OPPONENT_DECKS = {
       ['oshiriroket', 3],
       ['shachiku', 2],
       ['recyclebox', 1],
-      ['bell', 1],
+      ['coffee', 2], // ← ひじょうベル×1 と 卑弥呼様の妄想×1 を入れ替え(2026-08-10)
       ['timecard', 2],
-      ['onaji', 1], // ちょっとまってん!(行動停止) ← スリッパ×2 と入れ替え
+    ],
+  },
+  oshiriseijin: {
+    label: 'おしり星人',
+    list: [
+      // 隠しボス: 15枚すべてレアカード
+      ['oshiriseijin', 2],
+      ['nijiiroboshi', 2],
+      ['berserker', 1],
+      ['negai', 3],
+      ['tenshi', 3],
+      ['oshirinova', 2],
+      ['namida', 2],
     ],
   },
 };
@@ -988,6 +1026,8 @@ export const OPPONENTS = [
   { key: 'carry', label: 'キャリーちゃん', deck: 'carry', difficulty: 3 },
   { key: 'hell', label: 'HELL 9000', deck: 'hell', difficulty: 4 },
   { key: 'ojisan', label: 'おじさん', deck: 'ojisan', difficulty: 5 },
+  // 隠しボス。おじさんに勝つまで名前は「???」で伏せる(hellshop側で処理)
+  { key: 'oshiriseijin', label: 'おしり星人', deck: 'oshiriseijin', difficulty: 6 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -1024,7 +1064,7 @@ export const GACHA_POOL = {
     'yume',
     'onaji',
   ],
-  rare: ['nijiiroboshi', 'oshiriseijin', 'berserker', 'negai', 'tenshi'],
+  rare: ['nijiiroboshi', 'oshiriseijin', 'berserker', 'negai', 'tenshi', 'oshirinova', 'namida'],
 };
 
 // レアブースターの共通枠。スタートデッキで配られる11種は出さず、

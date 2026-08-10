@@ -7,7 +7,7 @@
 //  - ダメージ/回復は当該カードを揺らす・光らせる・数字を飛ばす
 //  - 出目のテキストは中央のバナーに大きく出す(ログを読まなくても分かるように)
 //  - 演出中に画面をタップすると早送りできる
-import { CARDS, OPPONENTS } from "./carddata.js";
+import { CARDS, OPPONENTS, GACHA_POOL } from "./carddata.js";
 import { createBattle, INITIAL_HAND, DRAW_LIMIT } from "./cardengine.js";
 import { renderCard } from "./cards.js";
 import * as col from "./collection.js";
@@ -138,7 +138,8 @@ export function createCardBattle(deps) {
     });
   }
 
-  async function start(opponentKey, seed) {
+  // opts(検証用): { playerDeck, opponentDeck } で所持チェックを無視してデッキを強制できる
+  async function start(opponentKey, seed, opts = {}) {
     clearSlideTimers();
     closePickRow();
     // 前の対戦の演出が残っていたら片付ける(連続で開始した時の取りこぼし防止)
@@ -157,7 +158,13 @@ export function createCardBattle(deps) {
     refreshSound();
     const first = await coinFlip();
     // seed は検証用(省略時は毎回ランダム)
-    battle = createBattle({ playerDeck: col.getDeck() || [], opponentKey, seed, firstPlayer: first });
+    battle = createBattle({
+      playerDeck: opts.playerDeck || col.getDeck() || [],
+      opponentKey,
+      opponentDeck: opts.opponentDeck,
+      seed,
+      firstPlayer: first,
+    });
     selected.clear(); pendingPlay = null; pendingPick = null; actingUid = null; busy = false; logLines.length = 0;
     doneMons = new Set();
     sickCleared = new Set();
@@ -182,9 +189,10 @@ export function createCardBattle(deps) {
   }
 
   // ---------- 演出の下ごしらえ ----------
+  let speedMult = 1; // 検証用の倍速(__btSpeed)。通常プレイでは1のまま
   function wait(ms) {
     return new Promise((res) => {
-      const t = setTimeout(done, ms);
+      const t = setTimeout(done, ms / speedMult);
       function done() { clearTimeout(t); skipNow = null; res(); }
       skipNow = done;
     });
@@ -409,7 +417,9 @@ export function createCardBattle(deps) {
       const e = cardEl(actingUid);
       if (e) { e.classList.remove("done"); e.classList.add("acting"); }
     }
-    const q = s.prompt;
+    // 演出再生中はエンジンが先の手番まで進んでいるため、prompt(次の自分の選択)を
+    // 見せると相手のターン中に自分の場へ黄色枠が出てしまう。busy中は無視する
+    const q = busy ? null : s.prompt;
     if (!q || !q.options) return;
     if (q.kind === "rollOrder" || q.kind === "pickTarget") {
       for (const uid of q.options) { const e = cardEl(uid); if (e) e.classList.add("pick"); }
@@ -437,8 +447,8 @@ export function createCardBattle(deps) {
   }
 
   function renderHand(s) {
-    const q = s.prompt;
-    const pickable = new Set(q && (q.kind === "playMonster" || q.kind === "useEvent") ? q.options : []);
+    const q = busy ? null : s.prompt; // 演出中は先の手番のハイライトを見せない
+    const pickable = new Set(q && (q.kind === "playMonster" || q.kind === "useEvent" || q.kind === "endDiscard") ? q.options : []);
     els.hand.innerHTML = "";
     const shown = handLimit == null ? s.you.hand : s.you.hand.slice(0, handLimit);
     // まだ演出していない「捨てられる予定」のカードも並べておく
@@ -489,7 +499,8 @@ export function createCardBattle(deps) {
       return;
     }
     // 何も選びかけていない選択待ちでは、せり出したカードを片付ける
-    if (q && q.kind !== "roll" && q.kind !== "useEvent" && pendingPick == null && !busy) closeStage();
+    // (pickFace = 尻に願いをの出目選びは、カードを見ながら選ぶので閉じない)
+    if (q && q.kind !== "roll" && q.kind !== "useEvent" && q.kind !== "pickFace" && pendingPick == null && !busy) closeStage();
     if (pendingPlay != null) {
       const full = s.you.field.length >= 2;
       msg(full
@@ -544,9 +555,42 @@ export function createCardBattle(deps) {
         } else if (q.canSkip !== false) act("使わない", () => answer(null), "ghost");
         break;
       }
+      case "mulligan":
+        msg("<b>手札を引き直しますか?</b>(1回だけ・全部を引き直します)");
+        act("このままでいく", () => answer(false));
+        act("引き直す", () => answer(true), "ghost");
+        break;
+      case "endDiscard": {
+        // ターン終了時に手札を1枚捨ててもよい。1回目のタップで確認、捨てるで確定
+        if (pendingPick != null) {
+          const c = s.you.hand.find((x) => x.uid === pendingPick);
+          if (c) {
+            openStage(c.id, els.hand.querySelector(`[data-uid="${c.uid}"]`), "hand" + c.uid);
+            msg(`<b>${nameOf(c.id)}</b> を捨てますか?`);
+            act("捨てる", () => { const u = pendingPick; pendingPick = null; answer(u); });
+            act("選び直す", () => { pendingPick = null; closeStage(); render(); }, "ghost");
+            return;
+          }
+        }
+        msg("<b>ターン終了</b> — 手札を1枚捨てられます(捨てるならカードをタップ)");
+        act("捨てずに終了", () => answer(null));
+        break;
+      }
       case "pickTarget": msg(targetMsg(q) + "(カードをタップ)"); break;
       case "pickFace": {
-        msg(`<b>${nameOf(monIdOf(q.monsterUid))}</b> の出目を選べます`);
+        // 6面を読みながら選べるよう、対象のカードをせり出したままにする。
+        // カード内の行を直接タップしても選べる(ステージはpointer-events:noneなのでカードだけ有効化)
+        const mid = monIdOf(q.monsterUid);
+        const card = openStage(mid, cardEl(q.monsterUid), "mon" + q.monsterUid);
+        if (card && !card.dataset.facePick) {
+          card.dataset.facePick = "1"; // 再描画時の二重リスナー防止
+          card.style.pointerEvents = "auto";
+          [...card.querySelectorAll(".pcard-face")].forEach((row, i) => {
+            row.style.cursor = "pointer";
+            row.addEventListener("click", () => answer(i + 1));
+          });
+        }
+        msg(`<b>${nameOf(mid)}</b> の出目を選べます(カードの行をタップでもOK)`);
         const box = el(`<div class="bt-faces"></div>`);
         for (const f of q.options) {
           const b = el(`<div class="bt-face pip-${f}" title="${f}"></div>`);
@@ -616,6 +660,11 @@ export function createCardBattle(deps) {
         while (selected.size >= q.max) selected.delete(selected.values().next().value);
         selected.add(card.uid);
       }
+      render();
+    } else if (q.kind === "endDiscard") {
+      // 1回目のタップで確認(捨てる/選び直すはrenderPrompt側)。同じカードならそのまま確定
+      if (pendingPick === card.uid) { pendingPick = null; answer(card.uid); return; }
+      pendingPick = card.uid;
       render();
     }
   }
@@ -909,11 +958,15 @@ export function createCardBattle(deps) {
         clearInterval(spin);
         dice.className = "bt-dice landed pip-" + ev.face;
         sfx("land");
-        banner(`🎲 <b>${ev.face}</b> — ${ev.label}なら成功`);
+        // verdict付き(おしりのなみだ等)は成功/失敗ではなく効果量を出す
+        banner(ev.verdict ? `🎲 <b>${ev.face}</b> — ${ev.label}` : `🎲 <b>${ev.face}</b> — ${ev.label}なら成功`);
         // 結果はバナーとは別に、判定スタンプとしてドンと出す
-        wrap.appendChild(el(`<div class="bt-verdict ${ev.ok ? "ok" : "ng"}">${ev.ok ? "✅ 成功!" : "❌ 失敗…"}</div>`));
+        const vtext = ev.verdict ? `✨ ${ev.verdict}` : ev.ok ? "✅ 成功!" : "❌ 失敗…";
+        wrap.appendChild(el(`<div class="bt-verdict ${ev.ok ? "ok" : "ng"}">${vtext}</div>`));
         if (ev.ok) sfx("event");
-        pushLog(`判定🎲${ev.face}(${ev.label}で成功)→${ev.ok ? "成功" : "失敗"}`, ev.side);
+        pushLog(ev.verdict
+          ? `判定🎲${ev.face}(${ev.label})→${ev.verdict}`
+          : `判定🎲${ev.face}(${ev.label}で成功)→${ev.ok ? "成功" : "失敗"}`, ev.side);
         await wait(DUR.diceCheck);
         wrap.remove();
         return;
@@ -1021,9 +1074,12 @@ export function createCardBattle(deps) {
           foeHandLimit = Math.max(0, foeHandLimit - 1);
           renderFoeHand(foeHandLimit);
         }
-        banner(`🗑 ${who}の手札から <b>${nameOf(ev.id)}</b> がトラッシュへ`);
+        // own = ターン終了時に自分で捨てた(手札破壊と言い分ける)
+        banner(ev.own
+          ? `🗑 ${who}は <b>${nameOf(ev.id)}</b> を捨てた`
+          : `🗑 ${who}の手札から <b>${nameOf(ev.id)}</b> がトラッシュへ`);
         bumpTrash(ev.side); render();
-        pushLog(`${who}の手札から${nameOf(ev.id)}が落ちた`, ev.side);
+        pushLog(ev.own ? `${who}が${nameOf(ev.id)}を捨てた` : `${who}の手札から${nameOf(ev.id)}が落ちた`, ev.side);
         await wait(DUR.discard);
         return;
       }
@@ -1054,6 +1110,31 @@ export function createCardBattle(deps) {
         banner("ドローなし", `手札が${DRAW_LIMIT + 1}枚以上なのでドローしない`);
         pushLog(`${who}は手札${ev.n}枚でドローなし`, ev.side);
         await wait(DUR.noDraw);
+        return;
+      }
+
+      case "redraw": {
+        // 任意マリガン: その側の手札を配り直す
+        sfx("draw");
+        banner(`${who}は手札を引き直した`);
+        pushLog(`${who}が手札を引き直した`, ev.side);
+        if (ev.side === "you") {
+          handLimit = 0;
+          render();
+          const ms = flyFromDeck("you", ev.n, 0, () => {
+            if (handLimit == null || !battle) return;
+            handLimit++; renderHand(battle.state);
+          });
+          await wait(ms + 250);
+        } else {
+          foeHandLimit = 0;
+          renderFoeHand(0);
+          const ms = flyFromDeck("foe", ev.n, 0, () => {
+            if (foeHandLimit == null) return;
+            foeHandLimit++; renderFoeHand(foeHandLimit); sfx("draw");
+          });
+          await wait(ms + 250);
+        }
         return;
       }
 
@@ -1127,7 +1208,53 @@ export function createCardBattle(deps) {
     overlay.appendChild(box);
   }
 
+  // おしり星人の勝利報酬: 全レアカードを伏せて並べ、選んだ1枚をもらう
+  function showRareReward() {
+    const box = el(`<div class="bt-result"></div>`);
+    overlay.classList.add("show");
+    overlay.appendChild(box);
+    box.appendChild(el(`<h2 style="color:#ffd76e">勝利報酬</h2>`));
+    box.appendChild(el(
+      `<div class="sub"><b>おしり星人</b>「ぶりっぷり!」<br>` +
+      `<b>HELL 9000</b>「……1枚アゲルト言ッテイルヨウデス。スキナ札ヲ、ドウゾ」</div>`
+    ));
+    const ids = [...GACHA_POOL.rare];
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+    const row = el(`<div class="pk-cards"></div>`);
+    box.appendChild(row);
+    let picked = false;
+    ids.forEach((id, i) => {
+      const slot = el(`<div class="pk-slot"><div class="pk-inner"><div class="pk-back"></div><div class="pk-front"></div></div></div>`);
+      slot.querySelector(".pk-front").appendChild(renderCard(CARDS[id], id, { mini: true }));
+      row.appendChild(slot);
+      setTimeout(() => slot.classList.add("in"), 60 * i);
+      slot.addEventListener("click", () => {
+        if (picked) return;
+        picked = true;
+        slot.classList.add("flip", "rare");
+        sfx("rare");
+        col.grantReward(id);
+        deps.toast(`🎴 ${CARDS[id].name} を手に入れた!`);
+        // 少ししてから残りもめくって、何が入っていたかを見せる
+        setTimeout(() => {
+          for (const s2 of row.children) if (s2 !== slot) { s2.classList.add("flip"); s2.style.opacity = ".45"; }
+          const done = el(`<button class="bt-act big">もどる</button>`);
+          done.addEventListener("click", () => {
+            box.remove();
+            overlay.classList.remove("show");
+            if (deps.onFinish) deps.onFinish("you", "oshiriseijin");
+          });
+          box.appendChild(done);
+        }, 800);
+      });
+    });
+  }
+
   function showReward(key) {
+    if (key === "oshiriseijin") { showRareReward(); return; }
     const box = el(`<div class="bt-result"></div>`);
     overlay.classList.add("show");
     overlay.appendChild(box);
@@ -1327,5 +1454,10 @@ export function createCardBattle(deps) {
     overlay.appendChild(w);
   }
 
-  return { start, get isOpen() { return overlay.classList.contains("show"); } };
+  return {
+    start,
+    get isOpen() { return overlay.classList.contains("show"); },
+    // 検証用: 対戦演出をn倍速にする(__btSpeed)
+    setSpeed(n) { speedMult = Math.max(0.1, +n || 1); return speedMult; },
+  };
 }

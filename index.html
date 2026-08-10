@@ -1191,6 +1191,8 @@
   .bt-handrow {
     flex: none; display: flex; align-items: stretch;
     background: rgba(0,0,0,.36); border-top: 1px solid rgba(255,255,255,.1);
+    /* 早送りレイヤー(.bt-skip z7)より上に置き、相手ターン中も手札をスクロールできるようにする */
+    position: relative; z-index: 8;
   }
   .bt-handrow.foe { background: none; border-top: none; align-items: center; }
   .bt-handrow .bt-hand { flex: 1; min-width: 0; background: none; border-top: none; }

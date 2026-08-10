@@ -42,6 +42,17 @@ export function mulberry32(seed) {
 }
 
 /** シード付き乱数。同じシードなら必ず同じ試合になる */
+// 検証用: 次に振られるダイス目を強制するキュー(モンスターロール・判定ダイス・なみだ全部に効く)。
+// ブラウザでは __rig(6,6,1) のように積む。空になったら通常の乱数に戻る
+export const RIGGED_FACES = [];
+if (typeof window !== 'undefined') {
+  window.__rig = (...faces) => {
+    RIGGED_FACES.length = 0;
+    for (const f of faces.flat()) RIGGED_FACES.push(Math.min(6, Math.max(1, f | 0)));
+    return RIGGED_FACES.slice();
+  };
+}
+
 export function makeRng(seed) {
   const f = mulberry32(seed);
   return {
@@ -53,6 +64,7 @@ export function makeRng(seed) {
       return Math.floor(f() * n) % n;
     },
     d6() {
+      if (RIGGED_FACES.length) return RIGGED_FACES.shift();
       return 1 + this.int(6);
     },
     pick(arr) {
@@ -90,17 +102,20 @@ const MAX_LOG = 300;
 //  lookahead  : ダメージで「あと一歩で倒せる」相手を優先的に削る
 
 export const AI_PROFILES = {
-  base: { name: '基本AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.25, lookahead: false },
-  // 星 = デッキが最弱なのでAIはまとも(基本AIと同じ。以前のわざと弱いランダム挙動は廃止)
-  hoshi: { name: '星AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.25, lookahead: false },
+  base: { name: '基本AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.25, lookahead: false, endDiscard: true },
+  // 星 = デッキが最弱なのでAIはまとも(基本AIと同じ。以前のわざと弱いランダム挙動は廃止)。
+  // ただしターン終了時の捨て札はしない(掘り当てても弱く、恩恵が無いことを実測済み)
+  hoshi: { name: '星AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.25, lookahead: false, endDiscard: false },
   // クマ = 脳筋: 順番を選ばない / 常にHP最大を殴る / イベントはダメージ優先
-  kuma: { name: 'クマAI', rollOrder: false, targeting: 'highest', eventChoice: 'damage', swapAt: 0, lookahead: false },
+  kuma: { name: 'クマAI', rollOrder: false, targeting: 'highest', eventChoice: 'damage', swapAt: 0, lookahead: false, endDiscard: true },
   // キャリー = 中堅: 順番と対象は正しく選ぶがイベント選択がダメージ偏重
-  carry: { name: 'キャリーAI', rollOrder: true, targeting: 'lethal', eventChoice: 'damage', swapAt: 0, lookahead: false },
+  carry: { name: 'キャリーAI', rollOrder: true, targeting: 'lethal', eventChoice: 'damage', swapAt: 0, lookahead: false, endDiscard: true },
   // HELL 9000 = 基本AIそのまま
-  hell: { name: 'HELL AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.25, lookahead: false },
+  hell: { name: 'HELL AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.25, lookahead: false, endDiscard: true },
   // おじさん = 最強: 基本AI + 削り読み + 積極的な交換
-  ojisan: { name: 'おじさんAI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.35, lookahead: true },
+  ojisan: { name: 'おじさんAI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.35, lookahead: true, endDiscard: true },
+  // おしり星人 = 隠しボス: おじさんと同じ最強設定(デッキの全レア構成で差をつける)
+  oshiriseijin: { name: 'おしり星人AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.35, lookahead: true, endDiscard: true },
 };
 
 function resolveAi(v) {
@@ -313,7 +328,11 @@ function logLine(g, ev) {
     case 'chooseFace':
       return `${who(g, ev.side)}: ${nameOf(ev.id)} の出目 ${ev.face} を選んだ`;
     case 'diceCheck':
-      return `  判定 🎲${ev.face} (${ev.label}なら成功) → ${ev.ok ? '成功' : '失敗'}`;
+      return ev.verdict
+        ? `  判定 🎲${ev.face} (${ev.label}) → ${ev.verdict}`
+        : `  判定 🎲${ev.face} (${ev.label}なら成功) → ${ev.ok ? '成功' : '失敗'}`;
+    case 'redraw':
+      return `${who(g, ev.side)}: 手札を引き直した`;
     case 'damage':
       return `  ${nameOf(ev.id)} に ${ev.n} ダメージ (HP ${ev.hp})`;
     case 'heal':
@@ -325,7 +344,9 @@ function logLine(g, ev) {
     case 'useEvent':
       return `${who(g, ev.side)}: イベント「${nameOf(ev.id)}」`;
     case 'discard':
-      return `  ${who(g, ev.side)} の手札から ${nameOf(ev.id)} が落ちた`;
+      return ev.own
+        ? `${who(g, ev.side)}: ${nameOf(ev.id)} を捨てた`
+        : `  ${who(g, ev.side)} の手札から ${nameOf(ev.id)} が落ちた`;
     case 'recover':
       return `  トラッシュから ${nameOf(ev.id)} を回収`;
     case 'skipRoll':
@@ -430,7 +451,7 @@ function aiRollOrder(g, p) {
 function summarizeEvent(def) {
   const s = {
     single: 0, all: 0, heal: 0, healAll: 0, draw: 0, bounce: false,
-    discard: 0, selfDiscard: 0, recoverKind: null, reroll: false, dbl: false, selfDmg: 0,
+    discard: 0, selfDiscard: 0, recoverKinds: [], reroll: false, dbl: false, selfDmg: 0,
     skip: 0, choose: 0,
   };
   accumEventFx(s, def.fx, 1);
@@ -450,11 +471,12 @@ function accumEventFx(s, fx, w) {
     else if (e.t === 'heal') s.heal += e.n * w;
     else if (e.t === 'healAll') s.healAll += e.n * w;
     else if (e.t === 'healFull') s.heal += 999 * w;
+    else if (e.t === 'diceHeal') (e.scope === 'all' ? (s.healAll += 3.5 * e.mult * w) : (s.heal += 3.5 * e.mult * w));
     else if (e.t === 'draw') s.draw += e.n * w;
     else if (e.t === 'bounce') s.bounce = true;
     else if (e.t === 'discardOpponentHand') s.discard += e.n * w;
     else if (e.t === 'discardOwnHand') s.selfDiscard += e.n * w;
-    else if (e.t === 'recover') s.recoverKind = e.kind;
+    else if (e.t === 'recover') s.recoverKinds.push(e.kind);
     else if (e.t === 'reroll') s.reroll = true;
     else if (e.t === 'doubleDamage') s.dbl = true;
     else if (e.t === 'selfDamage') s.selfDmg += e.n * w;
@@ -496,9 +518,9 @@ function eventScore(g, me, opp, inst) {
   if (s.bounce && oppMons.length) score += 250 + (oppMons.length === 1 ? 250 : 0);
   score += s.discard * Math.min(60, opp.hand.length * 20);
   score -= s.selfDiscard * Math.min(60, me.hand.length * 20); // 自分の手札も捨てるなら差し引く
-  if (s.recoverKind) {
-    const has = me.trash.some((c) => (s.recoverKind === 'monster' ? c.def.kind === 'monster' : c.def.kind === 'event'));
-    score += has ? 400 : -500;
+  for (const rk of s.recoverKinds) {
+    const has = me.trash.some((c) => (rk === 'monster' ? c.def.kind === 'monster' : c.def.kind === 'event'));
+    score += has ? 400 : -100; // 片方だけ空振りでも、もう片方が有効なら使う価値がある
   }
   if (s.reroll) score += me.field.some((m) => canRoll(me, m)) ? 200 : -500;
   if (s.dbl) score += 150;
@@ -538,6 +560,7 @@ function fxHasUse(g, me, opp, fx) {
         break;
       case 'heal':
       case 'healFull':
+      case 'diceHeal':
         if (me.field.some((m) => m.hp > 0 && m.hp < m.maxHp)) return true;
         break;
       case 'healAll':
@@ -629,6 +652,12 @@ function faceScore(g, me, opp, fx) {
       case 'healFull':
         s += hurt ? hurt.def.hp - hurt.hp : 0;
         break;
+      case 'diceHeal': {
+        const exp = 3.5 * e.mult;
+        if (e.scope === 'all') s += mine.reduce((a, m) => a + Math.min(exp, m.def.hp - m.hp), 0);
+        else s += hurt ? Math.min(exp, hurt.def.hp - hurt.hp) : 0;
+        break;
+      }
       case 'selfDamage':
         s -= e.n;
         break;
@@ -735,6 +764,23 @@ function* execEffect(g, me, opp, e, ctx) {
       const ok = diceCondOk(e.cond, face);
       emit(g, { t: 'diceCheck', side: me.side, face, ok, label: diceCondLabel(e.cond) });
       if (ok) yield* execEffects(g, me, opp, e.then, ctx);
+      return;
+    }
+
+    // 「サイコロを振って出た目×mult回復」(おしりのなみだ)。判定ダイスの演出を流用する
+    case 'diceHeal': {
+      const cands = me.field.filter((m) => m.hp > 0 && m.hp < m.maxHp);
+      if (!cands.length) return;
+      const face = g.rng.d6();
+      const n = face * e.mult;
+      emit(g, { t: 'diceCheck', side: me.side, face, ok: true, label: '出た目×' + e.mult, verdict: n + '回復!' });
+      if (e.scope === 'all') {
+        for (const m of cands) healMonster(g, me, m, n);
+        return;
+      }
+      const t = yield* askTarget(g, me, cands, 'heal', () => aiPickHealTarget(cands, n));
+      if (!t) return;
+      healMonster(g, me, t, n);
       return;
     }
 
@@ -1123,8 +1169,34 @@ function* takeTurn(g, p, opp) {
   const res = yield* playPhase(g, p); // ②③
   if (res === 'lose') return 'lose';
   yield* rollPhase(g, p, opp); // ④
-  emit(g, { t: 'turnEnd', side: p.side }); // ⑤
+  yield* endDiscardPhase(g, p, opp); // ⑤ 手札を1枚捨ててもよい
+  emit(g, { t: 'turnEnd', side: p.side }); // ⑥
   return null;
+}
+
+/** ⑤ ターン終了時に手札を1枚捨ててもよい(手札事故からの脱出手段) */
+function* endDiscardPhase(g, p, opp) {
+  if (!p.hand.length) return;
+  let pickCard = null;
+  if (p.auto) {
+    // AI: 手札にモンスターがおらず、山札にまだモンスターが残っているなら、
+    // 一番価値の低いイベントを捨てて掘りにいく(星だけは捨てない)
+    if (!p.ai.endDiscard) return;
+    if (handMonsters(p).length > 0) return;
+    if (!p.deck.some((c) => c.def.kind === 'monster')) return;
+    let ws = Infinity;
+    for (const c of p.hand) {
+      const sc = eventScore(g, p, opp, c);
+      if (sc < ws) { ws = sc; pickCard = c; }
+    }
+  } else {
+    const ans = yield { kind: 'endDiscard', side: p.side, options: p.hand.map((c) => c.uid), canSkip: true };
+    pickCard = ans != null ? byUid(p.hand, ans) : null;
+  }
+  if (!pickCard) return;
+  p.hand.splice(p.hand.indexOf(pickCard), 1);
+  p.trash.push(pickCard);
+  emit(g, { t: 'discard', side: p.side, uid: pickCard.uid, id: pickCard.def.id, own: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -1134,8 +1206,8 @@ function* takeTurn(g, p, opp) {
 function* gameFlow(g) {
   const players = [g.you, g.foe];
 
-  // 初期手札。モンスターが1枚も無ければ引き直し (最大5回)
-  for (const p of players) {
+  // 初期手札を配る。モンスターが1枚も無ければ配り直し(任意マリガンの回数には含めない)
+  const deal = (p) => {
     for (let attempt = 0; attempt < 6; attempt++) {
       p.deck = p.deck.concat(p.hand);
       p.hand = [];
@@ -1146,8 +1218,21 @@ function* gameFlow(g) {
       }
       if (handMonsters(p).length > 0) break;
     }
-  }
+  };
+  for (const p of players) deal(p);
   emit(g, { t: 'mulligan' });
+
+  // 任意マリガン: 手札全部を1回だけ引き直せる(引き直した後もモンスター0枚なら配り直し)。
+  // AIはモンスターが1枚しかいない時だけ引き直す
+  for (const p of players) {
+    let redo;
+    if (p.auto) redo = handMonsters(p).length === 1;
+    else redo = !!(yield { kind: 'mulligan', side: p.side });
+    if (redo) {
+      deal(p);
+      emit(g, { t: 'redraw', side: p.side, n: p.hand.length });
+    }
+  }
 
   // 初期配置は廃止。第1ターンの「場が空なら出す」から始まる
   // 先攻は開始時のカード選択(UI側)で決まる。指定が無ければ乱数
@@ -1331,6 +1416,10 @@ export function createBattle(opts = {}) {
       }
       case 'pickFace':
         if (!(answer >= 1 && answer <= 6)) throw new Error('出目は1〜6');
+        return;
+      case 'endDiscard':
+        if (answer == null) return; // 捨てない
+        if (!inOptions(answer)) throw new Error('手札にないカード: ' + answer);
         return;
       default:
         return;
