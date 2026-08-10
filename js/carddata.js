@@ -29,6 +29,8 @@
 //   { t:'doubleDamage' }                       このターンのダメージ2倍(現行カードでは未使用)
 //   { t:'chooseFace' }                         選択ロール
 
+// カードナンバー(no): 図鑑・コレクションボードの並び順。
+// モンスターM-/イベントI-。属性(オカルト→パワー→メカ)→グループ(スタート→パック→固有→レア)→定義順。
 export const ATTRS = {
   power: { key: 'power', label: 'パワー', icon: '⚡' },
   mecha: { key: 'mecha', label: 'メカ', icon: '🔧' },
@@ -41,6 +43,7 @@ export const CARDS = {
   // =========================================================================
   yamamoto: {
     id: 'yamamoto',
+    no: 'M-011',
     kind: 'monster',
     name: '新入社員 山本くん',
     attr: 'power',
@@ -59,6 +62,7 @@ export const CARDS = {
   },
   gomibako: {
     id: 'gomibako',
+    no: 'M-012',
     kind: 'monster',
     name: 'ゴミばこおばけ',
     attr: 'power',
@@ -80,6 +84,7 @@ export const CARDS = {
   },
   danboru: {
     id: 'danboru',
+    no: 'M-021',
     kind: 'monster',
     name: 'だんボールロボ',
     attr: 'mecha',
@@ -101,6 +106,7 @@ export const CARDS = {
   },
   byun: {
     id: 'byun',
+    no: 'M-022',
     kind: 'monster',
     name: '扇風機の妖精 ビュン',
     attr: 'mecha',
@@ -122,6 +128,7 @@ export const CARDS = {
   },
   marley: {
     id: 'marley',
+    no: 'M-001',
     kind: 'monster',
     name: 'はっぱのマーリー',
     attr: 'occult',
@@ -147,6 +154,7 @@ export const CARDS = {
   // =========================================================================
   hoshi: {
     id: 'hoshi',
+    no: 'M-008',
     kind: 'monster',
     name: 'ほし',
     attr: 'occult',
@@ -168,6 +176,7 @@ export const CARDS = {
   },
   hoshinakama: {
     id: 'hoshinakama',
+    no: 'M-009',
     kind: 'monster',
     name: 'ほしのなかま',
     attr: 'occult',
@@ -189,6 +198,7 @@ export const CARDS = {
   },
   starrod: {
     id: 'starrod',
+    no: 'I-013',
     kind: 'event',
     name: '星の本気棒',
     attr: null,
@@ -200,6 +210,7 @@ export const CARDS = {
   },
   akutai: {
     id: 'akutai',
+    no: 'I-014',
     kind: 'event',
     name: 'あくたいぞうごん',
     attr: null,
@@ -215,6 +226,7 @@ export const CARDS = {
   // =========================================================================
   kuma: {
     id: 'kuma',
+    no: 'M-016',
     kind: 'monster',
     name: 'おどるクマ',
     attr: 'power',
@@ -233,6 +245,7 @@ export const CARDS = {
   },
   koganekuma: {
     id: 'koganekuma',
+    no: 'M-017',
     kind: 'monster',
     name: 'こがねのクマ',
     attr: 'power',
@@ -257,6 +270,7 @@ export const CARDS = {
   },
   kumapunch: {
     id: 'kumapunch',
+    no: 'I-015',
     kind: 'event',
     name: 'クマパンチ',
     attr: null,
@@ -268,6 +282,7 @@ export const CARDS = {
   },
   nadenade: {
     id: 'nadenade',
+    no: 'I-016',
     kind: 'event',
     name: 'なでなで',
     attr: null,
@@ -283,6 +298,7 @@ export const CARDS = {
   // =========================================================================
   carry: {
     id: 'carry',
+    no: 'M-026',
     kind: 'monster',
     name: 'けいびいんキャリー',
     attr: 'mecha',
@@ -301,6 +317,7 @@ export const CARDS = {
   },
   busoucarry: {
     id: 'busoucarry',
+    no: 'M-027',
     kind: 'monster',
     name: 'ぶそうキャリー',
     attr: 'mecha',
@@ -325,6 +342,7 @@ export const CARDS = {
   },
   taihojou: {
     id: 'taihojou',
+    no: 'I-017',
     kind: 'event',
     name: 'たいほじょう',
     attr: null,
@@ -336,6 +354,7 @@ export const CARDS = {
   },
   keihou: {
     id: 'keihou',
+    no: 'I-018',
     kind: 'event',
     name: 'けいほうサイレン',
     attr: null,
@@ -351,6 +370,7 @@ export const CARDS = {
   // =========================================================================
   gacha: {
     id: 'gacha',
+    no: 'M-028',
     kind: 'monster',
     name: 'HELL 9000',
     attr: 'mecha',
@@ -369,6 +389,7 @@ export const CARDS = {
   },
   capsule: {
     id: 'capsule',
+    no: 'M-029',
     kind: 'monster',
     name: 'カプセルモンスター',
     attr: 'mecha',
@@ -393,6 +414,7 @@ export const CARDS = {
   },
   hyakuen: {
     id: 'hyakuen',
+    no: 'I-019',
     kind: 'event',
     name: '100えんだま',
     attr: null,
@@ -404,6 +426,7 @@ export const CARDS = {
   },
   ooatari: {
     id: 'ooatari',
+    no: 'I-020',
     kind: 'event',
     name: '大あたり',
     attr: null,
@@ -419,6 +442,7 @@ export const CARDS = {
   // =========================================================================
   ojisan: {
     id: 'ojisan',
+    no: 'M-018',
     kind: 'monster',
     name: 'おじさん',
     attr: 'power',
@@ -437,6 +461,7 @@ export const CARDS = {
   },
   rocketojisan: {
     id: 'rocketojisan',
+    no: 'M-019',
     kind: 'monster',
     name: 'おしりロケットおじさん',
     attr: 'power',
@@ -461,6 +486,7 @@ export const CARDS = {
   },
   oshiriroket: {
     id: 'oshiriroket',
+    no: 'I-021',
     kind: 'event',
     name: 'おしりロケット',
     attr: null,
@@ -472,6 +498,7 @@ export const CARDS = {
   },
   shachiku: {
     id: 'shachiku',
+    no: 'I-022',
     kind: 'event',
     name: 'しゃちくのどこんじょう',
     attr: null,
@@ -487,6 +514,7 @@ export const CARDS = {
   // =========================================================================
   slipper: {
     id: 'slipper',
+    no: 'I-001',
     kind: 'event',
     name: 'スリッパ',
     attr: null,
@@ -498,6 +526,7 @@ export const CARDS = {
   },
   rubberduck: {
     id: 'rubberduck',
+    no: 'I-002',
     kind: 'event',
     name: 'ラバーダック',
     attr: null,
@@ -509,6 +538,7 @@ export const CARDS = {
   },
   coffee: {
     id: 'coffee',
+    no: 'I-003',
     kind: 'event',
     name: 'きゅうとうしつのコーヒー',
     attr: null,
@@ -520,6 +550,7 @@ export const CARDS = {
   },
   zangyou: {
     id: 'zangyou',
+    no: 'I-004',
     kind: 'event',
     name: 'ざんぎょう',
     attr: null,
@@ -531,6 +562,7 @@ export const CARDS = {
   },
   bell: {
     id: 'bell',
+    no: 'I-005',
     kind: 'event',
     name: 'ひじょうベル',
     attr: null,
@@ -542,6 +574,7 @@ export const CARDS = {
   },
   recyclebox: {
     id: 'recyclebox',
+    no: 'I-006',
     kind: 'event',
     name: 'リサイクルボックス',
     attr: null,
@@ -557,6 +590,7 @@ export const CARDS = {
   // =========================================================================
   nijiiroboshi: {
     id: 'nijiiroboshi',
+    no: 'M-010',
     kind: 'monster',
     name: '虹色星',
     attr: 'occult',
@@ -578,6 +612,7 @@ export const CARDS = {
   },
   oshiriseijin: {
     id: 'oshiriseijin',
+    no: 'M-020',
     kind: 'monster',
     name: 'おしり星人',
     attr: 'power',
@@ -599,6 +634,7 @@ export const CARDS = {
   },
   berserker: {
     id: 'berserker',
+    no: 'M-030',
     kind: 'monster',
     name: 'バーサーカー 覚醒キャリー',
     attr: 'mecha',
@@ -629,6 +665,7 @@ export const CARDS = {
   },
   negai: {
     id: 'negai',
+    no: 'I-023',
     kind: 'event',
     name: '尻に願いを',
     attr: null,
@@ -640,6 +677,7 @@ export const CARDS = {
   },
   tenshi: {
     id: 'tenshi',
+    no: 'I-024',
     kind: 'event',
     name: 'てんしのおしり',
     attr: null,
@@ -651,6 +689,7 @@ export const CARDS = {
   },
   oshirinova: {
     id: 'oshirinova',
+    no: 'I-025',
     kind: 'event',
     name: 'おしりノヴァ',
     attr: null,
@@ -662,6 +701,7 @@ export const CARDS = {
   },
   namida: {
     id: 'namida',
+    no: 'I-026',
     kind: 'event',
     name: 'おしりのなみだ',
     attr: null,
@@ -681,6 +721,7 @@ export const CARDS = {
   // --- ✨オカルト4種 ---
   pocha: {
     id: 'pocha',
+    no: 'M-002',
     kind: 'monster',
     name: '整体アザラシ もみ子',
     attr: 'occult',
@@ -699,6 +740,7 @@ export const CARDS = {
   },
   suekichi: {
     id: 'suekichi',
+    no: 'M-003',
     kind: 'monster',
     name: 'パチンカス よし子',
     attr: 'occult',
@@ -717,6 +759,7 @@ export const CARDS = {
   },
   manekineko: {
     id: 'manekineko',
+    no: 'M-004',
     kind: 'monster',
     name: 'ヤニカス 竹造',
     attr: 'occult',
@@ -735,6 +778,7 @@ export const CARDS = {
   },
   mabuta: {
     id: 'mabuta',
+    no: 'M-005',
     kind: 'monster',
     name: 'まぶたの裏の君',
     attr: 'occult',
@@ -752,9 +796,52 @@ export const CARDS = {
     ],
   },
 
+  michael: {
+    id: 'michael',
+    no: 'M-006',
+    kind: 'monster',
+    name: '占い少年 マイケル',
+    attr: 'occult',
+    hp: 65,
+    rarity: 'common',
+    owner: null,
+    flavor: '当たるも八卦。外れたら、君の日頃の行いのせい。',
+    faces: [
+      { text: 'みずうらない — サイコロを振って偶数なら、カードを2枚引く', fx: [{ t: 'dice', cond: 'even', then: [{ t: 'draw', n: 2 }] }] },
+      { text: 'ほしうらない — サイコロを振って奇数なら、相手モンスター1体に35ダメージ', fx: [{ t: 'dice', cond: 'odd', then: [{ t: 'damage', n: 35 }] }] },
+      { text: 'タロット — サイコロを振って4以上なら、イベントカードを1枚使う', fx: [{ t: 'dice', cond: [4, 5, 6], label: '4以上', then: [{ t: 'useEvent', n: 1 }] }] },
+      { text: 'すいしょうだま — サイコロを振って3以下なら、自分のモンスター1体を30回復', fx: [{ t: 'dice', cond: [1, 2, 3], label: '3以下', then: [{ t: 'heal', n: 30 }] }] },
+      { text: 'よげん — サイコロを振って5以上なら、相手モンスター全員に40ダメージ', fx: [{ t: 'dice', cond: [5, 6], label: '5以上', then: [{ t: 'damageAll', n: 40 }] }] },
+      { text: 'うんめいのひ — サイコロを振って6なら、相手モンスター1体に100ダメージ', fx: [{ t: 'dice', cond: [6], then: [{ t: 'damage', n: 100 }] }] },
+    ],
+  },
+  momo: {
+    id: 'momo',
+    no: 'M-007',
+    kind: 'monster',
+    name: '酒カス犬 モモ',
+    attr: 'occult',
+    hp: 70,
+    rarity: 'common',
+    owner: null,
+    flavor: '飲んでいるのは水である。酔っているのは気分である。',
+    faces: [
+      { text: 'むかえざけ — カードを1枚引く', fx: [{ t: 'draw', n: 1 }] },
+      { text: 'ちどりあし — 相手モンスター1体に25ダメージ', fx: [{ t: 'damage', n: 25 }] },
+      { text: 'くだをまく — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
+      { text: 'ほえまくる — 相手モンスター1体を持ち主の手札に戻す', fx: [{ t: 'bounce' }] },
+      {
+        text: 'あきかんあさり — 自分のトラッシュからイベントカードを1枚選び、手札に戻す',
+        fx: [{ t: 'recover', kind: 'event', n: 1 }],
+      },
+      { text: 'へべれけタックル — 相手モンスター1体に55ダメージ', fx: [{ t: 'damage', n: 55 }] },
+    ],
+  },
+
   // --- ⚡パワー3種 ---
   supa: {
     id: 'supa',
+    no: 'M-013',
     kind: 'monster',
     name: 'カッターアイドル ちょんぱ',
     attr: 'power',
@@ -773,6 +860,7 @@ export const CARDS = {
   },
   midori: {
     id: 'midori',
+    no: 'M-014',
     kind: 'monster',
     name: 'おならマン',
     attr: 'power',
@@ -791,6 +879,7 @@ export const CARDS = {
   },
   nikutai: {
     id: 'nikutai',
+    no: 'M-015',
     kind: 'monster',
     name: 'ペロペロ魔神',
     attr: 'power',
@@ -811,6 +900,7 @@ export const CARDS = {
   // --- 🔧メカ3種 ---
   zakuro: {
     id: 'zakuro',
+    no: 'M-023',
     kind: 'monster',
     name: 'すてちゃうぞおじさん',
     attr: 'mecha',
@@ -829,6 +919,7 @@ export const CARDS = {
   },
   gakon: {
     id: 'gakon',
+    no: 'M-024',
     kind: 'monster',
     name: '横綱ロボ メロン海',
     attr: 'mecha',
@@ -847,6 +938,7 @@ export const CARDS = {
   },
   taiki: {
     id: 'taiki',
+    no: 'M-025',
     kind: 'monster',
     name: 'Pai phone 13',
     attr: 'mecha',
@@ -867,6 +959,7 @@ export const CARDS = {
   // --- イベント5種 ---
   timecard: {
     id: 'timecard',
+    no: 'I-007',
     kind: 'event',
     name: 'ちょっとまってん!',
     attr: null,
@@ -878,6 +971,7 @@ export const CARDS = {
   },
   hijoushoku: {
     id: 'hijoushoku',
+    no: 'I-008',
     kind: 'event',
     name: 'スタープリン',
     attr: null,
@@ -889,6 +983,7 @@ export const CARDS = {
   },
   fax: {
     id: 'fax',
+    no: 'I-009',
     kind: 'event',
     name: 'フィッシングメール',
     attr: null,
@@ -900,6 +995,7 @@ export const CARDS = {
   },
   yume: {
     id: 'yume',
+    no: 'I-010',
     kind: 'event',
     name: '昨日見た明後日の夢',
     attr: null,
@@ -911,6 +1007,7 @@ export const CARDS = {
   },
   onaji: {
     id: 'onaji',
+    no: 'I-011',
     kind: 'event',
     name: '卑弥呼様の妄想',
     attr: null,
@@ -919,6 +1016,18 @@ export const CARDS = {
     flavor: '鬼道である。たぶん、ぜんぶ妄想である。',
     text: 'パワー属性の相手モンスター全員に25ダメージ',
     fx: [{ t: 'damageByAttr', attr: 'power', scope: 'all', n: 25 }],
+  },
+  shirislot: {
+    id: 'shirislot',
+    no: 'I-012',
+    kind: 'event',
+    name: '尻スロット',
+    attr: null,
+    rarity: 'common',
+    owner: null,
+    flavor: 'そろえば天国。はずせば、ただの尻である。',
+    text: 'サイコロを振って偶数なら、自分のモンスター1体をHP全回復',
+    fx: [{ t: 'dice', cond: 'even', then: [{ t: 'healFull' }] }],
   }
 };
 
@@ -1063,6 +1172,10 @@ export const GACHA_POOL = {
     'taiki',
     'yume',
     'onaji',
+    // 2026-08-11追加の3種
+    'michael',
+    'momo',
+    'shirislot',
   ],
   rare: ['nijiiroboshi', 'oshiriseijin', 'berserker', 'negai', 'tenshi', 'oshirinova', 'namida'],
 };

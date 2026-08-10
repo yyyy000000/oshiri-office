@@ -17,6 +17,7 @@ import * as collection from "./collection.js";
 import { createCardBattle } from "./cardbattle.js";
 import { createCardRules } from "./cardrules.js";
 import { createEndingFx, PLATFORM_TOP_Y, greenifySkin, ALIEN_GREEN } from "./ending.js";
+import { createCollectionBoard } from "./board.js";
 
 const TOTAL_POINTS = 1000000;
 // ステージ演出の閾値: 序盤はアイテム出現(3,500/8,000/20,000/100,000)に同期
@@ -748,6 +749,10 @@ const cardBattle = createCardBattle({
   isSoundOn: () => !soundMuted,
   toggleSound: () => setSoundMuted(!soundMuted),
 });
+// コレクションボード(本棚スラブの前面に入手カードを描く+クリックで一覧)
+const collectionBoard = createCollectionBoard(scene);
+window.__board = collectionBoard; // 検証用
+
 const hellShop = createHellShop({
   getPoints: () => points,
   spendPoints: (n) => { points = Math.max(0, points - n); applyProgress(); },
@@ -878,6 +883,7 @@ const CLICK_NAMES = {
   fan: "扇風機", umbrella: "傘", dartboard: "ダーツボード", plant: "観葉植物",
   hell: "HELL 9000",
   hoshi: "星",
+  board: "コレクションボード",
 };
 // BGM管理
 function trackTitle(id) {
@@ -963,6 +969,11 @@ function onObjectClick(clickId) {
   if (clickId === "hell") {
     // HELL 9000: カードパックの購入・デッキ構築・対戦のメニュー
     hellShop.show();
+    return;
+  }
+  if (clickId === "board") {
+    // コレクションボード: 入手カードの一覧(番号順・未所持は空白)
+    collectionBoard.show();
     return;
   }
   tickSound();
@@ -1285,7 +1296,8 @@ renderer.domElement.addEventListener("pointerup", (e) => {
 function overlayOpen() {
   return helpOverlay.classList.contains("show") ||
     document.getElementById("settings-overlay").classList.contains("show") ||
-    document.getElementById("zukan-overlay").classList.contains("show");
+    document.getElementById("zukan-overlay").classList.contains("show") ||
+    document.getElementById("board-overlay").classList.contains("show");
 }
 function clickAtCrosshair() {
   if (!gameMode || ending || overlayOpen()) return;

@@ -65,7 +65,7 @@ export function renderCard(def, id, opts = {}) {
   head.className = "pcard-head";
   head.innerHTML =
     `<span class="pcard-name">${def.name}</span>` +
-    (a ? `<span class="pcard-attr">${a.icon}</span>` : `<span class="pcard-attr">◆</span>`);
+    `<span class="pcard-no">${def.no || ""}</span>`; // 右上はカードナンバー(属性は種別帯に出る)
   el.appendChild(head);
 
   const art = document.createElement("div");

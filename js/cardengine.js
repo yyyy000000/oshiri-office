@@ -761,7 +761,7 @@ function* execEffect(g, me, opp, e, ctx) {
     case 'dice': {
       const face = g.rng.d6();
       const ok = diceCondOk(e.cond, face);
-      emit(g, { t: 'diceCheck', side: me.side, face, ok, label: diceCondLabel(e.cond) });
+      emit(g, { t: 'diceCheck', side: me.side, face, ok, label: e.label || diceCondLabel(e.cond) });
       if (ok) yield* execEffects(g, me, opp, e.then, ctx);
       return;
     }

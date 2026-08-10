@@ -54,6 +54,8 @@ export function ownedKinds() { return Object.keys(owned).filter((id) => owned[id
 function grant(ids) {
   for (const id of ids) owned[id] = (owned[id] || 0) + 1;
   save(KEY_CARDS, owned);
+  // コレクションボード(3D)がカード入手を検知して描き直せるように知らせる
+  if (typeof document !== "undefined") document.dispatchEvent(new CustomEvent("oshiri-cards-changed"));
 }
 
 function pickRandom(list, rnd) { return list[Math.floor(rnd() * list.length)]; }

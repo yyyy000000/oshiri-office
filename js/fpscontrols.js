@@ -222,7 +222,7 @@ export function createFPSControls(camera, domElement) {
         // 上に乗るオーバーレイの中では視点を動かさない。
         // ここを外すと touchmove の preventDefault で手札の横スクロールまで止まる
         "#battle-overlay, #hell-overlay, #rules-overlay, #zukan-overlay," +
-        "#settings-overlay, #help-overlay, #cine-caption, .bt-intro"
+        "#settings-overlay, #help-overlay, #board-overlay, #cine-caption, .bt-intro"
       )
     );
   }

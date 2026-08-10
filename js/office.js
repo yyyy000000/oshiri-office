@@ -187,29 +187,15 @@ export function createOffice(scene) {
     registerClutter(crumple);
   }
 
-  // Bookshelf on back wall
+  // Bookshelf on back wall = コレクションボードの台座。
+  // 入手カードのミニチュアは board.js がこの前面(z=-2.65)にテクスチャで貼る。
+  // (以前あった散らばった本のパーツは、ボード表示の邪魔になるため撤去)
   const shelfMat = new THREE.MeshStandardMaterial({ color: 0x8b6914 });
-  const shelf = new THREE.Mesh(new THREE.BoxGeometry(2, 1.5, 0.3), shelfMat);
-  shelf.position.set(1.5, 1.2, -2.8);
+  // コルクボード風の薄い板を壁の高めに掛ける
+  const shelf = new THREE.Mesh(new THREE.BoxGeometry(1.47, 1.82, 0.04), shelfMat);
+  shelf.position.set(1.5, 1.6, -2.92);
   scene.add(shelf);
-
-  // Tilted/fallen books
-  const bookColors = [0xff6b6b, 0x4ecdc4, 0xffe66d, 0xa8e6cf, 0xff8787];
-  for (let i = 0; i < 8; i++) {
-    const bookMat = new THREE.MeshStandardMaterial({ color: bookColors[i % bookColors.length] });
-    const book = new THREE.Mesh(
-      new THREE.BoxGeometry(0.15, 0.2, 0.08),
-      bookMat
-    );
-    book.position.set(
-      0.8 + Math.random() * 2,
-      0.9 + Math.random() * 0.6,
-      -2.7
-    );
-    book.rotation.z = (Math.random() - 0.5) * Math.PI;
-    book.rotation.x = (Math.random() - 0.5) * 0.5;
-    scene.add(book);
-  }
+  tagClickable(shelf, "board");
 
   // Beer and coffee cans
   const canMat1 = new THREE.MeshStandardMaterial({ color: 0xffd700 });
@@ -576,15 +562,6 @@ export function createOffice(scene) {
     arm.rotation.y = 0.5;
     playerGroup.add(arm);
 
-    // propped-open lid hint
-    const lid = new THREE.Mesh(
-      new THREE.BoxGeometry(0.44, 0.01, 0.36),
-      new THREE.MeshStandardMaterial({ color: 0x9fd6ff, transparent: true, opacity: 0.22, roughness: 0.2, metalness: 0.1 })
-    );
-    lid.position.set(0, 0.76, -0.34);
-    lid.rotation.x = -1.15;
-    playerGroup.add(lid);
-
     scene.add(playerGroup);
     tagClickable(playerGroup, "player");
     var playerGroupRef = playerGroup;
@@ -742,10 +719,11 @@ export function createOffice(scene) {
     displayFixtures.push(railFixture);
   }
 
-  // レコードプレイヤーのコーナーと警備員を照らすアクセント照明
+  // HELL 9000・警備員・コレクションボードを照らすアクセント照明
   const accentConfigs = [
-    { pos: [1.7, 2.9, -1.8], target: [2.3, 0.5, -2.45] },  // レコードプレイヤー+レコードの山
+    { pos: [2.5, 2.9, -1.0], target: [2.5, 0.9, -1.5] },   // HELL 9000
     { pos: [1.8, 2.9, 1.6], target: [2.5, 1.0, 2.3] },     // 警備員
+    { pos: [1.5, 2.9, -2.0], target: [1.5, 1.6, -2.92] },  // コレクションボード
   ];
   for (const cfg of accentConfigs) {
     const accentLight = new THREE.SpotLight(0xffcc88, 5, 7, 0.55, 0.5, 1.5);
