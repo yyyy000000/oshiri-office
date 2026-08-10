@@ -152,13 +152,15 @@ export function createHoshi() {
     bevelEnabled: false,
     curveSegments: 10,
   });
-  const mouth = addMesh(mouthGeo, mouthMat, squish, [0, faceY - 0.055, starFrontZ - 0.002], null, [0, 0, 0]);
+  // 口の前面が星の前面キャップと同一平面になるとZファイティングでチラつくので、
+  // 少し手前(-z)に浮かせる。舌も同じ量だけ前へ
+  const mouth = addMesh(mouthGeo, mouthMat, squish, [0, faceY - 0.055, starFrontZ - 0.006], null, [0, 0, 0]);
 
   const tongue = addMesh(
     new THREE.SphereGeometry(0.013, 12, 8),
     tongueMat,
     squish,
-    [0, faceY - 0.072, starFrontZ + 0.004],
+    [0, faceY - 0.072, starFrontZ],
     [1, 0.55, 0.5]
   );
 

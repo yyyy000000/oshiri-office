@@ -102,20 +102,19 @@ const MAX_LOG = 300;
 //  lookahead  : ダメージで「あと一歩で倒せる」相手を優先的に削る
 
 export const AI_PROFILES = {
-  base: { name: '基本AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.25, lookahead: false, endDiscard: true },
-  // 星 = デッキが最弱なのでAIはまとも(基本AIと同じ。以前のわざと弱いランダム挙動は廃止)。
-  // ただしターン終了時の捨て札はしない(掘り当てても弱く、恩恵が無いことを実測済み)
-  hoshi: { name: '星AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.25, lookahead: false, endDiscard: false },
-  // クマ = 脳筋: 順番を選ばない / 常にHP最大を殴る / イベントはダメージ優先
-  kuma: { name: 'クマAI', rollOrder: false, targeting: 'highest', eventChoice: 'damage', swapAt: 0, lookahead: false, endDiscard: true },
-  // キャリー = 中堅: 順番と対象は正しく選ぶがイベント選択がダメージ偏重
-  carry: { name: 'キャリーAI', rollOrder: true, targeting: 'lethal', eventChoice: 'damage', swapAt: 0, lookahead: false, endDiscard: true },
-  // HELL 9000 = 基本AIそのまま
-  hell: { name: 'HELL AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.25, lookahead: false, endDiscard: true },
-  // おじさん = 最強: 基本AI + 削り読み + 積極的な交換
-  ojisan: { name: 'おじさんAI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.35, lookahead: true, endDiscard: true },
-  // おしり星人 = 隠しボス: おじさんと同じ最強設定(デッキの全レア構成で差をつける)
-  oshiriseijin: { name: 'おしり星人AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.35, lookahead: true, endDiscard: true },
+  // 2026-08-10: キャラごとのAI差(脳筋・ダメージ偏重など)は廃止。
+  // 全員が最も賢い設定で、難易度はデッキの強さだけで決まる。
+  // swapAt(HP減の場モンスターを交換で下げる)は実測で逆効果だったため全員0:
+  // 召喚枠と酔いを防御に浪費し、戻した負傷カードが手札を圧迫する。
+  // 倒された方がトラッシュで全快に戻り、回収カードで満タン復活できる
+  base: { name: '基本AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0, lookahead: true, endDiscard: true },
+  // 星のみ捨て札はしない(デッキが弱く掘っても恩恵ゼロと実測済み・最初の相手の緩さも兼ねる)
+  hoshi: { name: '星AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0, lookahead: true, endDiscard: false },
+  kuma: { name: 'クマAI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0, lookahead: true, endDiscard: true },
+  carry: { name: 'キャリーAI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0, lookahead: true, endDiscard: true },
+  hell: { name: 'HELL AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0, lookahead: true, endDiscard: true },
+  ojisan: { name: 'おじさんAI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0, lookahead: true, endDiscard: true },
+  oshiriseijin: { name: 'おしり星人AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0, lookahead: true, endDiscard: true },
 };
 
 function resolveAi(v) {
