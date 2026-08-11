@@ -215,15 +215,17 @@ export function createFPSControls(camera, domElement) {
   let lookIsDrag = false;
 
   function isUiTarget(t) {
-    return !!(
-      t && t.closest &&
-      t.closest(
-        "#controls, .fpsc-stick-outer, button, input, #ending, #start-screen," +
-        // 上に乗るオーバーレイの中では視点を動かさない。
-        // ここを外すと touchmove の preventDefault で手札の横スクロールまで止まる
-        "#battle-overlay, #hell-overlay, #rules-overlay, #zukan-overlay," +
-        "#settings-overlay, #help-overlay, #board-overlay, #cine-caption, .bt-intro"
-      )
+    if (!t || !t.closest) return false;
+    // 質問ウィンドウ(#controls)は、畳んでいる間は空の領域が残るだけなので
+    // スワイプ視線を通す(💬ボタン自体は下の button 判定で除外される)
+    const controls = t.closest("#controls");
+    if (controls && !controls.classList.contains("collapsed")) return true;
+    return !!t.closest(
+      ".fpsc-stick-outer, button, input, #ending, #start-screen," +
+      // 上に乗るオーバーレイの中では視点を動かさない。
+      // ここを外すと touchmove の preventDefault で手札の横スクロールまで止まる
+      "#battle-overlay, #hell-overlay, #rules-overlay, #zukan-overlay," +
+      "#settings-overlay, #help-overlay, #board-overlay, #cine-caption, .bt-intro"
     );
   }
 

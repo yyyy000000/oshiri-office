@@ -71,6 +71,8 @@ export function createCardBattle(deps) {
   let busy = false;        // 演出中は入力を止める
   let pendingPlay = null;  // 交換相手を選ばせている最中の手札uid
   let pendingPick = null;  // 盤面の選択で「詳細を見て確認待ち」のuid
+  let autoRollUid = null;  // ロール順の「サイコロを振る」から来たら、rollプロンプトで自動で振る
+  let handHpOverride = new Map(); // 手札に戻ったモンスターの回復演出用(演出前のHPを見せる)
   let actingUid = null;    // いま行動している(振る)モンスター
   // このターンに行動を終えたモンスター(暗く表示する)。ターンが変わると空になる
   let doneMons = new Set();
@@ -97,6 +99,9 @@ export function createCardBattle(deps) {
   let slideTimers = [];    // 配布・ドロー演出のタイマー(開始/終了で止める)
   // 演出が追いつくまで表示しておくトラッシュの枚数(nullなら実数をそのまま出す)
   let trashLimit = { you: null, foe: null };
+  // 山札の枚数表示も演出に合わせる(エンジンは先に引き終わっているので、
+  // カードが束から抜けるアニメの瞬間に1枚ずつ減らす)
+  let deckLimit = { you: null, foe: null };
   const logLines = [];
 
   const el = (html) => { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; };
@@ -121,7 +126,7 @@ export function createCardBattle(deps) {
       let done = false;
       faces.forEach((label, i) => {
         const c = el(`<div class="bt-flipcard"><div class="in"><div class="bk"></div>` +
-          `<div class="fr">${label}</div></div></div>`);
+          `<div class="fr ${label === "先攻" ? "fr-first" : "fr-second"}">${label}</div></div></div>`);
         c.addEventListener("click", () => {
           if (done) return;
           done = true;
@@ -166,12 +171,15 @@ export function createCardBattle(deps) {
       firstPlayer: first,
     });
     selected.clear(); pendingPlay = null; pendingPick = null; actingUid = null; busy = false; logLines.length = 0;
+    autoRollUid = null; handHpOverride = new Map();
     doneMons = new Set();
     sickCleared = new Set();
     stopCleared = new Set();
     handLimit = null; foeHandLimit = null; handGhosts = [];
     hiddenMons = new Set(); ghostMons = []; prevField = { you: [], foe: [] };
     hpOverride = new Map();
+    deckLimit = { you: null, foe: null };
+    curTurnSide = null;
     pushLog(first === "you" ? "あなたの先攻" : "あいての先攻");
     render();
     run();
@@ -203,7 +211,14 @@ export function createCardBattle(deps) {
       skipLayer = el(`<div class="bt-skip" title="タップで早送り"></div>`);
       skipLayer.addEventListener("click", () => { if (skipNow) skipNow(); });
       overlay.appendChild(skipLayer);
+      updateSkipHint();
     } else if (!on && skipLayer) { skipLayer.remove(); skipLayer = null; }
+  }
+  // 相手ターンの演出中だけ「画面タップでスキップ」のヒントを透かしで出す
+  // (.bt-skip::after で描く。表示アニメに遅延があるので一瞬の演出では出ない)
+  let curTurnSide = null;
+  function updateSkipHint() {
+    if (skipLayer) skipLayer.classList.toggle("hint", curTurnSide === "foe");
   }
   function banner(text, sub) {
     els.banner.innerHTML = text + (sub ? `<span class="sub">${sub}</span>` : "");
@@ -387,16 +402,18 @@ export function createCardBattle(deps) {
     // トラッシュも演出が追いつくまでは増やさない
     const youTrashN = trashLimit.you == null ? s.you.trashCount : trashLimit.you;
     const foeTrashN = trashLimit.foe == null ? s.foe.trashCount : trashLimit.foe;
-    els.foeSt.textContent = `手札${foeHandN} / 山札${s.foe.deckCount} / トラッシュ${foeTrashN}`;
-    els.youSt.textContent = `手札${youHandN} / 山札${s.you.deckCount} / トラッシュ${youTrashN}`;
+    const youDeckN = deckLimit.you == null ? s.you.deckCount : deckLimit.you;
+    const foeDeckN = deckLimit.foe == null ? s.foe.deckCount : deckLimit.foe;
+    els.foeSt.textContent = `手札${foeHandN} / 山札${foeDeckN} / トラッシュ${foeTrashN} / 🎲${s.foe.rerollTokens}`;
+    els.youSt.textContent = `手札${youHandN} / 山札${youDeckN} / トラッシュ${youTrashN} / 🎲${s.you.rerollTokens}`;
     els.turn.textContent = `${s.turn}ターン目`;
     renderFoeHand(foeHandLimit == null ? s.foe.handCount : foeHandLimit);
     for (const [el2, n] of [[els.youTrash, youTrashN], [els.foeTrash, foeTrashN]]) {
       el2.querySelector(".n").textContent = n;
       el2.classList.toggle("empty", n === 0);
     }
-    els.youDeck.querySelector(".n").textContent = s.you.deckCount;
-    els.foeDeck.querySelector(".n").textContent = s.foe.deckCount;
+    els.youDeck.querySelector(".n").textContent = youDeckN;
+    els.foeDeck.querySelector(".n").textContent = foeDeckN;
     renderField(els.foeField, s.foe.field, "foe");
     renderField(els.youField, s.you.field, "you");
     markPickable(s);
@@ -446,6 +463,25 @@ export function createCardBattle(deps) {
 
   }
 
+  /** 手札のカード。場のカード(bt-card)と同じ見た目: 絵柄+名前+モンスターはHPバー。番号は出さない */
+  function handCard(id, hp) {
+    const def = CARDS[id];
+    const isMon = def.kind === "monster";
+    // バウンス/交換で戻ったモンスターは最大HPの半分回復した状態で手札に来る
+    const cur = isMon ? (hp != null ? hp : def.hp) : 0;
+    const pct = isMon ? Math.max(0, Math.round((cur / def.hp) * 100)) : 0;
+    return el(
+      `<div class="bt-handcard ${isMon ? def.attr || "" : "event"}">` +
+      `<div class="bt-card-art" style="background-image:url(assets/cards/${id}.jpeg)"></div>` +
+      `<div class="bt-card-name">${def.name}</div>` +
+      (isMon
+        ? `<div class="bt-card-hp"><i style="width:${pct}%"></i></div>` +
+          `<div class="bt-card-num">${cur} / ${def.hp}</div>`
+        : "") +
+      `</div>`
+    );
+  }
+
   function renderHand(s) {
     const q = busy ? null : s.prompt; // 演出中は先の手番のハイライトを見せない
     const pickable = new Set(q && (q.kind === "playMonster" || q.kind === "useEvent" || q.kind === "endDiscard") ? q.options : []);
@@ -453,13 +489,18 @@ export function createCardBattle(deps) {
     const shown = handLimit == null ? s.you.hand : s.you.hand.slice(0, handLimit);
     // まだ演出していない「捨てられる予定」のカードも並べておく
     for (const g of handGhosts) {
-      const mini = renderCard(CARDS[g.id], g.id, { mini: true });
+      const mini = handCard(g.id);
       mini.dataset.uid = g.uid;
       mini.classList.add("dim");
       els.hand.appendChild(mini);
     }
-    for (const c of shown) {
-      const mini = renderCard(CARDS[c.id], c.id, { mini: true });
+    // 表示はモンスター→イベントの順に並べ替える(引いた順は保つ)
+    const sorted = shown.slice().sort(
+      (a, b) => (CARDS[a.id].kind === "monster" ? 0 : 1) - (CARDS[b.id].kind === "monster" ? 0 : 1)
+    );
+    for (const c of sorted) {
+      // 手札に戻った直後の回復演出中は、回復前のHPで見せる
+      const mini = handCard(c.id, handHpOverride.has(c.uid) ? handHpOverride.get(c.uid) : c.hp);
       mini.dataset.uid = c.uid;
       if (pickable.size) mini.classList.add(pickable.has(c.uid) ? "pick" : "dim");
       if (selected.has(c.uid)) mini.classList.add("sel");
@@ -491,21 +532,30 @@ export function createCardBattle(deps) {
     if (pendingPick != null && (q.kind === "rollOrder" || q.kind === "pickTarget")) {
       const id = monIdOf(pendingPick);
       openStage(id, cardEl(pendingPick), "mon" + pendingPick);
-      msg(q.kind === "rollOrder"
-        ? `<b>${nameOf(id)}</b> で振りますか?(中身は上に表示中)`
-        : `<b>${nameOf(id)}</b> を対象にしますか?`);
-      act("これで決定", () => { const u = pendingPick; pendingPick = null; answer(u); });
+      if (q.kind === "rollOrder") {
+        // 振るモンスターを選んだら、そのまま「サイコロを振る」で一気に振れる
+        msg(`<b>${nameOf(id)}</b> で振りますか?(中身は上に表示中)`);
+        act("🎲 サイコロを振る", () => {
+          const u = pendingPick;
+          pendingPick = null;
+          autoRollUid = u; // 続く roll プロンプトで自動的にダイスを回す
+          answer(u);
+        }, "big");
+      } else {
+        msg(`<b>${nameOf(id)}</b> を対象にしますか?`);
+        act("これで決定", () => { const u = pendingPick; pendingPick = null; answer(u); });
+      }
       act("選び直す", () => { pendingPick = null; closeStage(); render(); }, "ghost");
       return;
     }
     // 何も選びかけていない選択待ちでは、せり出したカードを片付ける
     // (pickFace = 尻に願いをの出目選びは、カードを見ながら選ぶので閉じない)
-    if (q && q.kind !== "roll" && q.kind !== "useEvent" && q.kind !== "pickFace" && pendingPick == null && !busy) closeStage();
+    if (q && q.kind !== "roll" && q.kind !== "rerollAsk" && q.kind !== "useEvent" && q.kind !== "pickFace" && pendingPick == null && !busy) closeStage();
     if (pendingPlay != null) {
       const full = s.you.field.length >= 2;
       msg(full
-        ? "場が埋まっています。<b>どのモンスターと交換しますか?</b>(戻したモンスターはHPが減ったまま手札に戻ります)"
-        : "<b>交換もできます。</b>入れ替えたいモンスターをタップ(戻したモンスターはHPが減ったまま手札に戻ります)");
+        ? "場が埋まっています。<b>どのモンスターと交換しますか?</b>(戻したモンスターは最大HPの半分回復)"
+        : "<b>交換もできます。</b>入れ替えたいモンスターをタップ(戻したモンスターは最大HPの半分回復)");
       if (!full) act("そのまま出す", () => { const u = pendingPlay; pendingPlay = null; answer(u); });
       act("やめる", () => { pendingPlay = null; render(); }, "ghost");
       return;
@@ -526,7 +576,7 @@ export function createCardBattle(deps) {
         msg(q.initial
           ? "<b>開始時の配置です。</b>モンスターを1体出してください(お互い1体ずつ置いてから第1ターンが始まります。置いたモンスターは召喚酔いで第1ターンは振れません)"
           : q.canSkip
-            ? "手札のモンスターを1体出せます(<b>このターンに出せるのは1体まで</b>)"
+            ? "手札のモンスターを1体出せます(場のモンスターと交換した場合、<b>戻したモンスターは最大HPの半分回復</b>)"
             : "<b>場が空です。</b>モンスターを出してください");
         if (q.canSkip) act("出さない", () => answer(null), "ghost");
         break;
@@ -535,9 +585,26 @@ export function createCardBattle(deps) {
       case "roll":
         // 振る前にカードを中央にせり出させる。何が当たりうるかを見た上で振れる
         openStage(monIdOf(q.monsterUid), cardEl(q.monsterUid), "mon" + q.monsterUid);
+        // ロール順の選択から「サイコロを振る」で来た場合は、もう一度押させずにそのまま振る
+        if (autoRollUid != null && q.monsterUid === autoRollUid) {
+          autoRollUid = null;
+          doRoll();
+          break;
+        }
         msg(`<b>${nameOf(monIdOf(q.monsterUid))}</b> の番です`);
         act("🎲 サイコロを振る", doRoll, "big");
         break;
+      case "rerollAsk": {
+        // 出目を見てから振り直すか選べる(1試合3回まで)。カードは出しっぱなしで聞く
+        const id = monIdOf(q.monsterUid);
+        openStage(id, cardEl(q.monsterUid), "mon" + q.monsterUid);
+        if (stageDice) stageDice.className = "bt-dice landed pip-" + q.face;
+        stageHighlight(q.face, "lock");
+        msg(`出目は <b>${q.face}</b> でした`);
+        act(`🎲 振り直す(残り${q.tokens})`, () => answer(true));
+        act("このままでいい", () => answer(false), "ghost");
+        break;
+      }
       case "useEvent": {
         const last = [...selected].pop();
         if (last != null) {
@@ -550,7 +617,8 @@ export function createCardBattle(deps) {
           : `イベントカードを最大${q.max}枚まで使えます(手札をタップすると効果が出ます)`);
         // カードを選んだ時だけ「使う/選び直す」を出す。未選択のうちは「使う」ボタン自体を出さない
         if (selected.size) {
-          act(`使う (${selected.size})`, () => answer([...selected]));
+          // 1枚のときは枚数表示なし。2枚同時に使うときだけ「使う (2)」と枚数を添える
+          act(selected.size > 1 ? `使う (${selected.size})` : "使う", () => answer([...selected]));
           act("選び直す", () => { selected.clear(); closeStage(); render(); }, "ghost");
         } else if (q.canSkip !== false) act("使わない", () => answer(null), "ghost");
         break;
@@ -696,13 +764,24 @@ export function createCardBattle(deps) {
 
   function answer(v) {
     if (!battle) return;
-    const kind = battle.state.prompt && battle.state.prompt.kind;
+    const q0 = battle.state.prompt;
+    const kind = q0 && q0.kind;
     try { battle.choose(v); } catch (e) { deps.toast("⚠ " + e.message); return; }
     selected.clear();
     pendingPick = null;
-    // ロール順を決めた直後は同じモンスターの「振る」に続くので、
-    // ここで閉じるとカードが一度消えて出し直しになる
-    if (kind !== "rollOrder") closeStage();
+    if (kind === "rerollAsk") {
+      // 「このままでいい」= ここで詳細表示を畳み、行動済みにする
+      // (rollイベントの再生は振り直し待ちのままカードを出して抜けているため)。
+      // 「振り直す」= 同じカードの上でダイスを回し直すので開けたまま
+      if (!v) {
+        closeStage();
+        if (q0.monsterUid != null) doneMons.add(q0.monsterUid);
+        actingUid = null;
+      }
+    } else if (kind !== "rollOrder") {
+      // ロール順を決めた直後は同じモンスターの「振る」に続くので閉じない
+      closeStage();
+    }
     run();
   }
 
@@ -802,6 +881,16 @@ export function createCardBattle(deps) {
     return n;
   }
 
+  /** これから再生するイベントのうち、その側の山札から抜けるカードの合計枚数 */
+  function pendingDeckDraws(evs, side) {
+    let n = 0;
+    for (const ev of evs) {
+      if (ev.t === "mulligan") n += INITIAL_HAND; // 初期手札はお互いに配る
+      else if ((ev.t === "draw" || ev.t === "redraw") && ev.side === side) n += ev.n;
+    }
+    return n;
+  }
+
   /** いまの場を覚えておく(次の再生で「消えるモンスター」を復元するため) */
   function snapField() {
     if (!battle) return;
@@ -860,6 +949,12 @@ export function createCardBattle(deps) {
     const foeAdds = pendingHandAdds(evs, "foe");
     const foeDrops = evs.filter((e) => e.t === "discard" && e.side === "foe").length;
     foeHandLimit = Math.max(0, s0.foe.handCount - foeAdds + foeDrops);
+    // 山札はエンジンが引き終わった後の枚数なので、これから引く分を足し戻しておき、
+    // flyFromDeck がカード1枚抜くたびに減らす
+    deckLimit = {
+      you: s0.you.deckCount + pendingDeckDraws(evs, "you"),
+      foe: s0.foe.deckCount + pendingDeckDraws(evs, "foe"),
+    };
     render(); // 演出中の盤面(まだ結果は反映されていない状態)
     for (const ev of evs) {
       if (!battle) break;
@@ -872,6 +967,8 @@ export function createCardBattle(deps) {
     ghostMons = [];
     hpOverride = new Map();
     trashLimit = { you: null, foe: null };
+    deckLimit = { you: null, foe: null };
+    handHpOverride = new Map();
     render();
     snapField();
     setBusy(false);
@@ -886,6 +983,8 @@ export function createCardBattle(deps) {
         void els.turnBanner.offsetWidth;
         els.turnBanner.className = "bt-turnbanner show";
         sfx("turn");
+        curTurnSide = ev.side;
+        updateSkipHint();
         actingUid = null;
         doneMons = new Set(); // 新しいターン: 全部明るく戻す
         render();             // 暗くしていた表示をここで戻す
@@ -919,13 +1018,23 @@ export function createCardBattle(deps) {
           render();
           await wait(500); // 誰が振るのかを見せる間
           openStage(ev.id, cardEl(ev.uid), "mon" + ev.uid);
-          if (ev.side === "foe") await spinDice(ev.face);
+          if (ev.side === "foe" || ev.reroll) await spinDice(ev.face);
           else if (stageDice) stageDice.className = "bt-dice landed pip-" + ev.face;
           stageHighlight(ev.face, "lock");
+        } else if (ev.reroll) {
+          // 振り直し: 同じカードの上でもう一度ダイスを回す
+          await spinDice(ev.face);
+          stageHighlight(ev.face, "lock");
         }
-        banner(`🎲 <b>${ev.face}</b> — ${nameOf(ev.id)}`, ev.text);
-        pushLog(`${nameOf(ev.id)}→${ev.face} ${ev.text}`, ev.side);
+        banner(
+          ev.reroll ? `🎲 振り直し! <b>${ev.face}</b> — ${nameOf(ev.id)}` : `🎲 <b>${ev.face}</b> — ${nameOf(ev.id)}`,
+          ev.text
+        );
+        pushLog(`${nameOf(ev.id)}→${ev.face} ${ev.text}${ev.reroll ? "(振り直し)" : ""}`, ev.side);
         await wait(already ? 700 : DUR.roll); // 既に見せた分は短くする
+        // このあと「振り直しますか?」と聞く場合は、カードを出したまま行動済みにもしない
+        const q2 = battle ? battle.state.prompt : null;
+        if (q2 && q2.kind === "rerollAsk" && q2.monsterUid === ev.uid) { render(); return; }
         closeStage();
         doneMons.add(ev.uid); // このモンスターは行動済み
         actingUid = null;
@@ -1045,11 +1154,32 @@ export function createCardBattle(deps) {
       case "bounce": {
         const c = cardEl(ev.uid);
         if (c) c.classList.add("leaving");
-        if (ev.side === "you") { handLimit++; } else { foeHandLimit++; }
+        // 場にいたとき(回復前)のHPを控えておき、手札にはまず減ったままの姿で出す
+        const pre = hpOverride.has(ev.uid) ? hpOverride.get(ev.uid) : null;
+        if (ev.side === "you") {
+          handLimit++;
+          if (pre != null && pre < ev.hp) handHpOverride.set(ev.uid, pre);
+          renderHand(battle.state);
+        } else foeHandLimit++;
         ghostMons = ghostMons.filter((g) => g.m.uid !== ev.uid);
-        banner(`↩️ <b>${nameOf(ev.id)}</b> が手札に戻された`, "HPは減ったまま");
+        banner(`↩️ <b>${nameOf(ev.id)}</b> が手札に戻された`, "最大HPの半分回復");
         pushLog(`${nameOf(ev.id)}が手札に戻った`);
         await wait(DUR.bounce);
+        // 手札の上で回復エフェクト → HPバーがするっと伸びる
+        if (ev.side === "you" && handHpOverride.has(ev.uid)) {
+          handHpOverride.delete(ev.uid);
+          const mini = els.hand.querySelector(`[data-uid="${ev.uid}"]`);
+          if (mini) {
+            mini.classList.add("healed");
+            sfx("heal");
+            const max = CARDS[ev.id].hp;
+            const bar = mini.querySelector(".bt-card-hp i");
+            const num = mini.querySelector(".bt-card-num");
+            if (bar) bar.style.width = Math.min(100, Math.round((ev.hp / max) * 100)) + "%";
+            if (num) num.textContent = `${ev.hp} / ${max}`;
+            await wait(600);
+          }
+        }
         return;
       }
 
@@ -1228,7 +1358,8 @@ export function createCardBattle(deps) {
     let picked = false;
     ids.forEach((id, i) => {
       const slot = el(`<div class="pk-slot"><div class="pk-inner"><div class="pk-back"></div><div class="pk-front"></div></div></div>`);
-      slot.querySelector(".pk-front").appendChild(renderCard(CARDS[id], id, { mini: true }));
+      // pk-front内は実カードの縮小表示(.pk-front .pcard のscale)。ミニ版だと二重に縮んでしまう
+      slot.querySelector(".pk-front").appendChild(renderCard(CARDS[id], id));
       row.appendChild(slot);
       setTimeout(() => slot.classList.add("in"), 60 * i);
       slot.addEventListener("click", () => {
@@ -1393,6 +1524,11 @@ export function createCardBattle(deps) {
       keep(setTimeout(() => {
         deck.classList.add("draw");
         keep(setTimeout(() => deck.classList.remove("draw"), 300));
+        // カードが束から抜ける瞬間に山札の枚数を1減らす(数字が先に減るのを防ぐ)
+        if (deckLimit[side] != null && battle) {
+          deckLimit[side] = Math.max(0, deckLimit[side] - 1);
+          render();
+        }
         const g = el(`<div class="bt-slide"></div>`);
         g.style.left = dr.left + "px";
         g.style.top = dr.top + "px";

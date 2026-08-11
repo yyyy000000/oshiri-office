@@ -97,6 +97,13 @@ export function renderCard(def, id, opts = {}) {
   const body = document.createElement("div");
   body.className = "pcard-body";
   if (def.kind === "monster") {
+    // 面テキストが長いカード(占い少年マイケル等)は行数が増えて枠から見切れるので、
+    // 折り返し行数の見積もりが多いカードだけ文字を詰める
+    const lines = def.faces.reduce((n, f) => {
+      const t = typeof f === "string" ? f : f.text;
+      return n + Math.ceil(t.length / 27);
+    }, 0);
+    if (lines >= 9) el.classList.add("pcard-dense");
     // faces は carddata.js では {text, fx} オブジェクト。見本データは文字列。どちらも受ける
     body.innerHTML = def.faces
       .map((f, i) => {

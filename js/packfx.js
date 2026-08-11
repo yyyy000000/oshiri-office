@@ -76,7 +76,8 @@ export async function playPackOpen(o) {
     const def = CARDS[id];
     if (!def) continue;
     const slot = el(`<div class="pk-slot"><div class="pk-inner"><div class="pk-back"></div><div class="pk-front"></div></div></div>`);
-    slot.querySelector(".pk-front").appendChild(renderCard(def, id, { mini: true }));
+    // ミニ版=実カードの縮小(CSSの .pk-front .pcard がscaleで縮める)。面や本文もそのまま見せる
+    slot.querySelector(".pk-front").appendChild(renderCard(def, id));
     if (o.isNew && o.isNew(id)) slot.appendChild(el(`<span class="pk-new">NEW</span>`));
     if (def.rarity === "rare") slot.classList.add("rare");
     // めくれたあとはタップで拡大して読める

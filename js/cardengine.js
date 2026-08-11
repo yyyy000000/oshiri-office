@@ -89,6 +89,7 @@ export function makeRng(seed) {
 export const MAX_TURNS = 200; // 打ち切り(引き分け)
 export const INITIAL_HAND = 4; // 初期手札(手札の上限は設けていない)
 export const DRAW_LIMIT = 5;   // ターン開始時、手札がこの枚数以下ならドローする
+export const REROLL_TOKENS = 3; // 1試合に振り直せる回数(出た目を見てから決められる)
 export const MAX_ROLLS_PER_TURN = 10; // 「もう一度振る」連鎖のフェイルセーフ
 const MAX_LOG = 300;
 
@@ -104,17 +105,16 @@ const MAX_LOG = 300;
 export const AI_PROFILES = {
   // 2026-08-10: キャラごとのAI差(脳筋・ダメージ偏重など)は廃止。
   // 全員が最も賢い設定で、難易度はデッキの強さだけで決まる。
-  // swapAt(HP減の場モンスターを交換で下げる)は実測で逆効果だったため全員0:
-  // 召喚枠と酔いを防御に浪費し、戻した負傷カードが手札を圧迫する。
-  // 倒された方がトラッシュで全快に戻り、回収カードで満タン復活できる
-  base: { name: '基本AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0, lookahead: true, endDiscard: true },
+  // swapAt: 旧ルール(HP据え置き)では交換は逆効果で全員0だったが、
+  // 2026-08-12の「手札に戻ると最大HPの半分回復」導入で有利な選択肢になったため0.4に戻した
+  base: { name: '基本AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.4, lookahead: true, endDiscard: true },
   // 星のみ捨て札はしない(デッキが弱く掘っても恩恵ゼロと実測済み・最初の相手の緩さも兼ねる)
-  hoshi: { name: '星AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0, lookahead: true, endDiscard: false },
-  kuma: { name: 'クマAI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0, lookahead: true, endDiscard: true },
-  carry: { name: 'キャリーAI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0, lookahead: true, endDiscard: true },
-  hell: { name: 'HELL AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0, lookahead: true, endDiscard: true },
-  ojisan: { name: 'おじさんAI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0, lookahead: true, endDiscard: true },
-  oshiriseijin: { name: 'おしり星人AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0, lookahead: true, endDiscard: true },
+  hoshi: { name: '星AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.4, lookahead: true, endDiscard: false },
+  kuma: { name: 'クマAI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.4, lookahead: true, endDiscard: true },
+  carry: { name: 'キャリーAI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.4, lookahead: true, endDiscard: true },
+  hell: { name: 'HELL AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.4, lookahead: true, endDiscard: true },
+  ojisan: { name: 'おじさんAI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.4, lookahead: true, endDiscard: true },
+  oshiriseijin: { name: 'おしり星人AI', rollOrder: true, targeting: 'lethal', eventChoice: 'best', swapAt: 0.4, lookahead: true, endDiscard: true },
 };
 
 function resolveAi(v) {
@@ -144,6 +144,7 @@ function makePlayer(g, side, label, deckList, ai, auto) {
     trash: [],
     turnNo: 0,
     doubleDamageTurn: -1,
+    rerollTokens: REROLL_TOKENS, // 残り振り直し回数
   };
   for (const [cid, n] of deckList) {
     const def = CARDS[cid];
@@ -203,11 +204,13 @@ function placeMonster(g, p, inst, swappedOut) {
 }
 
 function returnToHand(g, p, inst, cause) {
-  // バウンス / 交換で戻ったモンスターはHPが減ったまま
+  // バウンス / 交換で手札に戻ったモンスターは最大HPの半分回復する(2026-08-12)。
+  // 交換が「使うだけ損」の死にルールだったのを、休ませる価値がある選択肢にするための救済
   const i = p.field.indexOf(inst);
   if (i >= 0) p.field.splice(i, 1);
   inst.sickTurn = -1;
   inst.skipTurn = -1;
+  if (inst.maxHp) inst.hp = Math.min(inst.maxHp, inst.hp + Math.floor(inst.maxHp / 2));
   p.hand.push(inst);
   emit(g, { t: 'bounce', side: p.side, uid: inst.uid, id: inst.def.id, hp: inst.hp, cause: cause || 'bounce' });
 }
@@ -645,6 +648,10 @@ function faceScore(g, me, opp, fx) {
       case 'heal':
         s += hurt ? Math.min(e.n, hurt.def.hp - hurt.hp) : 0;
         break;
+      case 'selfHeal':
+        // 振る本人がどれかはここでは分からないので、heal と同じ近似で見積もる
+        s += hurt ? Math.min(e.n, hurt.def.hp - hurt.hp) : 0;
+        break;
       case 'healAll':
         s += mine.reduce((a, m) => a + Math.min(e.n, m.def.hp - m.hp), 0);
         break;
@@ -859,6 +866,14 @@ function* execEffect(g, me, opp, e, ctx) {
       return;
     }
 
+    case 'selfHeal': {
+      // 振った本人が回復する(きゅうけい/ゴミをたべる)。対象は選ばせない
+      if (ctx.source && ctx.source.hp > 0 && me.field.includes(ctx.source)) {
+        healMonster(g, me, ctx.source, e.n);
+      }
+      return;
+    }
+
     case 'draw':
       drawCards(g, me, e.n);
       return;
@@ -1044,16 +1059,50 @@ function* rollMonster(g, me, opp, mon, turnCtx) {
   turnCtx.rolls++;
   // 人間側はここで止まる。UIがダイス演出を出してから roll() を呼ぶ
   if (!me.auto) yield { kind: 'roll', side: me.side, monsterUid: mon.uid };
-  const face = g.rng.d6();
-  g.lastFace = face;
-  emit(g, {
-    t: 'roll',
-    side: me.side,
-    uid: mon.uid,
-    id: mon.def.id,
-    face,
-    text: mon.def.faces[face - 1].text,
-  });
+  let face = g.rng.d6();
+  const emitRoll = (reroll) => {
+    g.lastFace = face;
+    emit(g, {
+      t: 'roll',
+      side: me.side,
+      uid: mon.uid,
+      id: mon.def.id,
+      face,
+      text: mon.def.faces[face - 1].text,
+      reroll: !!reroll,
+    });
+  };
+  // リロールトークン: 出た目を見てから、1試合にREROLL_TOKENS回まで振り直せる
+  if (me.auto) {
+    // AI: 出た目のスコアが「振り直したときの期待値」を下回るなら振り直す
+    let guard = 0;
+    while (me.rerollTokens > 0 && guard++ < 5) {
+      const sc = faceScore(g, me, opp, faceFx(mon.def, face - 1));
+      let ev = 0;
+      for (let i = 0; i < 6; i++) ev += faceScore(g, me, opp, faceFx(mon.def, i));
+      ev /= 6;
+      if (sc >= ev - 1) break;
+      me.rerollTokens--;
+      face = g.rng.d6();
+    }
+    emitRoll(false);
+  } else {
+    emitRoll(false);
+    // 人間: トークンが残っていれば毎回聞く(振り直した先でも続けて聞く)
+    while (me.rerollTokens > 0) {
+      const redo = yield {
+        kind: 'rerollAsk',
+        side: me.side,
+        monsterUid: mon.uid,
+        face,
+        tokens: me.rerollTokens,
+      };
+      if (!redo) break;
+      me.rerollTokens--;
+      face = g.rng.d6();
+      emitRoll(true);
+    }
+  }
   yield* execEffects(g, me, opp, faceFx(mon.def, face - 1), {
     fromMonster: true,
     source: mon,
@@ -1178,9 +1227,12 @@ function* endDiscardPhase(g, p, opp) {
   if (!p.hand.length) return;
   let pickCard = null;
   if (p.auto) {
-    // AI: 手札にモンスターがおらず、山札にまだモンスターが残っているなら、
-    // 一番価値の低いイベントを捨てて掘りにいく(星だけは捨てない)
+    // AI: 手札が6枚以上(=このままだと次のターン引けない)で、手札にモンスターがおらず、
+    // 山札にまだモンスターが残っているなら、一番価値の低いイベントを捨てて掘りにいく
+    // (星だけは捨てない)。手札5枚以下なら捨てても捨てなくても次のターン引けるので、
+    // 捨てるのはただのカード損にしかならず、常に温存する
     if (!p.ai.endDiscard) return;
+    if (p.hand.length < DRAW_LIMIT + 1) return;
     if (handMonsters(p).length > 0) return;
     if (!p.deck.some((c) => c.def.kind === 'monster')) return;
     let ws = Infinity;
@@ -1288,6 +1340,7 @@ function snapSide(p, hidden) {
     deckCount: p.deck.length,
     trash: p.trash.map((c) => ({ uid: c.uid, id: c.def.id, kind: c.def.kind })),
     trashCount: p.trash.length,
+    rerollTokens: p.rerollTokens,
   };
 }
 

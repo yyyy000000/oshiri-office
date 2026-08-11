@@ -17,6 +17,7 @@
 //   { t:'healFull' }                           自分のモンスター1体をHP全回復
 //   { t:'selfDamage', n, to }                  反動(to: 'choose' | 'rerolled')
 //   { t:'selfDamageAll', n }                   自分のモンスター全員に N ダメージ(反動)
+//   { t:'selfHeal', n }                        振ったモンスター自身を N 回復(対象は選ばない)
 //   { t:'draw', n }                            カードを N 枚引く
 //   { t:'useEvent', n }                        イベントカードを N 枚使う
 //   { t:'discardOpponentHand', n }             相手の手札を N 枚ランダムにトラッシュ
@@ -55,7 +56,7 @@ export const CARDS = {
       { text: 'きんちょう — 何も起きない', fx: [{ t: 'none' }] },
       { text: 'ぺこぺこおじぎ — 相手モンスター1体に20ダメージ', fx: [{ t: 'damage', n: 20 }] },
       { text: 'ほうれんそう — カードを1枚引く', fx: [{ t: 'draw', n: 1 }] },
-      { text: 'しごとちゅう — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
+      { text: 'きゅうけい — 自分を20回復', fx: [{ t: 'selfHeal', n: 20 }] },
       { text: 'しゃにむに — 相手モンスター1体に40ダメージ', fx: [{ t: 'damage', n: 40 }] },
       { text: 'きあいのビンタ — 相手モンスター1体に55ダメージ', fx: [{ t: 'damage', n: 55 }] },
     ],
@@ -73,7 +74,7 @@ export const CARDS = {
     faces: [
       { text: 'ちらかす — 何も起きない', fx: [{ t: 'none' }] },
       { text: 'ゴミをなげる — 相手モンスター1体に20ダメージ', fx: [{ t: 'damage', n: 20 }] },
-      { text: 'ふたをあける — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
+      { text: 'ゴミをたべる — 自分を20回復', fx: [{ t: 'selfHeal', n: 20 }] },
       { text: 'あさる — カードを1枚引く', fx: [{ t: 'draw', n: 1 }] },
       {
         text: 'ひろいもの — 自分のトラッシュからイベントカードを1枚選び、手札に戻す',
@@ -94,13 +95,13 @@ export const CARDS = {
     flavor: 'ただの箱であることをやめた日、それは戦士になった。',
     faces: [
       { text: 'ただのはこにもどる — 何も起きない', fx: [{ t: 'none' }] },
-      { text: 'かどでこづく — 相手モンスター1体に20ダメージ', fx: [{ t: 'damage', n: 20 }] },
-      { text: 'くみたてなおす — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
-      { text: 'ガムテープほきょう — 自分のモンスター1体を20回復', fx: [{ t: 'heal', n: 20 }] },
+      { text: 'かどでこづく — サイコロを振って偶数なら、相手モンスター1体に40ダメージ', fx: [{ t: 'dice', cond: 'even', then: [{ t: 'damage', n: 40 }] }] },
+      { text: 'くみたてなおす — イベントカードを1枚使う。カードを1枚引く', fx: [{ t: 'useEvent', n: 1 }, { t: 'draw', n: 1 }] },
+      { text: 'ガムテープほきょう — サイコロを振って奇数なら、自分のモンスター1体を40回復', fx: [{ t: 'dice', cond: 'odd', then: [{ t: 'heal', n: 40 }] }] },
       { text: 'たいあたり — 相手モンスター1体に35ダメージ', fx: [{ t: 'damage', n: 35 }] },
       {
-        text: 'ダンボールプレス — 相手モンスター1体に50ダメージ。自分に10ダメージ',
-        fx: [{ t: 'damage', n: 50 }, { t: 'selfDamage', n: 10, to: 'source' }],
+        text: 'ダンボールプレス — サイコロを振って3以上なら、相手モンスター1体に70ダメージ',
+        fx: [{ t: 'dice', cond: [3, 4, 5, 6], label: '3以上', then: [{ t: 'damage', n: 70 }] }],
       },
     ],
   },
@@ -117,9 +118,9 @@ export const CARDS = {
     faces: [
       { text: 'でんげんが入らない — 何も起きない', fx: [{ t: 'none' }] },
       { text: 'そよかぜ — 相手モンスター1体に15ダメージ', fx: [{ t: 'damage', n: 15 }] },
-      { text: 'かぜをおこす — カードを1枚引く', fx: [{ t: 'draw', n: 1 }] },
-      { text: 'びみょうなかぜ — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
-      { text: '首ふりモード — 相手モンスター全員に25ダメージ', fx: [{ t: 'damageAll', n: 25 }] },
+      { text: 'かぜをおこす — サイコロを振って偶数なら、カードを2枚引く', fx: [{ t: 'dice', cond: 'even', then: [{ t: 'draw', n: 2 }] }] },
+      { text: 'びみょうなかぜ — イベントカードを1枚使う。カードを1枚引く', fx: [{ t: 'useEvent', n: 1 }, { t: 'draw', n: 1 }] },
+      { text: '首ふりモード — サイコロを振って偶数なら、相手モンスター全員に50ダメージ', fx: [{ t: 'dice', cond: 'even', then: [{ t: 'damageAll', n: 50 }] }] },
       {
         text: 'きょうふうモード — 相手モンスター1体を持ち主の手札に戻す。カードを1枚引く',
         fx: [{ t: 'bounce' }, { t: 'draw', n: 1 }],
@@ -139,12 +140,12 @@ export const CARDS = {
     faces: [
       { text: 'こうごうせい — 自分のモンスター1体を15回復', fx: [{ t: 'heal', n: 15 }] },
       { text: 'つるでたたく — 相手モンスター1体に20ダメージ', fx: [{ t: 'damage', n: 20 }] },
-      { text: 'はっぱのささやき — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
+      { text: 'はっぱのささやき — イベントカードを2枚使う', fx: [{ t: 'useEvent', n: 2 }] },
       { text: 'はっぱカッター — 相手モンスター1体に30ダメージ', fx: [{ t: 'damage', n: 30 }] },
       { text: '森のめぐみ — 自分のモンスター全員を15回復', fx: [{ t: 'healAll', n: 15, attr: null }] },
       {
-        text: 'きゅうせいちょう — 自分のモンスター1体を40回復。カードを1枚引く',
-        fx: [{ t: 'heal', n: 40 }, { t: 'draw', n: 1 }],
+        text: 'きゅうせいちょう — 自分のモンスター1体を40回復。イベントカードを1枚使う',
+        fx: [{ t: 'heal', n: 40 }, { t: 'useEvent', n: 1 }],
       },
     ],
   },
@@ -307,10 +308,10 @@ export const CARDS = {
     owner: 'carry',
     flavor: '規則は絶対である。ただし、その口は悪い。',
     faces: [
-      { text: 'けいこく — 相手モンスター1体に15ダメージ', fx: [{ t: 'damage', n: 15 }] },
+      { text: 'けいこく — サイコロを振って奇数なら、相手モンスター1体に30ダメージ', fx: [{ t: 'dice', cond: 'odd', then: [{ t: 'damage', n: 30 }] }] },
       { text: 'みまわり — カードを1枚引く', fx: [{ t: 'draw', n: 1 }] },
       { text: 'そうびてんけん — イベントカードを2枚使う', fx: [{ t: 'useEvent', n: 2 }] },
-      { text: 'せいあつ — 相手モンスター1体に40ダメージ', fx: [{ t: 'damage', n: 40 }] },
+      { text: 'せいあつ — サイコロを振って3以上なら、相手モンスター1体に60ダメージ', fx: [{ t: 'dice', cond: [3, 4, 5, 6], label: '3以上', then: [{ t: 'damage', n: 60 }] }] },
       { text: 'かくほ — 相手モンスター1体は次のターン、サイコロを振れない', fx: [{ t: 'skipRoll' }] },
       { text: 'とっしん — 相手モンスター1体に45ダメージ', fx: [{ t: 'damage', n: 45 }] },
     ],
@@ -329,7 +330,7 @@ export const CARDS = {
       { text: 'リロード — カードを1枚引く', fx: [{ t: 'draw', n: 1 }] },
       { text: 'ハンドガン — 相手モンスター1体に30ダメージ', fx: [{ t: 'damage', n: 30 }] },
       { text: 'だんやくこうかん — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
-      { text: 'マシンガン — 相手モンスター全員に30ダメージ', fx: [{ t: 'damageAll', n: 30 }] },
+      { text: 'マシンガン — サイコロを振って偶数なら、相手モンスター全員に60ダメージ', fx: [{ t: 'dice', cond: 'even', then: [{ t: 'damageAll', n: 60 }] }] },
       {
         text: 'じょれいだん — オカルト属性の相手モンスター全員に45ダメージ',
         fx: [{ t: 'damageByAttr', attr: 'occult', scope: 'all', n: 45 }],
@@ -380,10 +381,10 @@ export const CARDS = {
     flavor: '百円で運命を売りつける、無慈悲な鉄の箱。',
     faces: [
       { text: 'はずれ — 何も起きない', fx: [{ t: 'none' }] },
-      { text: 'カプセル1こ — 相手モンスター1体に35ダメージ', fx: [{ t: 'damage', n: 35 }] },
+      { text: 'カプセル1こ — サイコロを振って奇数なら、相手モンスター1体に70ダメージ', fx: [{ t: 'dice', cond: 'odd', then: [{ t: 'damage', n: 70 }] }] },
       { text: 'サービスタイム — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
-      { text: 'あたり — カードを2枚引く', fx: [{ t: 'draw', n: 2 }] },
-      { text: 'カプセルらんしゃ — 相手モンスター全員に45ダメージ', fx: [{ t: 'damageAll', n: 45 }] },
+      { text: 'あたり — サイコロを振って偶数なら、カードを4枚引く', fx: [{ t: 'dice', cond: 'even', then: [{ t: 'draw', n: 4 }] }] },
+      { text: 'カプセルらんしゃ — サイコロを振って3以上なら、相手モンスター全員に60ダメージ', fx: [{ t: 'dice', cond: [3, 4, 5, 6], label: '3以上', then: [{ t: 'damageAll', n: 60 }] }] },
       { text: '大あたり — 相手モンスター全員に20ダメージ。もう一度振る', fx: [{ t: 'damageAll', n: 20 }, { t: 'reroll', target: 'self', chainOn6: false }] },
     ],
   },
@@ -399,13 +400,13 @@ export const CARDS = {
     flavor: '開けるまでは、誰もが夢を見ていられる。',
     faces: [
       { text: 'からのカプセル — 何も起きない', fx: [{ t: 'none' }] },
-      { text: 'とびだす — 相手モンスター1体に40ダメージ', fx: [{ t: 'damage', n: 40 }] },
+      { text: 'とびだす — サイコロを振って偶数なら、相手モンスター1体に80ダメージ', fx: [{ t: 'dice', cond: 'even', then: [{ t: 'damage', n: 80 }] }] },
       { text: 'ふたがひらく — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
       {
         text: 'じゅうでん — メカ属性の自分のモンスター全員を20回復',
         fx: [{ t: 'healAll', n: 20, attr: 'mecha' }],
       },
-      { text: 'ミニロケット — 相手モンスター1体に50ダメージ', fx: [{ t: 'damage', n: 50 }] },
+      { text: 'ミニロケット — サイコロを振って3以上なら、相手モンスター1体に75ダメージ', fx: [{ t: 'dice', cond: [3, 4, 5, 6], label: '3以上', then: [{ t: 'damage', n: 75 }] }] },
       {
         text: 'レアカプセル — 相手モンスター1体に70ダメージ。カードを1枚引く',
         fx: [{ t: 'damage', n: 70 }, { t: 'draw', n: 1 }],
@@ -455,7 +456,7 @@ export const CARDS = {
       { text: 'ビンタ — 相手モンスター1体に35ダメージ', fx: [{ t: 'damage', n: 35 }] },
       { text: 'しりふり — 相手モンスター全員に30ダメージ', fx: [{ t: 'damageAll', n: 30 }] },
       { text: 'ひとやすみ — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
-      { text: 'ほんきをだす — イベントカードを2枚使う', fx: [{ t: 'useEvent', n: 2 }] },
+      { text: 'ほんきをだす — イベントカードを1枚使う。相手モンスター全員に20ダメージ', fx: [{ t: 'useEvent', n: 1 }, { t: 'damageAll', n: 20 }] },
       { text: 'しゃくねつのおしり — 相手モンスター1体に60ダメージ', fx: [{ t: 'damage', n: 60 }] },
     ],
   },
@@ -629,7 +630,7 @@ export const CARDS = {
         fx: [{ t: 'bounce' }, { t: 'discardOpponentHand', n: 1 }],
       },
       { text: 'おしりビーム — 相手モンスター全員に40ダメージ', fx: [{ t: 'damageAll', n: 40 }] },
-      { text: 'わくせいのいかり — 相手モンスター1体に65ダメージ', fx: [{ t: 'damage', n: 65 }] },
+      { text: 'わくせいのいかり — 相手モンスター1体に70ダメージ', fx: [{ t: 'damage', n: 70 }] },
     ],
   },
   berserker: {
@@ -644,10 +645,10 @@ export const CARDS = {
     flavor: '規則を忘れた警備員ほど、こわいものはない。',
     faces: [
       {
-        text: 'ぼうそう — 相手モンスター1体に50ダメージ。自分のモンスター1体に20ダメージ',
-        fx: [{ t: 'damage', n: 50 }, { t: 'selfDamage', n: 20, to: 'choose' }],
+        text: 'ぼうそう — サイコロを振って奇数なら、相手モンスター1体に100ダメージ',
+        fx: [{ t: 'dice', cond: 'odd', then: [{ t: 'damage', n: 100 }] }],
       },
-      { text: 'ガトリング — 相手モンスター全員に30ダメージ', fx: [{ t: 'damageAll', n: 30 }] },
+      { text: 'ガトリング — サイコロを振って偶数なら、相手モンスター全員に55ダメージ', fx: [{ t: 'dice', cond: 'even', then: [{ t: 'damageAll', n: 55 }] }] },
       { text: 'だんやくそうてん — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
       {
         text: 'にくだんとつげき — パワー属性の相手モンスター1体に65ダメージ',
@@ -751,10 +752,10 @@ export const CARDS = {
     faces: [
       { text: 'はまる — 何も起きない', fx: [{ t: 'none' }] },
       { text: 'のまれる — 何も起きない', fx: [{ t: 'none' }] },
-      { text: 'たまをかりる — カードを1枚引く', fx: [{ t: 'draw', n: 1 }] },
+      { text: 'たまをかりる — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
       { text: 'ぜんツッパ — 自分に30ダメージ', fx: [{ t: 'selfDamage', n: 30, to: 'source' }] },
       { text: 'こあたり — 相手モンスター1体に25ダメージ', fx: [{ t: 'damage', n: 25 }] },
-      { text: 'フィーバー — 相手モンスター全員に70ダメージ', fx: [{ t: 'damageAll', n: 70 }] },
+      { text: 'フィーバー — 相手モンスター全員に50ダメージ。イベントカードを1枚使う', fx: [{ t: 'damageAll', n: 50 }, { t: 'useEvent', n: 1 }] },
     ],
   },
   manekineko: {
@@ -773,7 +774,7 @@ export const CARDS = {
       { text: 'ひをかす — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
       { text: 'きつえんじょのわ — オカルト属性の自分のモンスター全員を25回復', fx: [{ t: 'healAll', n: 25, attr: 'occult' }] },
       { text: 'もういっぽん — カードを2枚引く', fx: [{ t: 'draw', n: 2 }] },
-      { text: 'じゅうねんぶんのヤニ — オカルト属性の相手モンスター全員に50ダメージ', fx: [{ t: 'damageByAttr', attr: 'occult', scope: 'all', n: 50 }] },
+      { text: 'じゅうねんぶんのヤニ — パワー属性の相手モンスター全員に30ダメージ。イベントカードを1枚使う', fx: [{ t: 'damageByAttr', attr: 'power', scope: 'all', n: 30 }, { t: 'useEvent', n: 1 }] },
     ],
   },
   mabuta: {
@@ -788,7 +789,7 @@ export const CARDS = {
     flavor: '目を閉じるとそこにいる。開けてもたぶん、まだいる。',
     faces: [
       { text: 'まばたき — 何も起きない', fx: [{ t: 'none' }] },
-      { text: 'のぞきこむ — 相手モンスター1体に20ダメージ', fx: [{ t: 'damage', n: 20 }] },
+      { text: 'のぞきこむ — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
       { text: 'かなしばり — 相手モンスター1体は次のターン振れない', fx: [{ t: 'skipRoll' }] },
       { text: 'ねむりのいと — オカルト属性の自分のモンスター全員を20回復', fx: [{ t: 'healAll', n: 20, attr: 'occult' }] },
       { text: 'ゆめのなか — 相手モンスター1体は次のターン振れない。カードを1枚引く', fx: [{ t: 'skipRoll' }, { t: 'draw', n: 1 }] },
@@ -811,8 +812,8 @@ export const CARDS = {
       { text: 'ほしうらない — サイコロを振って奇数なら、相手モンスター1体に35ダメージ', fx: [{ t: 'dice', cond: 'odd', then: [{ t: 'damage', n: 35 }] }] },
       { text: 'タロット — サイコロを振って4以上なら、イベントカードを1枚使う', fx: [{ t: 'dice', cond: [4, 5, 6], label: '4以上', then: [{ t: 'useEvent', n: 1 }] }] },
       { text: 'すいしょうだま — サイコロを振って3以下なら、自分のモンスター1体を30回復', fx: [{ t: 'dice', cond: [1, 2, 3], label: '3以下', then: [{ t: 'heal', n: 30 }] }] },
-      { text: 'よげん — サイコロを振って5以上なら、相手モンスター全員に40ダメージ', fx: [{ t: 'dice', cond: [5, 6], label: '5以上', then: [{ t: 'damageAll', n: 40 }] }] },
-      { text: 'うんめいのひ — サイコロを振って6なら、相手モンスター1体に100ダメージ', fx: [{ t: 'dice', cond: [6], then: [{ t: 'damage', n: 100 }] }] },
+      { text: 'よげん — サイコロを振って5以上なら、イベントカードを2枚使う', fx: [{ t: 'dice', cond: [5, 6], label: '5以上', then: [{ t: 'useEvent', n: 2 }] }] },
+      { text: 'うんめいのひ — サイコロを振って6なら、イベントカードを3枚使う', fx: [{ t: 'dice', cond: [6], then: [{ t: 'useEvent', n: 3 }] }] },
     ],
   },
   momo: {
@@ -850,9 +851,9 @@ export const CARDS = {
     owner: null,
     flavor: '替刃は無い。折れたら、そこで解散である。',
     faces: [
-      { text: 'あくしゅかい — 相手モンスター1体に35ダメージ', fx: [{ t: 'damage', n: 35 }] },
+      { text: 'あくしゅかい — カードを1枚引く', fx: [{ t: 'draw', n: 1 }] },
       { text: 'キレのあるダンス — 相手モンスター1体に45ダメージ', fx: [{ t: 'damage', n: 45 }] },
-      { text: 'じこプロデュース — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
+      { text: 'メロメロボイス — パワー属性の相手モンスター1体に60ダメージ', fx: [{ t: 'damageByAttr', attr: 'power', scope: 'one', n: 60 }] },
       { text: 'かいさんはっぴょう — メカ属性の相手モンスター1体に80ダメージ', fx: [{ t: 'damageByAttr', attr: 'mecha', scope: 'one', n: 80 }] },
       { text: 'ぜんこくツアー — 相手モンスター全員に40ダメージ', fx: [{ t: 'damageAll', n: 40 }] },
       { text: 'でんせつのラストライブ — 相手モンスター1体に90ダメージ', fx: [{ t: 'damage', n: 90 }] },
@@ -871,7 +872,7 @@ export const CARDS = {
     faces: [
       { text: 'すかしっぺ — 何も起きない', fx: [{ t: 'none' }] },
       { text: 'こだしのいちげき — 相手モンスター1体に25ダメージ', fx: [{ t: 'damage', n: 25 }] },
-      { text: 'くさすぎてにげる — 相手モンスター1体を持ち主の手札に戻す', fx: [{ t: 'bounce' }] },
+      { text: 'もろにあびせる — 相手モンスター1体に30ダメージ', fx: [{ t: 'damage', n: 30 }] },
       { text: 'ふかいこきゅう — カードを1枚引く', fx: [{ t: 'draw', n: 1 }] },
       { text: 'ちからずくのいちげき — パワー属性の相手モンスター1体に55ダメージ', fx: [{ t: 'damageByAttr', attr: 'power', scope: 'one', n: 55 }] },
       { text: 'かんぷうかんき — 相手モンスター全員に35ダメージ', fx: [{ t: 'damageAll', n: 35 }] },
@@ -889,11 +890,11 @@ export const CARDS = {
     flavor: 'なめる以外の解決手段を、持ち合わせていない。',
     faces: [
       { text: 'においをかぎとる — カードを1枚引く', fx: [{ t: 'draw', n: 1 }] },
-      { text: 'なめすぎてベロがつる — 何も起きない', fx: [{ t: 'none' }] },
+      { text: 'ひとなめ — 相手モンスター1体に20ダメージ', fx: [{ t: 'damage', n: 20 }] },
       { text: 'よだれをたらすだけ — 何も起きない', fx: [{ t: 'none' }] },
       { text: 'ねっとりロング — パワー属性の相手モンスター1体に60ダメージ', fx: [{ t: 'damageByAttr', attr: 'power', scope: 'one', n: 60 }] },
-      { text: 'まわしなめ — 相手モンスター全員に30ダメージ', fx: [{ t: 'damageAll', n: 30 }] },
-      { text: 'ぜんりょくペロペロ — 相手モンスター1体に70ダメージ。自分に20ダメージ', fx: [{ t: 'damage', n: 70 }, { t: 'selfDamage', n: 20, to: 'source' }] },
+      { text: 'まわしなめ — 相手モンスター全員に25ダメージ', fx: [{ t: 'damageAll', n: 25 }] },
+      { text: 'ぜんりょくペロペロ — 相手モンスター1体に50ダメージ。自分に10ダメージ', fx: [{ t: 'damage', n: 50 }, { t: 'selfDamage', n: 10, to: 'source' }] },
     ],
   },
 
@@ -910,10 +911,10 @@ export const CARDS = {
     flavor: '捨てるぞ。ほんとに捨てるぞ。……もう捨てた。',
     faces: [
       { text: 'かたづけをはじめる — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
-      { text: 'ゴミぶくろでなぐる — 相手モンスター1体に35ダメージ', fx: [{ t: 'damage', n: 35 }] },
+      { text: 'ゴミぶくろでなぐる — サイコロを振って奇数なら、相手モンスター1体に70ダメージ', fx: [{ t: 'dice', cond: 'odd', then: [{ t: 'damage', n: 70 }] }] },
       { text: 'これいる? — 相手の手札を1枚トラッシュ。相手モンスター1体に15ダメージ', fx: [{ t: 'discardOpponentHand', n: 1 }, { t: 'damage', n: 15 }] },
       { text: 'せいりせいとん — メカ属性の自分のモンスター全員を25回復', fx: [{ t: 'healAll', n: 25, attr: 'mecha' }] },
-      { text: 'まとめてすてちゃうぞ — 相手の手札を2枚トラッシュ', fx: [{ t: 'discardOpponentHand', n: 2 }] },
+      { text: 'まとめてすてちゃうぞ — サイコロを振って偶数なら、相手の手札を3枚トラッシュ', fx: [{ t: 'dice', cond: 'even', then: [{ t: 'discardOpponentHand', n: 3 }] }] },
       { text: 'だいそうじ — 相手モンスター1体に55ダメージ。相手の手札を1枚トラッシュ', fx: [{ t: 'damage', n: 55 }, { t: 'discardOpponentHand', n: 1 }] },
     ],
   },
@@ -929,11 +930,11 @@ export const CARDS = {
     flavor: '油圧で四股を踏む。土俵のほうがへこむ。',
     faces: [
       { text: 'しきりなおし — 何も起きない', fx: [{ t: 'none' }] },
-      { text: 'はりて — 相手モンスター1体に25ダメージ', fx: [{ t: 'damage', n: 25 }] },
+      { text: 'はりて — サイコロを振って偶数なら、相手モンスター1体に50ダメージ', fx: [{ t: 'dice', cond: 'even', then: [{ t: 'damage', n: 50 }] }] },
       { text: 'ちゃんこきゅうゆ — メカ属性の自分のモンスター全員を30回復', fx: [{ t: 'healAll', n: 30, attr: 'mecha' }] },
       { text: 'けんしょうきん — カードを1枚引く', fx: [{ t: 'draw', n: 1 }] },
       { text: 'かなめのつっぱり — メカ属性の相手モンスター1体に60ダメージ', fx: [{ t: 'damageByAttr', attr: 'mecha', scope: 'one', n: 60 }] },
-      { text: 'うっちゃり — 相手モンスター全員に40ダメージ', fx: [{ t: 'damageAll', n: 40 }] },
+      { text: 'うっちゃり — サイコロを振って3以上なら、相手モンスター全員に55ダメージ', fx: [{ t: 'dice', cond: [3, 4, 5, 6], label: '3以上', then: [{ t: 'damageAll', n: 55 }] }] },
     ],
   },
   taiki: {
@@ -949,9 +950,9 @@ export const CARDS = {
     faces: [
       { text: 'けんがい — 何も起きない', fx: [{ t: 'none' }] },
       { text: 'つうち — イベントカードを1枚使う', fx: [{ t: 'useEvent', n: 1 }] },
-      { text: 'じゅうでんぎれ — 相手モンスター1体に25ダメージ', fx: [{ t: 'damage', n: 25 }] },
+      { text: 'じゅうでんぎれ — 相手モンスター1体に40ダメージ', fx: [{ t: 'damage', n: 40 }] },
       { text: 'きゅうそくじゅうでん — メカ属性の自分のモンスター全員を25回復', fx: [{ t: 'healAll', n: 25, attr: 'mecha' }] },
-      { text: 'アプリぜんかいほう — イベントカードを2枚使う', fx: [{ t: 'useEvent', n: 2 }] },
+      { text: 'アプリぜんかいほう — サイコロを振って偶数なら、イベントカードを2枚使う', fx: [{ t: 'dice', cond: 'even', then: [{ t: 'useEvent', n: 2 }] }] },
       { text: 'はつねつばくはつ — 相手モンスター全員に45ダメージ', fx: [{ t: 'damageAll', n: 45 }] },
     ],
   },
@@ -1002,8 +1003,8 @@ export const CARDS = {
     rarity: 'common',
     owner: null,
     flavor: '見たのは昨日。起きるのは明後日。もう間に合わない。',
-    text: 'サイコロを振って1が出たら、相手モンスター2体を持ち主の手札に戻す',
-    fx: [{ t: 'dice', cond: [1], then: [{ t: 'bounce', n: 2 }] }],
+    text: 'サイコロを振って5以上が出たら、相手モンスター2体を持ち主の手札に戻す',
+    fx: [{ t: 'dice', cond: [5, 6], label: '5以上', then: [{ t: 'bounce', n: 2 }] }],
   },
   onaji: {
     id: 'onaji',

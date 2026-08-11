@@ -220,15 +220,19 @@ export function createHellShop(deps) {
     // 5枚+10枚が揃った時だけピンクにして、確定できることを目立たせる
     const ready = okMon && okEv;
     const save = el(
-      `<button class="hell-btn${ready ? " hell-ready" : ""}" style="margin-left:auto" ${ready ? "" : "disabled"}>` +
-      `💾 このデッキで確定</button>`
+      `<button class="hell-btn hell-save${ready ? " hell-ready" : ""}" ${ready ? "" : "disabled"}>💾 確定</button>`
     );
     save.addEventListener("click", () => {
       col.setDeck([...draft].filter(([, n]) => n > 0));
       deps.toast("🗂 デッキを保存しました");
       screenMenu();
     });
-    bar.appendChild(save);
+    // 画面下部に「キャンセル」と「確定」を並べる
+    const foot = el(`<div class="hell-deckfoot"></div>`);
+    const cancel = el(`<button class="hell-back">キャンセル</button>`);
+    cancel.addEventListener("click", screenMenu);
+    foot.appendChild(cancel);
+    foot.appendChild(save);
 
     const grid = el(`<div class="hell-grid"></div>`);
     const ids = col.ownedKinds().sort((a, b) => {
@@ -270,7 +274,7 @@ export function createHellShop(deps) {
       zoom.addEventListener("pointerdown", (e) => { e.stopPropagation(); });
       grid.appendChild(slot);
     }
-    setBody(bar, grid, backBtn(screenMenu));
+    setBody(bar, grid, foot);
     if (keepScroll) body.scrollTop = st;
   }
 

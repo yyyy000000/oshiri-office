@@ -299,15 +299,6 @@
     mix-blend-mode: screen;
   }
   @keyframes rareHolo { from { background-position: 130% 0; } to { background-position: -130% 0; } }
-  /* 右上に RARE の箔押し */
-  .pcard-rare::after {
-    content: "RARE"; position: absolute; top: 9px; right: 42px; z-index: 5;
-    padding: 1px 6px; border-radius: 4px; letter-spacing: 2px;
-    font-family: "Hiragino Sans", sans-serif; font-size: 9px; font-weight: bold;
-    color: #3a2600; background: linear-gradient(160deg, #fff3bd, #e8b64a);
-    box-shadow: 0 1px 4px rgba(0,0,0,.55);
-  }
-  .pcard-rare.pcard-mini::after { top: 4px; right: 18px; font-size: 7px; padding: 0 3px; letter-spacing: 1px; }
   .pcard-rare .pcard-head { box-shadow: inset 0 0 0 1px rgba(255,240,190,.55); }
   .pcard-rare .pcard-art { box-shadow: 0 0 0 2px rgba(255,240,190,.6); }
   .pcard-head {
@@ -348,6 +339,9 @@
     font-size: 10.5px; line-height: 1.3; padding: 2.5px 0;
   }
   .pcard-face + .pcard-face { border-top: 1px solid rgba(0,0,0,.12); }
+  /* 面テキストが長いカード(占い少年マイケル等)は文字を詰めて枠内に収める */
+  .pcard-dense .pcard-face { font-size: 9px; line-height: 1.2; padding: 2px 0; }
+  .pcard-dense .pcard-pip { width: 14px; height: 14px; margin-top: 0; }
   /* サイコロの目はフォント依存(⚀⚁…は環境で豆腐になる)なのでCSSで描く */
   .pcard-pip {
     flex: none; width: 16px; height: 16px; margin-top: 1px; border-radius: 3px;
@@ -492,6 +486,10 @@
     animation: readyPulse 1.6s ease-in-out infinite;
   }
   .hell-btn.hell-ready:hover { filter: brightness(1.08); }
+  /* デッキ構築の下部ボタン列(キャンセル/確定) */
+  .hell-deckfoot { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+  .hell-deckfoot .hell-back { margin-top: 0; }
+  .hell-btn.hell-save { width: auto; display: inline-flex; padding: 9px 26px; font-size: 13px; }
   @keyframes readyPulse {
     0%, 100% { box-shadow: 0 0 14px rgba(255,110,165,.4); }
     50%      { box-shadow: 0 0 26px rgba(255,110,165,.85); }
@@ -686,8 +684,9 @@
       linear-gradient(150deg, #4a3a86, #1b1330 70%);
     background-repeat: no-repeat;
   }
-  .pk-front { transform: rotateY(180deg); display: flex; align-items: center; justify-content: center; }
-  .pk-front .pcard-mini { cursor: default; }
+  /* 出てくるカードは実カードをそのまま縮小して見せる(面・本文つきのミニ版) */
+  .pk-front { transform: rotateY(180deg); }
+  .pk-front .pcard { cursor: default; transform: scale(.3412); transform-origin: top left; }
   .pk-slot.rare .pk-front { filter: drop-shadow(0 0 12px rgba(255,215,110,.9)); }
   .pk-new {
     position: absolute; top: -6px; left: -4px; z-index: 3; padding: 1px 6px; border-radius: 4px;
@@ -702,6 +701,7 @@
   @media (max-width: 560px) {
     .pk-pack { width: 132px; height: 178px; }
     .pk-slot { width: 96px; height: 142px; }
+    .pk-front .pcard { transform: scale(.2824); }
   }
 
   /* ===== ルール表示(HELLのメニューと対戦画面の両方から開く) ===== */
@@ -872,10 +872,13 @@
     background-position: 50% 54%, 0 0, 0 0, 0 0;
     background-repeat: no-repeat;
   }
+  /* 先攻は暖色(金赤)・後攻は寒色(青銀)で、めくった瞬間に見分けがつくようにする */
   .bt-flipcard .fr {
     transform: rotateY(180deg); font-size: 26px; font-weight: bold; letter-spacing: 4px;
     color: #22160b; background: linear-gradient(160deg, #ffe9a8, #f0bf5c);
   }
+  .bt-flipcard .fr.fr-first  { color: #3d1206; background: linear-gradient(160deg, #ffd9a0, #ef8a3e); }
+  .bt-flipcard .fr.fr-second { color: #0c1e3a; background: linear-gradient(160deg, #cfe2ff, #6d97d8); }
   .bt-flipcard:not(.open):hover .in { transform: translateY(-8px); }
   .bt-flipcard.chosen .fr { box-shadow: 0 0 0 3px #fff, 0 6px 22px rgba(255,220,120,.65); }
   @media (max-width: 560px) {
@@ -1179,15 +1182,33 @@
   .bt-more.show { display: flex; }
   @keyframes moreNudge { 0%,100% { opacity: .6 } 50% { opacity: 1 } }
   /* 手札は「何のカードか分かる」最小限まで縮め、中央の演出領域を広く取る */
-  .bt-hand .pcard-mini { width: 84px; height: 112px; padding: 3px; gap: 2px; }
-  .bt-hand .pcard-mini .pcard-head { padding: 2px 5px; }
-  .bt-hand .pcard-mini .pcard-name { font-size: 8px; }
-  .bt-hand .pcard-mini .pcard-no { font-size: 7px; }
-  .bt-hand .pcard-mini .pcard-art { height: 56px; }
-  .bt-hand .pcard-mini { cursor: pointer; transition: transform .14s, box-shadow .14s; }
-  .bt-hand .pcard-mini.pick { transform: translateY(-10px); box-shadow: 0 0 0 2px #ffd76e, 0 8px 20px rgba(0,0,0,.55); }
-  .bt-hand .pcard-mini.sel { transform: translateY(-16px); box-shadow: 0 0 0 3px #7dffab, 0 8px 20px rgba(0,0,0,.55); }
-  .bt-hand .pcard-mini.dim { opacity: .32; }
+  /* 手札のカード: 場のカード(bt-card)と同じ見た目(絵柄+下に名前)。番号やHPは出さない */
+  .bt-handcard {
+    position: relative; width: 84px; height: 112px; flex: none; border-radius: 7px;
+    padding: 3px; cursor: pointer; transition: transform .14s, box-shadow .14s;
+    background: linear-gradient(160deg, var(--fr, #c9a227), #241a10 65%);
+    box-shadow: 0 3px 10px rgba(0,0,0,.5);
+  }
+  .bt-handcard.power  { --fr: #d1452f; }
+  .bt-handcard.mecha  { --fr: #3f86c4; }
+  .bt-handcard.occult { --fr: #8b57c9; }
+  .bt-handcard.event  { --fr: #b9873f; }
+  .bt-handcard .bt-card-art { height: 56px; }
+  .bt-handcard .bt-card-name {
+    font-size: 8.5px; line-height: 1.25; margin: 3px 1px 2px; height: auto;
+    max-height: 21px; overflow: hidden;
+  }
+  .bt-handcard .bt-card-hp { height: 5px; margin: 0 1px; }
+  .bt-handcard .bt-card-num { font-size: 8.5px; margin: 1px 1px 0; }
+  /* 交換/バウンスで手札に戻った直後の回復エフェクト(緑の光がふわっと消える) */
+  .bt-handcard.healed { animation: handHeal .9s ease-out; }
+  @keyframes handHeal {
+    0%   { box-shadow: 0 0 0 3px rgba(90,255,150,.95), 0 0 22px rgba(90,255,150,.85); }
+    100% { box-shadow: 0 3px 10px rgba(0,0,0,.5); }
+  }
+  .bt-handcard.pick { transform: translateY(-10px); box-shadow: 0 0 0 2px #ffd76e, 0 8px 20px rgba(0,0,0,.55); }
+  .bt-handcard.sel { transform: translateY(-16px); box-shadow: 0 0 0 3px #7dffab, 0 8px 20px rgba(0,0,0,.55); }
+  .bt-handcard.dim { opacity: .32; }
   /* 手札の右端に置く山札 */
   .bt-handrow {
     flex: none; display: flex; align-items: stretch;
@@ -1271,6 +1292,18 @@
   }
   /* 演出中に画面をタップすると早送りする透明レイヤ */
   .bt-skip { position: absolute; inset: 0; z-index: 7; cursor: pointer; }
+  /* 相手ターン中だけの「スキップ」ヒント。バナーとは違う透かし文字の出し方にする
+     (枠なし・字間広め・ゆっくり明滅。1秒の遅延つきなので一瞬の演出では現れない) */
+  .bt-skip.hint::after {
+    content: "▶▶ 画面タップでスキップ";
+    position: absolute; left: 50%; bottom: 27%; transform: translateX(-50%);
+    white-space: nowrap; pointer-events: none;
+    font-size: 12px; letter-spacing: 4px; font-weight: bold;
+    color: rgba(255,255,255,.6); text-shadow: 0 1px 6px rgba(0,0,0,.9);
+    animation: skipHintIn .5s ease-out 1s backwards, skipHintPulse 1.8s ease-in-out 1.5s infinite;
+  }
+  @keyframes skipHintIn { from { opacity: 0; transform: translate(-50%, 8px); } }
+  @keyframes skipHintPulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 
   .bt-result {
     position: absolute; inset: 0; z-index: 9; display: flex; flex-direction: column;
@@ -1324,8 +1357,9 @@
     .bt-back { width: 20px; height: 27px; }
     .bt-deck { width: 48px; height: 66px; margin: 4px 6px; }
     .bt-deck .n { font-size: 13px; }
-    .bt-hand .pcard-mini { width: 74px; height: 98px; }
-    .bt-hand .pcard-mini .pcard-art { height: 46px; }
+    .bt-hand .bt-handcard { width: 74px; height: 98px; }
+    .bt-hand .bt-handcard .bt-card-art { height: 46px; }
+    .bt-hand .bt-handcard .bt-card-name { font-size: 8px; max-height: 20px; }
     .bt-prompt { padding: 10px 14px; font-size: 12.5px; }
     .bt-stage .bt-dice { width: 56px; height: 56px; --r: 5.9px; right: -14px; top: -12px; }
     .bt-banner { font-size: 14px; padding: 7px 20px; }
@@ -1366,14 +1400,24 @@
   #board-card h3 { font-size: 15px; margin-bottom: 10px; color: #fff; }
   #board-count { font-size: 12px; opacity: .8; font-weight: normal; margin-left: 8px; color: #fff; }
   #board-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-  #board-grid .board-slot-card { cursor: pointer; }
+  #board-grid .board-cell { width: 340px; height: 502px; flex: none; }
+  #board-grid .board-slot-card { cursor: pointer; transform-origin: top left; }
   #board-grid .board-slot-card:hover { transform: translateY(-3px); transition: transform .15s; }
   .board-slot-empty {
     width: 340px; height: 502px; border-radius: 14px; flex: none;
+    display: flex; align-items: center; justify-content: center;
     background: rgba(255,255,255,.04); border: 1px dashed rgba(255,255,255,.12);
+    color: rgba(255,255,255,.2); font-size: 20px; font-weight: bold;
+    font-family: ui-monospace, SFMono-Regular, monospace; letter-spacing: .08em;
   }
   @media (max-width: 760px) {
     #board-grid { gap: 6px; justify-content: center; }
+  }
+  /* スマホは実カードを縮小して1行3枚並べる */
+  @media (max-width: 560px) {
+    #board-grid .board-cell { width: 101px; height: 149px; }
+    #board-grid .board-cell .pcard { transform: scale(.297); }
+    .board-slot-empty { width: 101px; height: 149px; border-radius: 6px; font-size: 10px; }
   }
   #help-overlay { cursor: pointer; }
   #help-overlay.show, #settings-overlay.show, #zukan-overlay.show { display: flex; }

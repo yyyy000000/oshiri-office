@@ -172,9 +172,13 @@ export function createCollectionBoard(scene) {
         if (art === "loading") return; // 読み込み後に再描画される
         drawMini(def, x, y);
       } else {
-        // 未所持: うっすら凹んだ空スロット
+        // 未所持: うっすら凹んだ空スロット+カードナンバー
         g.fillStyle = "rgba(0,0,0,.22)";
         g.beginPath(); g.roundRect(x + 6, y + 6, SLOT_W - 12, SLOT_H - 12, 10); g.fill();
+        g.fillStyle = "rgba(255,255,255,.16)";
+        g.font = "bold 22px ui-monospace, monospace";
+        g.textAlign = "center"; g.textBaseline = "middle";
+        g.fillText(def.no, x + SLOT_W / 2, y + SLOT_H / 2);
       }
     });
     texture.needsUpdate = true;
@@ -196,12 +200,15 @@ export function createCollectionBoard(scene) {
     grid.innerHTML = "";
     for (const def of list) {
       if (col.ownedCount(def.id) > 0) {
+        // セルで包む: スマホではセルを小さくしてカードをscaleで縮める(1行3枚)
+        const cell = el(`<div class="board-cell"></div>`);
         const card = renderCard(def, def.id); // 拡大カードをそのまま並べる
         card.classList.add("board-slot-card");
         card.addEventListener("click", (e) => { e.stopPropagation(); zoom(def.id); });
-        grid.appendChild(card);
+        cell.appendChild(card);
+        grid.appendChild(cell);
       } else {
-        grid.appendChild(el(`<div class="board-slot-empty"></div>`));
+        grid.appendChild(el(`<div class="board-slot-empty">${def.no}</div>`));
       }
     }
     overlay.classList.add("show");
