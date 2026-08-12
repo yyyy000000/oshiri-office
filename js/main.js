@@ -722,7 +722,8 @@ checkUnlocks(false);
 // (画面下のボタンに重なって押せなくなるため)
 let stickHidden = false;
 function syncStickVisibility() {
-  const busy = !!(hellShop.isOpen || cardBattle.isOpen || cardRules.isOpen);
+  // コレクション/図鑑/設定/ヘルプなどのウィンドウ中も照準とスティックをしまう
+  const busy = !!(hellShop.isOpen || cardBattle.isOpen || cardRules.isOpen || overlayOpen());
   if (busy === stickHidden) return;
   stickHidden = busy;
   fps.setUiHidden(busy);
@@ -1038,6 +1039,8 @@ function lockedHintPool() {
   if (!dropped.has("bgm:zoo")) pool.push(HINT_LINES.hoshi300);
   else if (!dropped.has("cos:hoshi")) pool.push(HINT_LINES.hoshi500);
   else if (!dropped.has("item:starrod")) pool.push(HINT_LINES.hoshi1000);
+  // カードゲーム未解禁(スターター未受取)のうちはHELL 9000のヒントも混ぜる
+  if (!collection.unlocked()) pool.push("後ろのガチャガチャみてーなロボット、なんか売ってくれるらしいぜ。話しかけてみな。");
   return pool;
 }
 function hoshiLineOnClick() {
@@ -1555,7 +1558,8 @@ helpOverlay.addEventListener("click", () => helpOverlay.classList.remove("show")
 
 // ---------- 設定パネル(音量・感度・移動速度) ----------
 const SETTINGS_KEY = "oshiri_settings";
-let settings = { bgm: 1, sfx: 1, voice: true, look: 1, stick: 1, move: 1 };
+// 初期値: 効果音30% / 視点70% / スティック70% / 移動60%(2026-08-12調整。保存済み設定が優先)
+let settings = { bgm: 1, sfx: 0.3, voice: true, look: 0.7, stick: 0.7, move: 0.6 };
 try { settings = Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}")); } catch { /* 壊れた保存値は無視 */ }
 function applySettings() {
   bgm.setVolume(settings.bgm);
@@ -1650,7 +1654,8 @@ function renderZukan() {
         return `<span class="zk${w ? "" : " zk-miss"}">${w ? o.label : "???"}</span>`;
       }).join("")}</div>`;
   } else {
-    const rows = Object.keys(CLICK_NAMES).map((id) => `<span>${CLICK_NAMES[id]} <b>×${clicks[id] || 0}</b></span>`).join("");
+    const rows = Object.keys(CLICK_NAMES).map((id) =>
+      `<span>${CLICK_NAMES[id].replace("警備員キャリーちゃん", "キャリーちゃん")} <b>×${clicks[id] || 0}</b></span>`).join("");
     const battleRows = OPPONENTS.map((o) => {
       const w = collection.winCount(o.key);
       // 隠しボスは解禁前(おじさん未勝利)なら名前を伏せる

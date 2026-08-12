@@ -73,6 +73,8 @@ export function createCardBattle(deps) {
   let pendingPick = null;  // 盤面の選択で「詳細を見て確認待ち」のuid
   let autoRollUid = null;  // ロール順の「サイコロを振る」から来たら、rollプロンプトで自動で振る
   let handHpOverride = new Map(); // 手札に戻ったモンスターの回復演出用(演出前のHPを見せる)
+  let rerollPeek = false;  // 振り直し確認中に「場を確認」でカード詳細を一時的に畳む
+  let lastActionText = ""; // 直前に実行した面/イベントのテキスト(判定ダイスの説明に出す)
   let actingUid = null;    // いま行動している(振る)モンスター
   // このターンに行動を終えたモンスター(暗く表示する)。ターンが変わると空になる
   let doneMons = new Set();
@@ -171,7 +173,7 @@ export function createCardBattle(deps) {
       firstPlayer: first,
     });
     selected.clear(); pendingPlay = null; pendingPick = null; actingUid = null; busy = false; logLines.length = 0;
-    autoRollUid = null; handHpOverride = new Map();
+    autoRollUid = null; handHpOverride = new Map(); rerollPeek = false; lastActionText = "";
     doneMons = new Set();
     sickCleared = new Set();
     stopCleared = new Set();
@@ -404,8 +406,8 @@ export function createCardBattle(deps) {
     const foeTrashN = trashLimit.foe == null ? s.foe.trashCount : trashLimit.foe;
     const youDeckN = deckLimit.you == null ? s.you.deckCount : deckLimit.you;
     const foeDeckN = deckLimit.foe == null ? s.foe.deckCount : deckLimit.foe;
-    els.foeSt.textContent = `手札${foeHandN} / 山札${foeDeckN} / トラッシュ${foeTrashN} / 🎲${s.foe.rerollTokens}`;
-    els.youSt.textContent = `手札${youHandN} / 山札${youDeckN} / トラッシュ${youTrashN} / 🎲${s.you.rerollTokens}`;
+    els.foeSt.textContent = `手札${foeHandN} / 山札${foeDeckN} / トラッシュ${foeTrashN} / 振り直し 残り${s.foe.rerollTokens}`;
+    els.youSt.textContent = `手札${youHandN} / 山札${youDeckN} / トラッシュ${youTrashN} / 振り直し 残り${s.you.rerollTokens}`;
     els.turn.textContent = `${s.turn}ターン目`;
     renderFoeHand(foeHandLimit == null ? s.foe.handCount : foeHandLimit);
     for (const [el2, n] of [[els.youTrash, youTrashN], [els.foeTrash, foeTrashN]]) {
@@ -519,7 +521,12 @@ export function createCardBattle(deps) {
     if (s.awaitingAiTurn) { els.prompt.appendChild(el(`<span class="msg">相手のターン…</span>`)); return; }
     const q = s.prompt;
     if (!q) return;
-    const msg = (t) => els.prompt.appendChild(el(`<span class="msg">${t}</span>`));
+    // ()の注釈が長い文は .msg-note で包み、PC表示のときだけ(の前で改行する(CSS側で制御)
+    const msg = (t) => {
+      const t2 = t.replace(/[(（]([^)）]+)[)）]/g, (m, inner) =>
+        inner.replace(/<[^>]*>/g, "").length >= 12 ? `<span class="msg-note">(${inner})</span>` : m);
+      els.prompt.appendChild(el(`<span class="msg">${t2}</span>`));
+    };
     const act = (label, fn, cls) => {
       const b = el(`<button class="bt-act ${cls || ""}">${label}</button>`);
       b.addEventListener("click", fn);
@@ -595,14 +602,27 @@ export function createCardBattle(deps) {
         act("🎲 サイコロを振る", doRoll, "big");
         break;
       case "rerollAsk": {
-        // 出目を見てから振り直すか選べる(1試合3回まで)。カードは出しっぱなしで聞く
+        // 出目を見てから振り直すか選べる(判定ダイスにも使える)。
+        if (q.judge) {
+          // 判定ダイス: カードのせり出しはなく、結果だけ聞く
+          msg(`判定ダイスは <b>${q.face}</b>${q.ok ? "" : "(失敗…)"} でした`);
+          act(`🎲 振り直す(残り${q.tokens})`, () => answer(true));
+          act("このままでいい", () => answer(false), "ghost");
+          break;
+        }
+        // モンスターのロール: カードは出しっぱなしで聞くが、
+        // 「場を確認」でカードを一時的に畳んで盤面を見てから決められる
         const id = monIdOf(q.monsterUid);
-        openStage(id, cardEl(q.monsterUid), "mon" + q.monsterUid);
-        if (stageDice) stageDice.className = "bt-dice landed pip-" + q.face;
-        stageHighlight(q.face, "lock");
+        if (rerollPeek) closeStage();
+        else {
+          openStage(id, cardEl(q.monsterUid), "mon" + q.monsterUid);
+          if (stageDice) stageDice.className = "bt-dice landed pip-" + q.face;
+          stageHighlight(q.face, "lock");
+        }
         msg(`出目は <b>${q.face}</b> でした`);
-        act(`🎲 振り直す(残り${q.tokens})`, () => answer(true));
-        act("このままでいい", () => answer(false), "ghost");
+        act(`🎲 振り直す(残り${q.tokens})`, () => { rerollPeek = false; answer(true); });
+        act("このままでいい", () => { rerollPeek = false; answer(false); }, "ghost");
+        act(rerollPeek ? "カードを見る" : "場を確認", () => { rerollPeek = !rerollPeek; render(); }, "ghost");
         break;
       }
       case "useEvent": {
@@ -1030,6 +1050,7 @@ export function createCardBattle(deps) {
           ev.reroll ? `🎲 振り直し! <b>${ev.face}</b> — ${nameOf(ev.id)}` : `🎲 <b>${ev.face}</b> — ${nameOf(ev.id)}`,
           ev.text
         );
+        lastActionText = ev.text; // 直後の判定ダイスの説明に使う
         pushLog(`${nameOf(ev.id)}→${ev.face} ${ev.text}${ev.reroll ? "(振り直し)" : ""}`, ev.side);
         await wait(already ? 700 : DUR.roll); // 既に見せた分は短くする
         // このあと「振り直しますか?」と聞く場合は、カードを出したまま行動済みにもしない
@@ -1055,10 +1076,18 @@ export function createCardBattle(deps) {
         return;
 
       case "diceCheck": {
-        // 判定ダイス(イベントの「サイコロを振って○○なら」)。画面中央で振って見せる
-        const wrap = el(`<div class="bt-dicecheck"><div class="bt-dice pip-1"></div></div>`);
+        // 判定ダイス(「サイコロを振って○○なら」)。画面中央で振って見せる。
+        // 何の判定なのか分かるよう、直前に実行した面/イベントの文をダイスの上に出す
+        // 説明は「〜 — サイコロを振って」までを省き、条件と結果だけを出す
+        // (例:「偶数なら、相手モンスター1体に40ダメージ」)
+        const dcText = (lastActionText || "").replace(/^.*サイコロを振って/, "");
+        const wrap = el(
+          `<div class="bt-dicecheck">` +
+          (dcText ? `<div class="bt-dc-text">${dcText}</div>` : "") +
+          `<div class="bt-dice pip-1"></div></div>`
+        );
         overlay.appendChild(wrap);
-        const dice = wrap.firstChild;
+        const dice = wrap.querySelector(".bt-dice");
         sfx("dice");
         const spin = setInterval(() => {
           dice.className = "bt-dice rolling pip-" + (1 + Math.floor(Math.random() * 6));
@@ -1133,7 +1162,8 @@ export function createCardBattle(deps) {
         // 特に相手のイベントは何が起きたのか分からなくなりがちなので、枠に効果を出す
         const def = CARDS[ev.id];
         closeStage();
-        // 相手のイベントは見落としやすいので、長めに出してから効果を発動する
+        lastActionText = def.text; // 直後の判定ダイスの説明に使う
+        // 相手のイベントは見落としやすいので、長めに出してから発動する
         const ms = ev.side === "foe" ? DUR.foeEvent : DUR.useEvent;
         // 出したら消えずに残し、時間いっぱいまで見せてから引っこめる
         // (以前は1.15s固定のアニメで消えていて、待ち時間より先にカードが消えていた)
@@ -1397,10 +1427,12 @@ export function createCardBattle(deps) {
       box.appendChild(el(`<div class="sub">好きなカードを1枚選んでください(タップすると大きく見られます)</div>`));
       const row = el(`<div class="bt-rewards"></div>`);
       for (const id of col.rewardChoices(key)) {
-        const card = renderCard(CARDS[id], id, { mini: true });
-        card.title = CARDS[id].name;
-        card.addEventListener("click", () => confirmOne(id));
-        row.appendChild(card);
+        // ミニ版=実カードの縮小(面・本文つき)。セルで包んでscaleする
+        const cell = el(`<div class="bt-rewardcell"></div>`);
+        cell.title = CARDS[id].name;
+        cell.appendChild(renderCard(CARDS[id], id));
+        cell.addEventListener("click", () => confirmOne(id));
+        row.appendChild(cell);
       }
       box.appendChild(row);
     };

@@ -558,7 +558,7 @@ export const CARDS = {
     rarity: 'common',
     owner: null,
     flavor: '時計の針は進む。仕事は減らない。',
-    text: '自分のモンスター1体をもう一度振る。そのモンスターに20ダメージ',
+    text: '選んだモンスターのサイコロを振る。そのモンスターに20ダメージ',
     fx: [{ t: 'reroll', target: 'choose', chainOn6: false }, { t: 'selfDamage', n: 20, to: 'rerolled' }],
   },
   bell: {

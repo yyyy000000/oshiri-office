@@ -274,6 +274,10 @@ const TRACK_DEFS = {
 const MASTER_GAIN_BASE = 0.15; // matches the old synth-only default loudness
 let userVolume = 1; // 設定パネルのBGM音量(0〜1)
 const FILE_GAIN = 0.8; // per-file-track balance gain, so files don't sit far from synth loudness
+// 曲ごとの音量補正(2026-08-12)。実測RMSを android(0.145) 基準に揃える。
+// 実測: sekkai1 0.111 / sekkai2 0.136 / android 0.145 / alice 0.178 / zoo 0.250(突出) /
+//       fever 0.158 / ending 0.238
+const TRACK_LEVEL = { sekkai: 1.1, android: 1, alice: 0.75, zoo: 0.52, fever: 0.85, ending: 0.55 };
 const FILE_SCHEDULE_AHEAD = 0.3; // seconds; how far ahead the sekkai pair-chain schedules its next chunk
 
 export function createBGM() {
@@ -387,6 +391,7 @@ export function createBGM() {
     loadTrackAudio(id)
       .then((audio) => {
         if (loadToken !== fileLoadToken || currentTrackId !== id || !isPlaying) return; // stale
+        fileGain.gain.value = FILE_GAIN * (TRACK_LEVEL[id] || 1); // 曲ごとの音量補正
         const when = audioContext.currentTime;
         if (audio.kind === "single") {
           const src = audioContext.createBufferSource();
@@ -471,7 +476,7 @@ export function createBGM() {
     }
     if (feverGain === null) {
       feverGain = audioContext.createGain();
-      feverGain.gain.value = FILE_GAIN;
+      feverGain.gain.value = FILE_GAIN * TRACK_LEVEL.fever;
       feverGain.connect(masterGain);
     }
     if (battleGain === null) {
@@ -481,7 +486,7 @@ export function createBGM() {
     }
     if (endingGain === null) {
       endingGain = audioContext.createGain();
-      endingGain.gain.value = FILE_GAIN;
+      endingGain.gain.value = FILE_GAIN * TRACK_LEVEL.ending;
       endingGain.connect(masterGain);
     }
     if (noiseBuffer === null) {

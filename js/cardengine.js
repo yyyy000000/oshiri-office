@@ -89,7 +89,7 @@ export function makeRng(seed) {
 export const MAX_TURNS = 200; // 打ち切り(引き分け)
 export const INITIAL_HAND = 4; // 初期手札(手札の上限は設けていない)
 export const DRAW_LIMIT = 5;   // ターン開始時、手札がこの枚数以下ならドローする
-export const REROLL_TOKENS = 3; // 1試合に振り直せる回数(出た目を見てから決められる)
+export const REROLL_TOKENS = 5; // 1試合に振り直せる回数(出た目を見てから決められる。判定ダイスにも使える)
 export const MAX_ROLLS_PER_TURN = 10; // 「もう一度振る」連鎖のフェイルセーフ
 const MAX_LOG = 300;
 
@@ -764,22 +764,62 @@ function* execEffect(g, me, opp, e, ctx) {
       return;
 
     // 「サイコロを振って○○なら〜」。当たったときだけ then の効果を実行する。
-    // これは判定用のダイスなので turnCtx.rolls には数えない(モンスターのロールではない)
+    // これは判定用のダイスなので turnCtx.rolls には数えない(モンスターのロールではない)。
+    // リロールトークンは判定ダイスにも使える(2026-08-12)
     case 'dice': {
-      const face = g.rng.d6();
-      const ok = diceCondOk(e.cond, face);
-      emit(g, { t: 'diceCheck', side: me.side, face, ok, label: e.label || diceCondLabel(e.cond) });
+      let face = g.rng.d6();
+      let ok = diceCondOk(e.cond, face);
+      const label = e.label || diceCondLabel(e.cond);
+      if (me.auto) {
+        // AI: 失敗していて、成功時の効果が1トークンの価値(スコア20)以上なら振り直す
+        let guard = 0;
+        while (!ok && me.rerollTokens > 0 && guard++ < 5 && faceScore(g, me, opp, e.then) >= 20) {
+          me.rerollTokens--;
+          face = g.rng.d6();
+          ok = diceCondOk(e.cond, face);
+        }
+        emit(g, { t: 'diceCheck', side: me.side, face, ok, label });
+      } else {
+        emit(g, { t: 'diceCheck', side: me.side, face, ok, label });
+        // 成功/失敗の二択判定は、失敗しているときだけ振り直すか聞く(成功を振り直す理由がない)
+        while (!ok && me.rerollTokens > 0) {
+          const redo = yield { kind: 'rerollAsk', side: me.side, judge: true, face, ok, label, tokens: me.rerollTokens };
+          if (!redo) break;
+          me.rerollTokens--;
+          face = g.rng.d6();
+          ok = diceCondOk(e.cond, face);
+          emit(g, { t: 'diceCheck', side: me.side, face, ok, label, reroll: true });
+        }
+      }
       if (ok) yield* execEffects(g, me, opp, e.then, ctx);
       return;
     }
 
-    // 「サイコロを振って出た目×mult回復」(おしりのなみだ)。判定ダイスの演出を流用する
+    // 「サイコロを振って出た目×mult回復」(おしりのなみだ)。判定ダイスの演出を流用する。
+    // こちらもリロールトークンで振り直せる(低い目の救済)
     case 'diceHeal': {
       const cands = me.field.filter((m) => m.hp > 0 && m.hp < m.maxHp);
       if (!cands.length) return;
-      const face = g.rng.d6();
+      let face = g.rng.d6();
+      const label = '出た目×' + e.mult;
+      if (me.auto) {
+        let guard = 0;
+        while (face <= 2 && me.rerollTokens > 0 && guard++ < 5) {
+          me.rerollTokens--;
+          face = g.rng.d6();
+        }
+        emit(g, { t: 'diceCheck', side: me.side, face, ok: true, label, verdict: face * e.mult + '回復!' });
+      } else {
+        emit(g, { t: 'diceCheck', side: me.side, face, ok: true, label, verdict: face * e.mult + '回復!' });
+        while (me.rerollTokens > 0) {
+          const redo = yield { kind: 'rerollAsk', side: me.side, judge: true, face, ok: true, label, tokens: me.rerollTokens };
+          if (!redo) break;
+          me.rerollTokens--;
+          face = g.rng.d6();
+          emit(g, { t: 'diceCheck', side: me.side, face, ok: true, label, verdict: face * e.mult + '回復!', reroll: true });
+        }
+      }
       const n = face * e.mult;
-      emit(g, { t: 'diceCheck', side: me.side, face, ok: true, label: '出た目×' + e.mult, verdict: n + '回復!' });
       if (e.scope === 'all') {
         for (const m of cands) healMonster(g, me, m, n);
         return;
